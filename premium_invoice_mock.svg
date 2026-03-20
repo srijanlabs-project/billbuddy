@@ -1,0 +1,75 @@
+<svg width="1200" height="1600" viewBox="0 0 1200 1600" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="1600" fill="#F5F7FB"/>
+  <rect x="80" y="60" width="1040" height="1480" fill="white" stroke="#D6DCE8" stroke-width="2"/>
+
+  <rect x="120" y="110" width="140" height="100" fill="#123B63"/>
+  <text x="190" y="155" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#F6C646">LOGO</text>
+
+  <text x="980" y="125" text-anchor="end" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#123B63">SAI LASER TECH</text>
+  <text x="980" y="160" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Shop 4, Elite Enclave, Navi Mumbai</text>
+  <text x="980" y="186" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Phone: 7710088377</text>
+  <text x="980" y="212" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Email: sales@example.com</text>
+
+  <line x1="120" y1="250" x2="1080" y2="250" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="120" y="308" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#111827">QUOTATION</text>
+  <text x="1080" y="292" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Quotation No: QTN-0018</text>
+  <text x="1080" y="320" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Date: 18-03-2026</text>
+  <text x="1080" y="348" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Version: 1</text>
+  <text x="1080" y="376" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Delivery: 22-03-2026</text>
+
+  <line x1="120" y1="410" x2="1080" y2="410" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="120" y="455" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Bill To</text>
+  <text x="120" y="488" font-family="Arial, sans-serif" font-size="16" fill="#111827">Rahulp</text>
+  <text x="120" y="514" font-family="Arial, sans-serif" font-size="16" fill="#111827">Mobile: 7021833173</text>
+  <text x="120" y="540" font-family="Arial, sans-serif" font-size="16" fill="#111827">Address: -</text>
+
+  <line x1="600" y1="430" x2="600" y2="560" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="640" y="455" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Dispatch / Delivery</text>
+  <text x="640" y="488" font-family="Arial, sans-serif" font-size="16" fill="#111827">Delivery Type: Pickup</text>
+  <text x="640" y="514" font-family="Arial, sans-serif" font-size="16" fill="#111827">Pincode: -</text>
+  <text x="640" y="540" font-family="Arial, sans-serif" font-size="16" fill="#111827">Site Address: -</text>
+
+  <line x1="120" y1="590" x2="1080" y2="590" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="120" y="635" font-family="Arial, sans-serif" font-size="17" fill="#4B5563">Dear Rahulp, please find our quotation QTN-0018 for your review.</text>
+
+  <rect x="120" y="690" width="960" height="48" fill="#123B63"/>
+  <text x="145" y="721" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="white">Sr.</text>
+  <text x="205" y="721" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="white">Description</text>
+  <text x="760" y="721" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="white">Qty</text>
+  <text x="860" y="721" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="white">Rate</text>
+  <text x="980" y="721" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="white">Amount</text>
+
+  <rect x="120" y="738" width="960" height="86" fill="white" stroke="#D6DCE8" stroke-width="2"/>
+  <text x="145" y="782" font-family="Arial, sans-serif" font-size="16" fill="#111827">1</text>
+  <text x="205" y="778" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Acrylic Sheet</text>
+  <text x="205" y="806" font-family="Arial, sans-serif" font-size="14" fill="#6B7280">Thickness: 3mm | Colour: White | Finish: Gloss</text>
+  <text x="770" y="782" font-family="Arial, sans-serif" font-size="16" fill="#111827">10</text>
+  <text x="850" y="782" font-family="Arial, sans-serif" font-size="16" fill="#111827">Rs 90</text>
+  <text x="972" y="782" font-family="Arial, sans-serif" font-size="16" fill="#111827">Rs 900</text>
+
+  <text x="815" y="900" font-family="Arial, sans-serif" font-size="16" fill="#111827">Total Amount</text>
+  <text x="1060" y="900" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Rs 6,900</text>
+  <text x="815" y="936" font-family="Arial, sans-serif" font-size="16" fill="#111827">Discount</text>
+  <text x="1060" y="936" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Rs 100</text>
+  <line x1="815" y1="955" x2="1060" y2="955" stroke="#D6DCE8" stroke-width="2"/>
+  <text x="815" y="992" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#123B63">Balance Amount</text>
+  <text x="1060" y="992" text-anchor="end" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#123B63">Rs 6,800</text>
+
+  <line x1="120" y1="1045" x2="1080" y2="1045" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="120" y="1095" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Notes</text>
+  <text x="120" y="1125" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Freight, unloading, and site execution are extra unless specifically included.</text>
+
+  <line x1="120" y1="1165" x2="1080" y2="1165" stroke="#D6DCE8" stroke-width="2"/>
+
+  <text x="120" y="1215" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">Terms &amp; Conditions</text>
+  <text x="120" y="1245" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Rates are exclusive of taxes unless otherwise stated. Validity and payment terms apply as per final confirmation.</text>
+
+  <line x1="120" y1="1310" x2="1080" y2="1310" stroke="#D6DCE8" stroke-width="2"/>
+  <text x="120" y="1365" font-family="Arial, sans-serif" font-size="16" fill="#4B5563">Thank you for your business.</text>
+  <text x="1080" y="1365" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#111827">Authorized Signatory</text>
+</svg>

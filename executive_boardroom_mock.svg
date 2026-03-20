@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1980" viewBox="0 0 1400 1980">
+  <defs>
+    <style>
+      .page { fill:#fbfbf8; }
+      .ink { fill:#111827; font-family: Georgia, 'Times New Roman', serif; }
+      .sans { fill:#1f2937; font-family: 'Segoe UI', Arial, sans-serif; }
+      .muted { fill:#667085; font-family: 'Segoe UI', Arial, sans-serif; }
+      .light { fill:#98a2b3; font-family: 'Segoe UI', Arial, sans-serif; }
+      .rule { stroke:#d6d9df; stroke-width:2; }
+      .heavy { stroke:#111827; stroke-width:3; }
+      .title { font-size:58px; font-weight:700; letter-spacing:1px; }
+      .serifHead { font-size:34px; font-weight:700; letter-spacing:0.5px; }
+      .metaHead { font-size:18px; font-weight:700; letter-spacing:2px; }
+      .h2 { font-size:30px; font-weight:700; }
+      .h3 { font-size:25px; font-weight:700; }
+      .body { font-size:28px; }
+      .sub { font-size:22px; }
+      .tiny { font-size:18px; }
+      .right { text-anchor:end; }
+      .center { text-anchor:middle; }
+      .num { font-weight:700; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="1980" class="page"/>
+  <rect x="78" y="60" width="1244" height="1860" fill="none" stroke="#cfd4dc" stroke-width="1.5"/>
+
+  <!-- Header -->
+  <text x="110" y="126" class="ink metaHead">SAI LASER PVT. LTD.</text>
+  <text x="110" y="162" class="muted sub">Commercial Quotation</text>
+  <line x1="110" y1="188" x2="1260" y2="188" class="heavy"/>
+
+  <text x="110" y="290" class="ink title">Quotation</text>
+  <text x="1260" y="255" class="light tiny right">QUOTATION NO.</text>
+  <text x="1260" y="292" class="sans h2 right">QTN-0017</text>
+  <text x="1260" y="342" class="light tiny right">DATE</text>
+  <text x="1260" y="376" class="sans h3 right">20-03-2026</text>
+  <text x="1260" y="426" class="light tiny right">DELIVERY DATE</text>
+  <text x="1260" y="460" class="sans h3 right">25-03-2026</text>
+
+  <!-- Company / Client -->
+  <line x1="110" y1="520" x2="1260" y2="520" class="rule"/>
+  <text x="110" y="570" class="light tiny">ISSUED BY</text>
+  <text x="110" y="612" class="sans h3">Sai Laser Pvt. Ltd.</text>
+  <text x="110" y="648" class="muted sub">GSTIN: 36AACC318ZJ</text>
+  <text x="110" y="682" class="muted sub">Contact: +91 98765 43210</text>
+  <text x="110" y="716" class="muted sub">www.saizlaser.com</text>
+
+  <text x="760" y="570" class="light tiny">ISSUED TO</text>
+  <text x="760" y="612" class="sans h3">Rahulp</text>
+  <text x="760" y="648" class="muted sub">Mobile: 7021833173</text>
+  <text x="760" y="682" class="muted sub">Hyderabad, Telangana, India</text>
+  <text x="760" y="716" class="muted sub">Delivery Type: Pickup</text>
+
+  <!-- Intro -->
+  <line x1="110" y1="770" x2="1260" y2="770" class="rule"/>
+  <text x="110" y="835" class="sans body">Dear Rahulp,</text>
+  <text x="110" y="885" class="muted body">Please find our commercial quotation for your review. We appreciate the opportunity to serve you.</text>
+
+  <!-- Table title -->
+  <line x1="110" y1="940" x2="1260" y2="940" class="heavy"/>
+  <text x="110" y="990" class="ink serifHead">Scope &amp; Commercials</text>
+
+  <!-- Table -->
+  <line x1="110" y1="1030" x2="1260" y2="1030" class="rule"/>
+  <text x="130" y="1070" class="light tiny">SR.</text>
+  <text x="210" y="1070" class="light tiny">DESCRIPTION</text>
+  <text x="760" y="1070" class="light tiny center">QTY</text>
+  <text x="900" y="1070" class="light tiny center">UNIT</text>
+  <text x="1040" y="1070" class="light tiny center">RATE</text>
+  <text x="1240" y="1070" class="light tiny right">AMOUNT</text>
+  <line x1="110" y1="1092" x2="1260" y2="1092" class="heavy"/>
+
+  <text x="130" y="1155" class="sans body">1</text>
+  <text x="210" y="1145" class="sans body num">Acrylic Sheet</text>
+  <text x="210" y="1185" class="muted sub">Thickness: 10 mm | Colour: White | Finish: Gloss</text>
+  <text x="210" y="1220" class="muted sub">Width: 100.00 in × Height: 100.00 in | Total Area: 69.44 sq in</text>
+  <text x="760" y="1160" class="sans body center">2</text>
+  <text x="900" y="1160" class="sans body center">Nos</text>
+  <text x="1040" y="1160" class="sans body center">Rs 100</text>
+  <text x="1240" y="1160" class="sans body num right">Rs 6,944</text>
+  <line x1="110" y1="1260" x2="1260" y2="1260" class="rule"/>
+
+  <!-- Summary -->
+  <text x="945" y="1340" class="light tiny">SUBTOTAL</text>
+  <text x="1240" y="1340" class="sans body num right">Rs 6,944</text>
+  <text x="945" y="1395" class="light tiny">DISCOUNT</text>
+  <text x="1240" y="1395" class="sans body right">- Rs 100</text>
+  <text x="945" y="1450" class="light tiny">ADVANCE</text>
+  <text x="1240" y="1450" class="sans body right">- Rs 1,000</text>
+  <line x1="930" y1="1480" x2="1260" y2="1480" class="heavy"/>
+  <text x="945" y="1540" class="ink h3">BALANCE AMOUNT</text>
+  <text x="1240" y="1540" class="ink h2 right">Rs 5,844</text>
+
+  <!-- Notes / terms -->
+  <line x1="110" y1="1620" x2="1260" y2="1620" class="rule"/>
+  <text x="110" y="1675" class="ink serifHead">Notes</text>
+  <text x="110" y="1720" class="muted body">Freight, unloading, and site execution are extra unless specifically included.</text>
+
+  <line x1="110" y1="1778" x2="1260" y2="1778" class="rule"/>
+  <text x="110" y="1833" class="ink serifHead">Terms &amp; Conditions</text>
+  <text x="110" y="1878" class="muted body">Rates are exclusive of applicable taxes. Final scope, taxes, and payment terms apply as per confirmation.</text>
+
+  <!-- Signature -->
+  <text x="990" y="1770" class="light tiny">AUTHORIZED BY</text>
+  <path d="M980 1842 C1032 1780, 1088 1888, 1138 1810 C1164 1778, 1194 1806, 1218 1828" fill="none" stroke="#111827" stroke-width="3"/>
+  <text x="980" y="1908" class="sans sub">Sai Laser Pvt. Ltd.</text>
+</svg>

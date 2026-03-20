@@ -1,0 +1,29 @@
+.idea/
+
+# Root assets that do not need to be versioned if regenerated later
+*.log
+
+# Backend
+billbuddy-backend/node_modules/
+billbuddy-backend/.env
+billbuddy-backend/.env.local
+billbuddy-backend/npm-debug.log*
+
+# Frontend
+billbuddy-frontend/billbuddy/node_modules/
+billbuddy-frontend/billbuddy/dist/
+billbuddy-frontend/billbuddy/.env
+billbuddy-frontend/billbuddy/.env.local
+billbuddy-frontend/billbuddy/npm-debug.log*
+
+# Mobile
+billbuddy-mobile/node_modules/
+billbuddy-mobile/.expo/
+billbuddy-mobile/dist/
+billbuddy-mobile/build/
+billbuddy-mobile/.env
+billbuddy-mobile/.env.local
+
+# OS / editor
+.DS_Store
+Thumbs.db

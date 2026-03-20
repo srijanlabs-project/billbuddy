@@ -1,0 +1,425 @@
+const crypto = require("crypto");
+const express = require("express");
+const pool = require("../db/db");
+const { signAuthToken, decodeToken } = require("../utils/jwt");
+const { authenticate } = require("../middleware/auth");
+
+const router = express.Router();
+const ROLE_NAMES = [
+  "Super Admin",
+  "Sales",
+  "Seller Admin",
+  "Seller User",
+  "Demo User",
+  "Master User",
+  "Sub User",
+  "Customer",
+  "Admin"
+];
+
+async function seedRolesIfMissing() {
+  for (const roleName of ROLE_NAMES) {
+    await pool.query(
+      `INSERT INTO roles (role_name)
+       VALUES ($1)
+       ON CONFLICT (role_name) DO NOTHING`,
+      [roleName]
+    );
+  }
+}
+
+async function createSessionToken(user, clientOrPool = pool) {
+  const jti = crypto.randomUUID();
+  const token = signAuthToken(
+    {
+      sub: String(user.id),
+      name: user.name,
+      mobile: user.mobile,
+      role: user.role_name || "Unknown",
+      sellerId: user.seller_id,
+      isPlatformAdmin: Boolean(user.is_platform_admin)
+    },
+    jti
+  );
+
+  const decoded = decodeToken(token);
+  const expiresAt = decoded?.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 8 * 60 * 60 * 1000);
+
+  await clientOrPool.query(
+    `INSERT INTO user_sessions (user_id, token_jti, expires_at)
+     VALUES ($1, $2, $3)`,
+    [user.id, jti, expiresAt]
+  );
+
+  return token;
+}
+
+async function findRoleId(preferredNames) {
+  const result = await pool.query(
+    `SELECT id, role_name
+     FROM roles
+     WHERE role_name = ANY($1::text[])`,
+    [preferredNames]
+  );
+
+  for (const roleName of preferredNames) {
+    const found = result.rows.find((row) => row.role_name === roleName);
+    if (found) return found.id;
+  }
+  return null;
+}
+
+function buildSellerCode(seedValue) {
+  const normalized = String(seedValue || "DEMO")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 18) || "DEMO";
+  const suffix = String(Date.now()).slice(-6);
+  return `${normalized}-${suffix}`.slice(0, 30);
+}
+
+router.get("/setup-status", async (_req, res) => {
+  try {
+    const usersCount = await pool.query(`SELECT COUNT(*)::int AS count FROM users`);
+    return res.json({ bootstrapRequired: usersCount.rows[0].count === 0 });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/bootstrap-admin", async (req, res) => {
+  try {
+    const { name, mobile, password, sellerName = "Sai Laser" } = req.body;
+
+    if (!name || !mobile || !password) {
+      return res.status(400).json({ message: "name, mobile, and password are required" });
+    }
+
+    const usersCount = await pool.query(`SELECT COUNT(*)::int AS count FROM users`);
+    if (usersCount.rows[0].count > 0) {
+      return res.status(400).json({ message: "Users already exist. Use login." });
+    }
+
+    await seedRolesIfMissing();
+
+    await pool.query(
+      `INSERT INTO sellers (seller_code, name, onboarding_status)
+       VALUES ('DEFAULT', $1, 'active')
+       ON CONFLICT (seller_code) DO UPDATE SET name = EXCLUDED.name`,
+      [sellerName]
+    );
+
+    const roleId = await findRoleId(["Super Admin", "Admin"]);
+
+    const created = await pool.query(
+      `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status)
+       VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
+       RETURNING id, name, mobile, seller_id, is_platform_admin`,
+      [name, mobile, password, roleId, null]
+    );
+
+    return res.status(201).json({ message: "Platform admin created", user: created.rows[0] });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Mobile already exists" });
+    }
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/demo-signup", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const {
+      name,
+      mobile,
+      password,
+      email,
+      businessName,
+      city,
+      state,
+      businessCategory
+    } = req.body || {};
+
+    if (!name || !mobile || !password) {
+      return res.status(400).json({ message: "name, mobile, and password are required" });
+    }
+
+    await seedRolesIfMissing();
+    await client.query("BEGIN");
+
+    const demoPlanResult = await client.query(
+      `SELECT p.id, p.plan_code, p.plan_name, p.trial_enabled, p.trial_duration_days
+       FROM plans p
+       WHERE UPPER(p.plan_code) = 'DEMO' AND p.is_active = TRUE
+       LIMIT 1`
+    );
+
+    if (demoPlanResult.rowCount === 0) {
+      throw new Error("DEMO plan not found or inactive");
+    }
+
+    const existingUser = await client.query(
+      `SELECT id FROM users WHERE mobile = $1 LIMIT 1`,
+      [mobile]
+    );
+    if (existingUser.rowCount > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ message: "Mobile already exists" });
+    }
+
+    const demoPlan = demoPlanResult.rows[0];
+    const trialDays = Number(demoPlan.trial_duration_days || 14);
+    const trialStartAt = new Date();
+    const trialEndAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+    const sellerCode = buildSellerCode(businessName || name || mobile);
+
+    const sellerInsert = await client.query(
+      `INSERT INTO sellers (
+         name,
+         business_name,
+         mobile,
+         email,
+         city,
+         state,
+         business_category,
+         seller_code,
+         onboarding_status,
+         status,
+         trial_ends_at,
+         subscription_plan,
+         theme_key,
+         brand_primary_color
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'setup', 'active', $9, 'DEMO', 'matte-blue', '#2563eb')
+       RETURNING *`,
+      [
+        String(name).trim(),
+        String(businessName || name).trim(),
+        String(mobile).trim(),
+        String(email || "").trim() || null,
+        String(city || "").trim() || null,
+        String(state || "").trim() || null,
+        String(businessCategory || "").trim() || null,
+        sellerCode,
+        trialEndAt
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO subscriptions (
+         seller_id,
+         plan_id,
+         status,
+         start_date,
+         trial_start_at,
+         trial_end_at,
+         auto_assigned
+       )
+       VALUES ($1, $2, 'trial', CURRENT_DATE, $3, $4, TRUE)`,
+      [
+        sellerInsert.rows[0].id,
+        demoPlan.id,
+        trialStartAt,
+        trialEndAt
+      ]
+    );
+
+    const featureResult = await client.query(
+      `SELECT max_users, max_quotations
+       FROM plan_features
+       WHERE plan_id = $1
+       LIMIT 1`,
+      [demoPlan.id]
+    );
+    const demoFeatures = featureResult.rows[0] || {};
+
+    await client.query(
+      `UPDATE sellers
+       SET max_users = COALESCE($1, max_users),
+           max_orders_per_month = COALESCE($2, max_orders_per_month)
+       WHERE id = $3`,
+      [
+        demoFeatures.max_users ?? null,
+        demoFeatures.max_quotations ?? null,
+        sellerInsert.rows[0].id
+      ]
+    );
+
+    const demoRoleId = await findRoleId(["Demo User", "Seller User", "Master User"]);
+    const createdUser = await client.query(
+      `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status, locked)
+       VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE)
+       RETURNING id, name, mobile, seller_id, is_platform_admin`,
+      [
+        String(name).trim(),
+        String(mobile).trim(),
+        String(password),
+        demoRoleId,
+        sellerInsert.rows[0].id
+      ]
+    );
+
+    const createdLead = await client.query(
+      `INSERT INTO leads (
+         name,
+         mobile,
+         email,
+         business_name,
+         city,
+         business_type,
+         requirement,
+         interested_in_demo,
+         source,
+         status,
+         seller_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, 'self_demo_signup', 'demo_created', $8)
+       RETURNING id`,
+      [
+        String(name).trim(),
+        String(mobile).trim(),
+        String(email || "").trim() || null,
+        String(businessName || name).trim(),
+        String(city || "").trim() || null,
+        String(businessCategory || "").trim() || null,
+        "Self-signup demo account created.",
+        sellerInsert.rows[0].id
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO lead_activity (lead_id, activity_type, note, actor_user_id)
+       VALUES ($1, $2, $3, NULL)`,
+      [
+        createdLead.rows[0].id,
+        "demo_self_signup",
+        `Self demo signup created for seller ${sellerCode}.`
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
+       VALUES (NULL, $1, $2, $3::jsonb)`,
+      [
+        sellerInsert.rows[0].id,
+        "demo_self_signup_created",
+        JSON.stringify({
+          sellerId: sellerInsert.rows[0].id,
+          sellerCode,
+          planCode: demoPlan.plan_code,
+          leadId: createdLead.rows[0].id
+        })
+      ]
+    );
+
+    const token = await createSessionToken({
+      ...createdUser.rows[0],
+      role_name: "Demo User",
+      seller_id: sellerInsert.rows[0].id,
+      is_platform_admin: false
+    }, client);
+
+    await client.query("COMMIT");
+
+    return res.status(201).json({
+      message: "Demo account created successfully.",
+      token,
+      user: {
+        id: createdUser.rows[0].id,
+        name: createdUser.rows[0].name,
+        mobile: createdUser.rows[0].mobile,
+        role: "Demo User",
+        sellerId: sellerInsert.rows[0].id,
+        isPlatformAdmin: false
+      },
+      seller: sellerInsert.rows[0]
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Demo account already exists for this mobile or business code" });
+    }
+    return res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.post("/login", async (req, res) => {
+  try {
+    const { mobile, password } = req.body;
+
+    if (!mobile || !password) {
+      return res.status(400).json({ message: "mobile and password are required" });
+    }
+
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.mobile, u.password, u.status, u.locked, u.seller_id, u.is_platform_admin, r.role_name,
+              s.status AS seller_status, s.is_locked AS seller_locked
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       LEFT JOIN sellers s ON s.id = u.seller_id
+       WHERE u.mobile = $1`,
+      [mobile]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    const user = result.rows[0];
+    const validPassword = user.password && password === user.password;
+
+    if (!validPassword) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (!user.status || user.locked) {
+      return res.status(403).json({ message: "User is inactive or locked" });
+    }
+
+    const sellerInactive = user.seller_status && String(user.seller_status).toLowerCase() !== "active";
+    if (!user.is_platform_admin && (user.seller_locked || sellerInactive)) {
+      return res.status(403).json({ message: "Seller account is inactive or locked" });
+    }
+
+    const token = await createSessionToken(user);
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        mobile: user.mobile,
+        role: user.role_name,
+        sellerId: user.seller_id,
+        isPlatformAdmin: Boolean(user.is_platform_admin)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/me", authenticate, async (req, res) => {
+  return res.json({ user: req.user });
+});
+
+router.post("/logout", authenticate, async (req, res) => {
+  try {
+    await pool.query(
+      `UPDATE user_sessions SET revoked = TRUE WHERE token_jti = $1`,
+      [req.user.jti]
+    );
+
+    return res.json({ message: "Logged out" });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+module.exports = router;
