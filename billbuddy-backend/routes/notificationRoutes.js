@@ -1,6 +1,7 @@
 const express = require("express");
 const pool = require("../db/db");
 const { requirePlatformAdmin } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -53,7 +54,7 @@ async function resolveAudienceSellers(client, audienceType, specificSellerId = n
   return result.rows;
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.NOTIFICATION_VIEW), async (req, res) => {
   try {
     if (req.user?.isPlatformAdmin) {
       const result = await pool.query(
@@ -104,7 +105,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", requirePlatformAdmin, async (req, res) => {
+router.get("/:id", requirePermission(PERMISSIONS.NOTIFICATION_VIEW), requirePlatformAdmin, async (req, res) => {
   try {
     const notificationId = Number(req.params.id);
     const notificationResult = await pool.query(
@@ -150,7 +151,7 @@ router.get("/:id", requirePlatformAdmin, async (req, res) => {
   }
 });
 
-router.patch("/logs/:id/read", async (req, res) => {
+router.patch("/logs/:id/read", requirePermission(PERMISSIONS.NOTIFICATION_VIEW), async (req, res) => {
   try {
     if (!req.user?.sellerId) {
       return res.status(400).json({ message: "seller context missing" });
@@ -183,7 +184,7 @@ router.patch("/logs/:id/read", async (req, res) => {
   }
 });
 
-router.post("/", requirePlatformAdmin, async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.NOTIFICATION_CREATE), requirePlatformAdmin, async (req, res) => {
   const client = await pool.connect();
 
   try {

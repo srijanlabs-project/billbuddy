@@ -1,7 +1,9 @@
 const express = require("express");
 const pool = require("../db/db");
 const { requirePlatformAdmin } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 const { syncSellerSubscriptionCache, getCurrentSubscription, isSubscriptionExpired, getQuotationWatermark } = require("../services/subscriptionService");
+const { hashPassword, validatePasswordStrength } = require("../utils/passwords");
 
 const router = express.Router();
 
@@ -167,9 +169,9 @@ router.get("/me", async (req, res) => {
   }
 });
 
-router.put("/me/settings", async (req, res) => {
+router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
-    const { themeKey, brandPrimaryColor, quotationNumberPrefix, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
+    const { themeKey, brandPrimaryColor, quotationNumberPrefix, sellerGstNumber, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
 
     if (!req.user?.sellerId) {
       return res.status(400).json({ message: "seller context missing" });
@@ -180,16 +182,18 @@ router.put("/me/settings", async (req, res) => {
        SET theme_key = COALESCE($1, theme_key),
            brand_primary_color = COALESCE($2, brand_primary_color),
            quotation_number_prefix = COALESCE($3, quotation_number_prefix),
-           bank_name = COALESCE($4, bank_name),
-           bank_branch = COALESCE($5, bank_branch),
-           bank_account_no = COALESCE($6, bank_account_no),
-           bank_ifsc = COALESCE($7, bank_ifsc)
-       WHERE id = $8
+           gst_number = COALESCE($4, gst_number),
+           bank_name = COALESCE($5, bank_name),
+           bank_branch = COALESCE($6, bank_branch),
+           bank_account_no = COALESCE($7, bank_account_no),
+           bank_ifsc = COALESCE($8, bank_ifsc)
+       WHERE id = $9
        RETURNING *`,
       [
         themeKey || null,
         brandPrimaryColor || null,
         quotationNumberPrefix ? normalizeQuotationPrefix(quotationNumberPrefix) : null,
+        sellerGstNumber ? String(sellerGstNumber).trim().toUpperCase() : null,
         bankName || null,
         bankBranch || null,
         bankAccountNo || null,
@@ -204,7 +208,7 @@ router.put("/me/settings", async (req, res) => {
   }
 });
 
-router.get("/", requirePlatformAdmin, async (_req, res) => {
+router.get("/", requirePermission(PERMISSIONS.SELLER_VIEW), requirePlatformAdmin, async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT
@@ -259,7 +263,7 @@ router.get("/", requirePlatformAdmin, async (_req, res) => {
   }
 });
 
-router.get("/:id/detail", requirePlatformAdmin, async (req, res) => {
+router.get("/:id/detail", requirePermission(PERMISSIONS.SELLER_VIEW), requirePlatformAdmin, async (req, res) => {
   try {
     const detail = await getSellerDetailPayload(pool, Number(req.params.id));
     if (!detail) {
@@ -272,7 +276,7 @@ router.get("/:id/detail", requirePlatformAdmin, async (req, res) => {
   }
 });
 
-router.post("/", requirePlatformAdmin, async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAdmin, async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -406,6 +410,14 @@ router.post("/", requirePlatformAdmin, async (req, res) => {
     let createdMasterUser = null;
 
     if (masterUser?.name && masterUser?.mobile) {
+      if (!masterUser.password) {
+        throw new Error("Master user password is required");
+      }
+      const passwordValidation = validatePasswordStrength(masterUser.password);
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.message);
+      }
+
       const masterRoleResult = await client.query(
         `SELECT id, role_name
          FROM roles
@@ -424,7 +436,7 @@ router.post("/", requirePlatformAdmin, async (req, res) => {
         [
           masterUser.name,
           masterUser.mobile,
-          masterUser.password || null,
+          await hashPassword(masterUser.password),
           roleId,
           req.user.id,
           sellerResult.rows[0].id
@@ -467,7 +479,7 @@ router.post("/", requirePlatformAdmin, async (req, res) => {
   }
 });
 
-router.post("/me/upgrade-request", async (req, res) => {
+router.post("/me/upgrade-request", requirePermission(PERMISSIONS.SUBSCRIPTION_MANAGE), async (req, res) => {
   try {
     if (!req.user?.sellerId) {
       return res.status(400).json({ message: "seller context missing" });
@@ -522,7 +534,7 @@ router.post("/me/upgrade-request", async (req, res) => {
   }
 });
 
-router.get("/usage/overview", requirePlatformAdmin, async (_req, res) => {
+router.get("/usage/overview", requirePermission(PERMISSIONS.REPORTS_VIEW), requirePlatformAdmin, async (_req, res) => {
   try {
     const sellersCount = await pool.query(`SELECT COUNT(*)::int AS count FROM sellers`);
     const activeUsers = await pool.query(`SELECT COUNT(*)::int AS count FROM users WHERE status = TRUE AND locked = FALSE`);
@@ -538,7 +550,7 @@ router.get("/usage/overview", requirePlatformAdmin, async (_req, res) => {
   }
 });
 
-router.patch("/:id/lifecycle", requirePlatformAdmin, async (req, res) => {
+router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requirePlatformAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;

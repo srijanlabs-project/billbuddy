@@ -18,14 +18,19 @@ const sellerConfigRoutes = require("./routes/sellerConfigRoutes");
 const planRoutes = require("./routes/planRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
+const rbacRoutes = require("./routes/rbacRoutes");
 const { leadRoutes, publicLeadRoutes } = require("./routes/leadRoutes");
 const mobileRoutes = require("./routes/mobileRoutes");
 const { authenticate } = require("./middleware/auth");
+const { basicSecurityHeaders, buildCorsOptions, createRateLimiter } = require("./middleware/security");
 const { initializeDatabase } = require("./utils/initDb");
 
 const app = express();
+const authRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
+const otpRequestRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
 
-app.use(cors());
+app.use(cors(buildCorsOptions()));
+app.use(basicSecurityHeaders);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
@@ -33,12 +38,16 @@ app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "BillBuddy API" });
 });
 
+app.use("/api/auth/login", authRateLimiter);
+app.use("/api/auth/bootstrap-admin", authRateLimiter);
+app.use("/api/mobile-auth/login", authRateLimiter);
+app.use("/api/mobile-auth/request-otp", otpRequestRateLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/mobile-auth", mobileAuthRoutes);
-app.use("/api/roles", roleRoutes);
 app.use("/api/lead-capture", publicLeadRoutes);
 
 app.use("/api", authenticate);
+app.use("/api/roles", roleRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/products", productRoutes);
@@ -54,6 +63,7 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/leads", leadRoutes);
 app.use("/api/mobile", mobileRoutes);
+app.use("/api/rbac", rbacRoutes);
 
 app.use((error, _req, res, _next) => {
   res.status(500).json({ message: error.message || "Something went wrong" });

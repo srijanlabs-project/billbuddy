@@ -1,5 +1,6 @@
 const express = require("express");
 const pool = require("../db/db");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -202,7 +203,7 @@ async function loadCurrentSellerConfiguration(clientOrPool, sellerId) {
   return buildProfileResponse(profile, catalogueResult.rows, quotationResult.rows, versionResult.rows);
 }
 
-router.get("/current/me", async (req, res) => {
+router.get("/current/me", requirePermission(PERMISSIONS.CONFIGURATION_VIEW), async (req, res) => {
   try {
     if (!req.user?.sellerId) {
       return res.json({ config: null });
@@ -215,7 +216,7 @@ router.get("/current/me", async (req, res) => {
   }
 });
 
-router.get("/:sellerId", async (req, res) => {
+router.get("/:sellerId", requirePermission(PERMISSIONS.CONFIGURATION_VIEW), async (req, res) => {
   try {
     const sellerId = Number(req.params.sellerId);
     if (!Number.isFinite(sellerId) || sellerId <= 0) {
@@ -237,7 +238,11 @@ router.get("/:sellerId", async (req, res) => {
   }
 });
 
-router.put("/:sellerId", async (req, res) => {
+router.put(
+  "/:sellerId",
+  requirePermission(PERMISSIONS.CONFIGURATION_EDIT),
+  requirePermission(PERMISSIONS.CONFIGURATION_SAVE_DRAFT),
+  async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -257,7 +262,10 @@ router.put("/:sellerId", async (req, res) => {
     const modules = normalizeModules(req.body.modules);
     const catalogueFields = normalizeCatalogueFields(req.body.catalogueFields);
     const quotationColumns = normalizeQuotationColumns(req.body.quotationColumns);
-    const requestedStatus = String(req.body.status || "draft").toLowerCase() === "published" ? "published" : "draft";
+    if (String(req.body.status || "").toLowerCase() === "published") {
+      return res.status(403).json({ message: "Use the publish action to publish configuration." });
+    }
+    const requestedStatus = "draft";
 
     await client.query("BEGIN");
 
@@ -412,7 +420,7 @@ router.put("/:sellerId", async (req, res) => {
   }
 });
 
-router.post("/:sellerId/publish", async (req, res) => {
+router.post("/:sellerId/publish", requirePermission(PERMISSIONS.CONFIGURATION_PUBLISH), async (req, res) => {
   const client = await pool.connect();
 
   try {

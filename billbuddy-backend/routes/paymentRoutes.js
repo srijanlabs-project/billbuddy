@@ -2,10 +2,11 @@ const express = require("express");
 const pool = require("../db/db");
 const { createPaymentEntry } = require("../services/quotationService");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.BILLING_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const values = [];
@@ -28,7 +29,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.QUOTATION_MARK_PAID), async (req, res) => {
   try {
     const tenantId = req.user.isPlatformAdmin ? Number(req.body.sellerId || getTenantId(req)) : getTenantId(req);
     const data = await createPaymentEntry({ ...req.body, sellerId: tenantId });

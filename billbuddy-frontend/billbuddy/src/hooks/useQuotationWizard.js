@@ -1,0 +1,709 @@
+import { useEffect, useMemo, useState } from "react";
+import { applyShippingAddressGstReuse, createEmptyShippingAddress, updateShippingAddressValue } from "../utils/customerShipping";
+
+const BUILT_IN_VARIANT_FIELDS = [
+  { key: "color_name", label: "Colour", kind: "supported", formKey: "color" },
+  { key: "thickness", label: "Thickness", kind: "supported", formKey: "thickness" }
+];
+
+function normalizeComparableValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function buildSecondarySku(materialName) {
+  const slug = String(materialName || "ITEM")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 12) || "ITEM";
+  return `SEC-${slug}-${Date.now().toString().slice(-6)}`;
+}
+
+export default function useQuotationWizard({
+  auth,
+  products,
+  customers,
+  runtimeCatalogueFields,
+  unsupportedRuntimeCatalogueFields,
+  unsupportedRuntimeQuotationColumns,
+  createInitialQuotationWizardState,
+  createQuotationWizardItem,
+  getCatalogueDrivenQuotationCustomFields,
+  getCustomQuotationValidationError,
+  getQuotationWizardRules,
+  validateQuotationWizardItem,
+  calculateQuotationWizardItemTotal,
+  toQuotationWizardAmount,
+  buildQuotationWizardPayloadItems,
+  getQuotationRateValidationMessage,
+  apiFetch,
+  setCustomers,
+  setProducts,
+  loadDashboardData,
+  dashboardRange,
+  handleApiError,
+  setError
+}) {
+  const [showMessageSimulatorModal, setShowMessageSimulatorModal] = useState(false);
+  const [quotationWizard, setQuotationWizard] = useState(() => createInitialQuotationWizardState());
+  const [quotationWizardSubmitting, setQuotationWizardSubmitting] = useState(false);
+  const [quotationPreviewUrl, setQuotationPreviewUrl] = useState("");
+  const [quotationWizardNotice, setQuotationWizardNotice] = useState("");
+
+  const quotationWizardCustomerMatches = useMemo(() => {
+    const term = quotationWizard.customerSearch.trim().toLowerCase();
+    if (term.length < 2) return [];
+
+    return (customers || [])
+      .filter((customer) =>
+        [
+          customer.name,
+          customer.firm_name,
+          customer.mobile,
+          customer.email
+        ].some((value) => String(value || "").toLowerCase().includes(term))
+      )
+      .slice(0, 8);
+  }, [customers, quotationWizard.customerSearch]);
+
+  const quotationWizardSelectedProduct = useMemo(() => {
+    return products.find((product) => String(product.id) === String(quotationWizard.itemForm.productId)) || null;
+  }, [products, quotationWizard.itemForm.productId]);
+
+  function getProductFieldValue(product, fieldKey) {
+    if (!product) return "";
+    switch (fieldKey) {
+      case "material_name":
+        return product.material_name || "";
+      case "color_name":
+        return product.color_name || "";
+      case "thickness":
+        return product.thickness || "";
+      case "category":
+        return product.category || "";
+      case "material_group":
+        return product.material_group || "";
+      case "sku":
+        return product.sku || "";
+      default:
+        return product.custom_fields?.[fieldKey] ?? "";
+    }
+  }
+
+  function getItemFormVariantValue(itemForm, field) {
+    if (field.kind === "supported") {
+      return itemForm[field.formKey] ?? "";
+    }
+    return itemForm.customFields?.[field.key] ?? "";
+  }
+
+  function setItemFormVariantValue(itemForm, field, value) {
+    if (field.kind === "supported") {
+      return {
+        ...itemForm,
+        [field.formKey]: value
+      };
+    }
+    return {
+      ...itemForm,
+      customFields: {
+        ...(itemForm.customFields || {}),
+        [field.key]: value
+      }
+    };
+  }
+
+  const quotationWizardVariantFields = useMemo(() => {
+    const overlapKeys = new Set((unsupportedRuntimeQuotationColumns || []).map((field) => field.key));
+    const customVariantFields = (unsupportedRuntimeCatalogueFields || [])
+      .filter((field) => overlapKeys.has(field.key))
+      .map((field) => ({
+        key: field.key,
+        label: field.label,
+        kind: "custom"
+      }));
+
+    const combined = [...BUILT_IN_VARIANT_FIELDS, ...customVariantFields];
+    const seen = new Set();
+    return combined.filter((field) => {
+      if (seen.has(field.key)) return false;
+      seen.add(field.key);
+      return true;
+    });
+  }, [unsupportedRuntimeCatalogueFields, unsupportedRuntimeQuotationColumns]);
+
+  const quotationWizardMaterialSuggestions = useMemo(() => {
+    const term = normalizeComparableValue(quotationWizard.itemForm.materialName);
+    const names = uniqueValues((products || []).map((product) => String(product.material_name || "").trim())).sort((a, b) => a.localeCompare(b));
+    if (!term) return names.slice(0, 8);
+    return names.filter((name) => normalizeComparableValue(name).includes(term)).slice(0, 8);
+  }, [products, quotationWizard.itemForm.materialName]);
+
+  const quotationWizardMaterialProducts = useMemo(() => {
+    const selectedMaterial = normalizeComparableValue(quotationWizard.itemForm.materialName);
+    if (!selectedMaterial) return [];
+    return (products || []).filter((product) => normalizeComparableValue(product.material_name) === selectedMaterial);
+  }, [products, quotationWizard.itemForm.materialName]);
+
+  const quotationWizardVisibleVariantFields = useMemo(() => {
+    if (!quotationWizardMaterialProducts.length) return [];
+
+    const visible = [];
+    let scopedProducts = [...quotationWizardMaterialProducts];
+
+    quotationWizardVariantFields.forEach((field) => {
+      const options = uniqueValues(scopedProducts.map((product) => String(getProductFieldValue(product, field.key) || "").trim()));
+      const selectedValue = String(getItemFormVariantValue(quotationWizard.itemForm, field) || "").trim();
+      if (options.length > 1 || selectedValue) {
+        visible.push({
+          ...field,
+          options
+        });
+      }
+
+      if (selectedValue) {
+        scopedProducts = scopedProducts.filter((product) => normalizeComparableValue(getProductFieldValue(product, field.key)) === normalizeComparableValue(selectedValue));
+      }
+    });
+
+    return visible;
+  }, [quotationWizardMaterialProducts, quotationWizardVariantFields, quotationWizard.itemForm]);
+
+  const quotationWizardItemRules = getQuotationWizardRules(quotationWizard.itemForm);
+  const quotationWizardItemReady = validateQuotationWizardItem(quotationWizard.itemForm);
+
+  const quotationWizardGrossTotal = useMemo(() => {
+    return Number(
+      quotationWizard.items.reduce((sum, item) => sum + calculateQuotationWizardItemTotal(item), 0).toFixed(2)
+    );
+  }, [quotationWizard.items, calculateQuotationWizardItemTotal]);
+
+  const quotationWizardDiscountAmount = toQuotationWizardAmount(quotationWizard.amounts.discountAmount);
+  const quotationWizardAdvanceAmount = toQuotationWizardAmount(quotationWizard.amounts.advanceAmount);
+  const quotationWizardBalanceAmount = Math.max(
+    Number((quotationWizardGrossTotal - quotationWizardDiscountAmount - quotationWizardAdvanceAmount).toFixed(2)),
+    0
+  );
+
+  useEffect(() => {
+    return () => {
+      if (quotationPreviewUrl) {
+        URL.revokeObjectURL(quotationPreviewUrl);
+      }
+    };
+  }, [quotationPreviewUrl]);
+
+  function openQuotationWizard() {
+    if (!auth?.user?.isPlatformAdmin) {
+      setQuotationWizard(createInitialQuotationWizardState(null));
+      if (quotationPreviewUrl) {
+        URL.revokeObjectURL(quotationPreviewUrl);
+      }
+      setQuotationPreviewUrl("");
+      setQuotationWizardNotice("");
+      setShowMessageSimulatorModal(true);
+      setError("");
+    }
+  }
+
+  function closeQuotationWizard() {
+    if (quotationPreviewUrl) {
+      URL.revokeObjectURL(quotationPreviewUrl);
+    }
+    setQuotationPreviewUrl("");
+    setQuotationWizard(createInitialQuotationWizardState(null));
+    setQuotationWizardSubmitting(false);
+    setQuotationWizardNotice("");
+    setShowMessageSimulatorModal(false);
+  }
+
+  function updateQuotationWizardCustomerField(field, value) {
+    setQuotationWizard((prev) => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        [field]: value
+      }
+    }));
+  }
+
+  function updateQuotationWizardShippingAddress(index, field, value) {
+    setQuotationWizard((prev) => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        shippingAddresses: updateShippingAddressValue(prev.customer.shippingAddresses, index, field, value)
+      }
+    }));
+  }
+
+  function addQuotationWizardShippingAddress() {
+    setQuotationWizard((prev) => ({
+      ...prev,
+      customer: {
+        ...prev.customer,
+        shippingAddresses: [
+          ...applyShippingAddressGstReuse(prev.customer.shippingAddresses),
+          createEmptyShippingAddress()
+        ]
+      }
+    }));
+  }
+
+  function removeQuotationWizardShippingAddress(index) {
+    setQuotationWizard((prev) => {
+      const nextAddresses = (prev.customer.shippingAddresses || []).filter((_, entryIndex) => entryIndex !== index);
+      return {
+        ...prev,
+        customer: {
+          ...prev.customer,
+          shippingAddresses: nextAddresses.length ? applyShippingAddressGstReuse(nextAddresses) : [createEmptyShippingAddress()]
+        }
+      };
+    });
+  }
+
+  function updateQuotationWizardItemForm(field, value) {
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => ({
+      ...prev,
+      itemForm: {
+        ...prev.itemForm,
+        [field]: value
+      }
+    }));
+  }
+
+  function updateQuotationWizardCustomField(fieldKey, value) {
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => ({
+      ...prev,
+      itemForm: {
+        ...prev.itemForm,
+        customFields: {
+          ...(prev.itemForm.customFields || {}),
+          [fieldKey]: value
+        }
+      }
+    }));
+  }
+
+  function handleQuotationWizardProductChange(productId) {
+    const selectedProduct = products.find((product) => String(product.id) === String(productId)) || null;
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => ({
+      ...prev,
+      itemForm: {
+        ...createQuotationWizardItem(selectedProduct),
+        customFields: getCatalogueDrivenQuotationCustomFields(
+          selectedProduct,
+          unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+          prev.itemForm.customFields
+        )
+      }
+    }));
+  }
+
+  function clearResolvedProductState(itemForm, overrides = {}, resetVariantSelections = true) {
+    const nextCustomFields = { ...(itemForm.customFields || {}) };
+    if (resetVariantSelections) {
+      quotationWizardVariantFields.forEach((field) => {
+        if (field.kind === "custom") {
+          delete nextCustomFields[field.key];
+        }
+      });
+    }
+
+    return {
+      ...itemForm,
+      productId: "",
+      catalogueBasePrice: 0,
+      limitRateEdit: false,
+      maxDiscountPercent: 0,
+      maxDiscountType: "percent",
+      color: resetVariantSelections && quotationWizardVariantFields.some((field) => field.key === "color_name") ? "" : itemForm.color,
+      thickness: resetVariantSelections && quotationWizardVariantFields.some((field) => field.key === "thickness") ? "" : itemForm.thickness,
+      customFields: nextCustomFields,
+      ...overrides
+    };
+  }
+
+  function findMatchingProducts(itemForm) {
+    const selectedMaterial = normalizeComparableValue(itemForm.materialName);
+    if (!selectedMaterial) return [];
+
+    return (products || []).filter((product) => {
+      if (normalizeComparableValue(product.material_name) !== selectedMaterial) return false;
+
+      return quotationWizardVariantFields.every((field) => {
+        const selectedValue = normalizeComparableValue(getItemFormVariantValue(itemForm, field));
+        if (!selectedValue) return true;
+        return normalizeComparableValue(getProductFieldValue(product, field.key)) === selectedValue;
+      });
+    });
+  }
+
+  function applyResolvedProduct(selectedProduct, existingCustomFields = {}) {
+    return {
+      ...createQuotationWizardItem(selectedProduct),
+      customFields: getCatalogueDrivenQuotationCustomFields(
+        selectedProduct,
+        unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+        existingCustomFields
+      )
+    };
+  }
+
+  function handleQuotationWizardMaterialInput(value) {
+    setError("");
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => ({
+      ...prev,
+      itemForm: clearResolvedProductState(prev.itemForm, {
+        materialName: value
+      })
+    }));
+  }
+
+  function handleQuotationWizardMaterialSelect(materialName) {
+    setError("");
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => {
+      const nextItemForm = clearResolvedProductState(prev.itemForm, {
+        materialName
+      });
+      const matches = (products || []).filter((product) => normalizeComparableValue(product.material_name) === normalizeComparableValue(materialName));
+      if (matches.length === 1) {
+        return {
+          ...prev,
+          itemForm: applyResolvedProduct(matches[0], prev.itemForm.customFields)
+        };
+      }
+      return {
+        ...prev,
+        itemForm: nextItemForm
+      };
+    });
+  }
+
+  function handleQuotationWizardVariantSelection(fieldKey, value) {
+    const field = quotationWizardVariantFields.find((entry) => entry.key === fieldKey);
+    if (!field) return;
+
+    setError("");
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => {
+      let nextItemForm = clearResolvedProductState(prev.itemForm, {}, false);
+      nextItemForm = setItemFormVariantValue(nextItemForm, field, value);
+      const matches = findMatchingProducts(nextItemForm);
+      if (matches.length === 1) {
+        return {
+          ...prev,
+          itemForm: applyResolvedProduct(matches[0], nextItemForm.customFields)
+        };
+      }
+      return {
+        ...prev,
+        itemForm: nextItemForm
+      };
+    });
+  }
+
+  function buildSecondaryCataloguePayload(itemForm) {
+    const normalizedCategory = String(itemForm.category || "Product").trim() || "Product";
+    const derivedUnitType = normalizedCategory === "Sheet" ? "SFT" : "COUNT";
+    const derivedPricingType = normalizedCategory === "Sheet" ? "SFT" : "UNIT";
+    const supportedCustomKeys = new Set((runtimeCatalogueFields || []).map((field) => field.normalizedKey || field.key));
+
+    const secondaryCustomFields = {};
+    (unsupportedRuntimeCatalogueFields || []).forEach((field) => {
+      const value = itemForm.customFields?.[field.key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        secondaryCustomFields[field.key] = value;
+      }
+    });
+
+    Object.entries(itemForm.customFields || {}).forEach(([key, value]) => {
+      if (supportedCustomKeys.has(key)) return;
+      if (secondaryCustomFields[key] !== undefined) return;
+      if (value === undefined || value === null || String(value).trim() === "") return;
+      secondaryCustomFields[key] = value;
+    });
+
+    return {
+      materialName: String(itemForm.materialName || "").trim(),
+      category: normalizedCategory,
+      thickness: String(itemForm.thickness || "").trim() || null,
+      unitType: derivedUnitType,
+      basePrice: Number(itemForm.rate || 0),
+      sku: buildSecondarySku(itemForm.materialName),
+      alwaysAvailable: true,
+      materialGroup: null,
+      colorName: String(itemForm.color || "").trim() || null,
+      psSupported: Boolean(itemForm.ps),
+      pricingType: derivedPricingType,
+      limitRateEdit: false,
+      maxDiscountPercent: 0,
+      maxDiscountType: "percent",
+      catalogueSource: "secondary",
+      customFields: secondaryCustomFields
+    };
+  }
+
+  async function handleSaveQuotationWizardSecondaryProduct() {
+    try {
+      setError("");
+      setQuotationWizardNotice("");
+
+      if (!String(quotationWizard.itemForm.materialName || "").trim()) {
+        throw new Error("Enter the product / service name before saving to the secondary catalogue.");
+      }
+      if (!String(quotationWizard.itemForm.category || "").trim()) {
+        throw new Error("Select the category before saving to the secondary catalogue.");
+      }
+
+      const payload = buildSecondaryCataloguePayload(quotationWizard.itemForm);
+      const createdProduct = await apiFetch("/api/products", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+
+      const productRows = await apiFetch("/api/products");
+      setProducts(productRows);
+      setQuotationWizard((prev) => ({
+        ...prev,
+        itemForm: applyResolvedProduct(createdProduct, prev.itemForm.customFields)
+      }));
+      setQuotationWizardNotice("Saved to the secondary catalogue and selected for this quotation.");
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
+  function handleAddQuotationWizardItem() {
+    if (!quotationWizardItemReady) {
+      setError("Please complete the selected item before adding it.");
+      return;
+    }
+
+    const effectiveCustomFields = getCatalogueDrivenQuotationCustomFields(
+      quotationWizardSelectedProduct,
+      unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+      quotationWizard.itemForm.customFields
+    );
+    const customFieldError = getCustomQuotationValidationError(
+      unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+      effectiveCustomFields
+    );
+    const rateValidationMessage = getQuotationRateValidationMessage({
+      ...quotationWizard.itemForm,
+      customFields: effectiveCustomFields
+    });
+
+    if (customFieldError) {
+      setError(customFieldError);
+      return;
+    }
+
+    if (rateValidationMessage) {
+      setError(rateValidationMessage);
+      return;
+    }
+
+    const itemToAdd = {
+      ...quotationWizard.itemForm,
+      customFields: effectiveCustomFields,
+      id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+    };
+
+    setQuotationWizard((prev) => ({
+      ...prev,
+      items: [...prev.items, itemToAdd],
+      itemForm: createQuotationWizardItem(null)
+    }));
+    setError("");
+    setQuotationWizardNotice("");
+  }
+
+  function handleRemoveQuotationWizardItem(itemId) {
+    setQuotationWizard((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.id !== itemId)
+    }));
+  }
+
+  function handleQuotationWizardNext() {
+    if (quotationWizard.step === "customer") {
+      if (quotationWizard.customerMode === "existing" && !quotationWizard.selectedCustomerId) {
+        setError("Please select a customer before continuing.");
+        return;
+      }
+      if (quotationWizard.customerMode === "new" && !quotationWizard.customer.name.trim()) {
+        setError("Please enter customer details before continuing.");
+        return;
+      }
+      setQuotationWizard((prev) => ({ ...prev, step: "items" }));
+      setError("");
+      setQuotationWizardNotice("");
+      return;
+    }
+
+    if (quotationWizard.step === "items") {
+      if (!quotationWizard.items.length) {
+        setError("Please add at least one item before continuing.");
+        return;
+      }
+      setQuotationWizard((prev) => ({ ...prev, step: "amounts" }));
+      setError("");
+      setQuotationWizardNotice("");
+    }
+  }
+
+  function handleQuotationWizardBack() {
+    setError("");
+    setQuotationWizardNotice("");
+    setQuotationWizard((prev) => ({
+      ...prev,
+      step: prev.step === "amounts" ? "items" : "customer"
+    }));
+  }
+
+  async function ensureQuotationWizardCustomer() {
+    if (quotationWizard.customerMode === "existing") {
+      return Number(quotationWizard.selectedCustomerId);
+    }
+
+    const createdCustomer = await apiFetch("/api/customers", {
+      method: "POST",
+      body: JSON.stringify(quotationWizard.customer)
+    });
+    const customerRows = await apiFetch("/api/customers");
+    setCustomers(customerRows);
+    setQuotationWizard((prev) => ({
+      ...prev,
+      customerMode: "existing",
+      selectedCustomerId: String(createdCustomer.id)
+    }));
+    return createdCustomer.id;
+  }
+
+  async function createQuotationPreviewUrl(quotationId) {
+    const token = auth?.token;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download?simple=1`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to load quotation preview");
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  async function handleSubmitQuotationWizard() {
+    try {
+      setQuotationWizardSubmitting(true);
+      setError("");
+      const customerId = await ensureQuotationWizardCustomer();
+      const response = await apiFetch("/api/quotations", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId,
+          items: buildQuotationWizardPayloadItems(quotationWizard.items),
+          gstPercent: 0,
+          transportCharges: 0,
+          designCharges: 0,
+          discountAmount: quotationWizardDiscountAmount,
+          advanceAmount: quotationWizardAdvanceAmount,
+          deliveryDate: quotationWizard.amounts.deliveryDate || null,
+          balanceAmount: quotationWizardBalanceAmount,
+          paymentStatus: quotationWizardAdvanceAmount > 0 && quotationWizardBalanceAmount > 0 ? "partial" : "pending",
+          orderStatus: "NEW",
+          deliveryType: "PICKUP",
+          sourceChannel: "seller-dashboard-modal",
+          recordStatus: "submitted",
+          customerMonthlyBilling: Boolean(quotationWizard.customer.monthlyBilling)
+        })
+      });
+
+      setQuotationWizard((prev) => ({
+        ...prev,
+        submittedQuotation: response.quotation,
+        step: "preview"
+      }));
+      setQuotationWizardSubmitting(false);
+
+      try {
+        const previewUrl = await createQuotationPreviewUrl(response.quotation.id);
+        if (quotationPreviewUrl) {
+          URL.revokeObjectURL(quotationPreviewUrl);
+        }
+        setQuotationPreviewUrl(previewUrl);
+      } catch {
+        setQuotationPreviewUrl("");
+      }
+
+      try {
+        await loadDashboardData(dashboardRange);
+      } catch {
+        // Keep the created quotation visible even if dashboard refresh is delayed.
+      }
+
+      if (Array.isArray(response.inventoryWarnings) && response.inventoryWarnings.length > 0) {
+        setError(`Quotation created successfully. ${response.inventoryWarnings.join(" ")}`);
+      } else {
+        setError("Quotation created successfully.");
+      }
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setQuotationWizardSubmitting(false);
+    }
+  }
+
+  return {
+    showMessageSimulatorModal,
+    quotationWizard,
+    setQuotationWizard,
+    quotationWizardSubmitting,
+    quotationPreviewUrl,
+    quotationWizardNotice,
+    quotationWizardCustomerMatches,
+    quotationWizardSelectedProduct,
+    quotationWizardMaterialSuggestions,
+    quotationWizardVisibleVariantFields,
+    quotationWizardItemRules,
+    quotationWizardItemReady,
+    quotationWizardGrossTotal,
+    quotationWizardDiscountAmount,
+    quotationWizardAdvanceAmount,
+    quotationWizardBalanceAmount,
+    openQuotationWizard,
+    closeQuotationWizard,
+    updateQuotationWizardCustomerField,
+    updateQuotationWizardShippingAddress,
+    addQuotationWizardShippingAddress,
+    removeQuotationWizardShippingAddress,
+    updateQuotationWizardItemForm,
+    updateQuotationWizardCustomField,
+    handleQuotationWizardMaterialInput,
+    handleQuotationWizardMaterialSelect,
+    handleQuotationWizardVariantSelection,
+    handleQuotationWizardProductChange,
+    handleSaveQuotationWizardSecondaryProduct,
+    handleAddQuotationWizardItem,
+    handleRemoveQuotationWizardItem,
+    handleQuotationWizardNext,
+    handleQuotationWizardBack,
+    handleSubmitQuotationWizard
+  };
+}

@@ -1,13 +1,7 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function getAuthToken() {
-  let raw = sessionStorage.getItem("billbuddyAuth");
-  if (!raw) {
-    raw = localStorage.getItem("billbuddyAuth");
-    if (raw) {
-      sessionStorage.setItem("billbuddyAuth", raw);
-    }
-  }
+  const raw = sessionStorage.getItem("billbuddyAuth");
   if (!raw) return null;
 
   try {

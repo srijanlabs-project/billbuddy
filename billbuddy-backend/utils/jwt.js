@@ -1,11 +1,15 @@
 const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET || "billbuddy-dev-secret";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET is required");
+}
+const DEFAULT_JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "8h";
+const REMEMBER_ME_JWT_EXPIRES_IN = process.env.JWT_REMEMBER_ME_EXPIRES_IN || "3d";
 
-function signAuthToken(payload, jti) {
+function signAuthToken(payload, jti, expiresIn = DEFAULT_JWT_EXPIRES_IN) {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRES_IN,
+    expiresIn,
     jwtid: jti
   });
 }
@@ -19,6 +23,8 @@ function decodeToken(token) {
 }
 
 module.exports = {
+  DEFAULT_JWT_EXPIRES_IN,
+  REMEMBER_ME_JWT_EXPIRES_IN,
   signAuthToken,
   verifyAuthToken,
   decodeToken

@@ -1,6 +1,8 @@
 const express = require("express");
 const pool = require("../db/db");
 const { requirePlatformAdmin } = require("../middleware/auth");
+const { seedSellerOnboardingWorkspace } = require("../services/onboardingTemplateService");
+const { hashPassword, validatePasswordStrength } = require("../utils/passwords");
 
 const leadRoutes = express.Router();
 const publicLeadRoutes = express.Router();
@@ -13,6 +15,10 @@ function normalizeLeadPayload(body = {}) {
     businessName: String(body.businessName || body.business_name || "").trim() || null,
     city: String(body.city || "").trim() || null,
     businessType: String(body.businessType || body.business_type || "").trim() || null,
+    businessSegment: String(body.businessSegment || body.business_segment || "").trim() || null,
+    wantsSampleData: body.wantsSampleData !== undefined
+      ? Boolean(body.wantsSampleData)
+      : Boolean(body.wants_sample_data),
     requirement: String(body.requirement || "").trim() || null,
     interestedInDemo: body.interestedInDemo !== undefined
       ? Boolean(body.interestedInDemo)
@@ -39,12 +45,14 @@ async function createLead(client, payload, actorUserId = null) {
        business_name,
        city,
        business_type,
-       requirement,
-       interested_in_demo,
-       source,
-       status
-     )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'new')
+       business_segment,
+       wants_sample_data,
+     requirement,
+     interested_in_demo,
+     source,
+     status
+    )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'new')
      RETURNING *`,
     [
       payload.name,
@@ -53,6 +61,8 @@ async function createLead(client, payload, actorUserId = null) {
       payload.businessName,
       payload.city,
       payload.businessType,
+      payload.businessSegment,
+      payload.wantsSampleData,
       payload.requirement,
       payload.interestedInDemo,
       payload.source
@@ -269,6 +279,11 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
       city,
       state,
       businessCategory,
+      businessSegment,
+      wantsSampleData,
+      headerImageData,
+      logoImageData,
+      brandingMode,
       masterUserName,
       masterUserMobile,
       masterUserPassword
@@ -332,6 +347,7 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
          city,
          state,
          business_category,
+         business_segment,
          seller_code,
          onboarding_status,
          status,
@@ -350,6 +366,7 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
         city || lead.city || null,
         state || null,
         businessCategory || lead.business_type || null,
+        businessSegment || lead.business_segment || null,
         resolvedSellerCode,
         trialEndAt
       ]
@@ -402,6 +419,14 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
 
     let createdUser = null;
     if (String(masterUserName || "").trim() && String(masterUserMobile || "").trim()) {
+      if (!String(masterUserPassword || "").trim()) {
+        throw new Error("Master user password is required");
+      }
+      const passwordValidation = validatePasswordStrength(String(masterUserPassword).trim());
+      if (!passwordValidation.valid) {
+        throw new Error(passwordValidation.message);
+      }
+
       const roleResult = await client.query(
         `SELECT id, role_name
          FROM roles
@@ -420,7 +445,7 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
         [
           String(masterUserName).trim(),
           String(masterUserMobile).trim(),
-          String(masterUserPassword || "").trim() || null,
+          await hashPassword(String(masterUserPassword).trim()),
           roleId,
           req.user.id,
           sellerInsert.rows[0].id
@@ -434,10 +459,31 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
       `UPDATE leads
        SET status = 'demo_created',
            seller_id = $1,
+           business_type = COALESCE($3, business_type),
+           business_segment = COALESCE($4, business_segment),
+           wants_sample_data = COALESCE($5, wants_sample_data),
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $2`,
-      [sellerInsert.rows[0].id, leadId]
+      [
+        sellerInsert.rows[0].id,
+        leadId,
+        businessCategory || null,
+        businessSegment || null,
+        wantsSampleData === undefined ? null : Boolean(wantsSampleData)
+      ]
     );
+
+    await seedSellerOnboardingWorkspace(client, {
+      sellerId: sellerInsert.rows[0].id,
+      actorUserId: req.user.id,
+      businessCategory: businessCategory || lead.business_type || null,
+      businessSegment: businessSegment || lead.business_segment || null,
+      wantsSampleData: Boolean(wantsSampleData ?? lead.wants_sample_data),
+      headerImageData: brandingMode === "header" ? (headerImageData || null) : null,
+      logoImageData: brandingMode === "logo" ? (logoImageData || null) : null,
+      showHeaderImage: brandingMode === "header" && Boolean(headerImageData),
+      showLogoOnly: brandingMode === "logo" && Boolean(logoImageData)
+    });
 
     await client.query(
       `INSERT INTO lead_activity (lead_id, activity_type, note, actor_user_id)
