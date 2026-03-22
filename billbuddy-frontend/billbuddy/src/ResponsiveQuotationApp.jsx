@@ -982,7 +982,14 @@ export default function ResponsiveQuotationApp({
       }
     });
     if (!response.ok) {
-      throw new Error("Failed to run rich PDF debug");
+      let errorMessage = "Failed to run rich PDF debug";
+      try {
+        const errorPayload = await response.json();
+        errorMessage = errorPayload?.message || errorMessage;
+      } catch {
+        // Keep generic message if backend did not return JSON.
+      }
+      throw new Error(errorMessage);
     }
     const blob = await response.blob();
     const disposition = response.headers.get("content-disposition") || "";

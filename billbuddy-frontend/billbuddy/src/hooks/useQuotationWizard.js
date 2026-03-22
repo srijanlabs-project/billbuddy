@@ -53,7 +53,24 @@ export default function useQuotationWizard({
   const [quotationWizard, setQuotationWizard] = useState(() => createInitialQuotationWizardState());
   const [quotationWizardSubmitting, setQuotationWizardSubmitting] = useState(false);
   const [quotationPreviewUrl, setQuotationPreviewUrl] = useState("");
+  const [quotationPreviewError, setQuotationPreviewError] = useState("");
   const [quotationWizardNotice, setQuotationWizardNotice] = useState("");
+
+  function getVisibleQuotationNumber(quotation) {
+    return quotation?.custom_quotation_number || quotation?.seller_quotation_number || quotation?.quotation_number || "";
+  }
+
+  function getQuotationFileStem(quotation) {
+    const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
+    const version = quotation?.version_no || 1;
+    return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_ver_${version}`;
+  }
+
+  function extractDownloadFilename(response, quotation) {
+    const disposition = response.headers.get("content-disposition") || "";
+    const nameMatch = disposition.match(/filename="?([^"]+)"?/i);
+    return nameMatch?.[1] || `${getQuotationFileStem(quotation)}.pdf`;
+  }
 
   const quotationWizardCustomerMatches = useMemo(() => {
     const term = quotationWizard.customerSearch.trim().toLowerCase();
@@ -205,6 +222,7 @@ export default function useQuotationWizard({
         URL.revokeObjectURL(quotationPreviewUrl);
       }
       setQuotationPreviewUrl("");
+      setQuotationPreviewError("");
       setQuotationWizardNotice("");
       setShowMessageSimulatorModal(true);
       setError("");
@@ -216,6 +234,7 @@ export default function useQuotationWizard({
       URL.revokeObjectURL(quotationPreviewUrl);
     }
     setQuotationPreviewUrl("");
+    setQuotationPreviewError("");
     setQuotationWizard(createInitialQuotationWizardState(null));
     setQuotationWizardSubmitting(false);
     setQuotationWizardNotice("");
@@ -606,7 +625,36 @@ export default function useQuotationWizard({
     }
 
     const blob = await response.blob();
+    if (!String(blob.type || "").toLowerCase().includes("pdf")) {
+      throw new Error("Preview PDF is unavailable right now");
+    }
     return URL.createObjectURL(blob);
+  }
+
+  async function downloadQuotationWizardPdf(quotationId = quotationWizard.submittedQuotation?.id, quotationRecord = quotationWizard.submittedQuotation) {
+    if (!quotationId) return;
+    const token = auth?.token;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download`, {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error("Failed to download quotation");
+    }
+
+    const blob = await response.blob();
+    const filename = extractDownloadFilename(response, quotationRecord || { id: quotationId });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   async function handleSubmitQuotationWizard() {
@@ -641,6 +689,7 @@ export default function useQuotationWizard({
         step: "preview"
       }));
       setQuotationWizardSubmitting(false);
+      setQuotationPreviewError("");
 
       try {
         const previewUrl = await createQuotationPreviewUrl(response.quotation.id);
@@ -648,8 +697,9 @@ export default function useQuotationWizard({
           URL.revokeObjectURL(quotationPreviewUrl);
         }
         setQuotationPreviewUrl(previewUrl);
-      } catch {
+      } catch (previewError) {
         setQuotationPreviewUrl("");
+        setQuotationPreviewError(previewError?.message || "Preview could not be loaded. You can still download the PDF.");
       }
 
       try {
@@ -676,6 +726,7 @@ export default function useQuotationWizard({
     setQuotationWizard,
     quotationWizardSubmitting,
     quotationPreviewUrl,
+    quotationPreviewError,
     quotationWizardNotice,
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
@@ -704,6 +755,7 @@ export default function useQuotationWizard({
     handleRemoveQuotationWizardItem,
     handleQuotationWizardNext,
     handleQuotationWizardBack,
-    handleSubmitQuotationWizard
+    handleSubmitQuotationWizard,
+    downloadQuotationWizardPdf
   };
 }

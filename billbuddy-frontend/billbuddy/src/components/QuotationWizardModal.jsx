@@ -44,6 +44,8 @@ export default function QuotationWizardModal(props) {
     handleQuotationWizardNext,
     handleQuotationWizardBack,
     quotationPreviewUrl,
+    quotationPreviewError,
+    downloadQuotationWizardPdf,
     formatQuotationLabel,
     handleOpenOrderDetails
   } = props;
@@ -441,12 +443,21 @@ export default function QuotationWizardModal(props) {
                 <p className="muted">Quotation created successfully. Full document preview is shown below.</p>
               </div>
               <div className="quotation-wizard-inline-actions">
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => downloadQuotationWizardPdf(quotationWizard.submittedQuotation?.id, quotationWizard.submittedQuotation)}
+                >
+                  Download PDF
+                </button>
                 <button type="button" className="ghost-btn" onClick={() => quotationWizard.submittedQuotation?.id && handleOpenOrderDetails(quotationWizard.submittedQuotation.id)}>Open Quotation Details</button>
                 <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
               </div>
             </div>
             {quotationPreviewUrl ? (
-              <iframe title="Quotation Preview" src={quotationPreviewUrl} className="quotation-preview-frame" />
+              <iframe title="Quotation Preview" src={`${quotationPreviewUrl}#toolbar=0&navpanes=0`} className="quotation-preview-frame" />
+            ) : quotationPreviewError ? (
+              <div className="notice error">{quotationPreviewError}</div>
             ) : (
               <p className="muted">Loading quotation preview...</p>
             )}

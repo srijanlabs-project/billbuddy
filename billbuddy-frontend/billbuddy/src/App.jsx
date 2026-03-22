@@ -2843,6 +2843,10 @@ function App() {
   const isPublicVisitorHelpPage = publicVisitorHelpPaths.has(window.location.pathname);
   const isBootstrapSetupPage = bootstrapSetupPaths.has(window.location.pathname);
 
+  useEffect(() => {
+    document.title = isPublicLandingPage ? "Srijan Labs" : "Quotsy";
+  }, [isPublicLandingPage]);
+
   function saveAuth(authData, shouldRemember = true) {
     const nextAuth = {
       ...authData,
@@ -3439,6 +3443,7 @@ function App() {
     setQuotationWizard,
     quotationWizardSubmitting,
     quotationPreviewUrl,
+    quotationPreviewError,
     quotationWizardNotice,
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
@@ -3466,7 +3471,8 @@ function App() {
     handleRemoveQuotationWizardItem,
     handleQuotationWizardNext,
     handleQuotationWizardBack,
-    handleSubmitQuotationWizard
+    handleSubmitQuotationWizard,
+    downloadQuotationWizardPdf
   } = useQuotationWizard({
     auth,
     products,
@@ -4703,7 +4709,16 @@ function App() {
         }
       });
       window.clearTimeout(timeoutId);
-      if (!response.ok) throw new Error("Failed to run rich PDF debug");
+      if (!response.ok) {
+        let errorMessage = "Failed to run rich PDF debug";
+        try {
+          const errorPayload = await response.json();
+          errorMessage = errorPayload?.message || errorMessage;
+        } catch {
+          // Keep generic message if backend did not return JSON.
+        }
+        throw new Error(errorMessage);
+      }
       const blob = await response.blob();
       const disposition = response.headers.get("content-disposition") || "";
       const nameMatch = disposition.match(/filename="?([^"]+)"?/i);
@@ -5507,6 +5522,8 @@ function App() {
           handleQuotationWizardNext={handleQuotationWizardNext}
           handleQuotationWizardBack={handleQuotationWizardBack}
           quotationPreviewUrl={quotationPreviewUrl}
+          quotationPreviewError={quotationPreviewError}
+          downloadQuotationWizardPdf={downloadQuotationWizardPdf}
           formatQuotationLabel={formatQuotationLabel}
           handleOpenOrderDetails={handleOpenOrderDetails}
         />

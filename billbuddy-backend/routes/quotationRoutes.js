@@ -1,6 +1,8 @@
 const express = require("express");
 const PDFDocument = require("pdfkit");
 const puppeteer = require("puppeteer-core");
+const fs = require("fs");
+const { spawnSync } = require("child_process");
 const pool = require("../db/db");
 const {
   createQuotationWithItems,
@@ -428,16 +430,52 @@ function normalizeTemplatePreset(value) {
 }
 
 function getPuppeteerExecutablePath() {
+  const envCandidates = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_EXECUTABLE_PATH
+  ].filter(Boolean);
+  for (const candidate of envCandidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
   const candidates = [
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
     "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
     "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
   ];
   for (const candidate of candidates) {
-    if (require("fs").existsSync(candidate)) return candidate;
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  const commandCandidates = process.platform === "win32"
+    ? ["chrome", "msedge"]
+    : ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"];
+  const locatorCommand = process.platform === "win32" ? "where" : "which";
+  for (const candidate of commandCandidates) {
+    try {
+      const lookup = spawnSync(locatorCommand, [candidate], { encoding: "utf8" });
+      if (lookup.status === 0) {
+        const resolved = String(lookup.stdout || "").split(/\r?\n/).map((entry) => entry.trim()).find(Boolean);
+        if (resolved) return resolved;
+      }
+    } catch (_error) {
+      // Ignore lookup failures and continue checking other candidates.
+    }
   }
   throw new Error("Chrome or Edge executable not found for html_puppeteer renderer.");
+}
+
+function getPuppeteerLaunchArgs() {
+  const args = ["--disable-gpu", "--hide-scrollbars"];
+  if (process.platform !== "win32") {
+    args.push("--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage");
+  }
+  return args;
 }
 
 function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [] }) {
@@ -886,7 +924,7 @@ async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null
   const browser = await puppeteer.launch({
     executablePath,
     headless: true,
-    args: ["--disable-gpu", "--hide-scrollbars"]
+    args: getPuppeteerLaunchArgs()
   });
   try {
     const page = await browser.newPage();
