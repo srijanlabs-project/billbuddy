@@ -3,6 +3,29 @@ import * as XLSX from "xlsx";
 import "./App.css";
 import { apiFetch } from "./api";
 import ResponsiveQuotationApp from "./ResponsiveQuotationApp";
+import SettingsPage from "./components/SettingsPage";
+import ConfigurationStudio from "./components/ConfigurationStudio";
+import ProductsPage from "./components/ProductsPage";
+import OrdersPage from "./components/OrdersPage";
+import CustomersPage from "./components/CustomersPage";
+import UsersPage from "./components/UsersPage";
+import SubscriptionsPage from "./components/SubscriptionsPage";
+import PlansPage from "./components/PlansPage";
+import LeadsPage from "./components/LeadsPage";
+import NotificationsPage from "./components/NotificationsPage";
+import DashboardPage from "./components/DashboardPage";
+import HelpCenterPage from "./components/HelpCenterPage";
+import RbacMatrixPage from "./components/RbacMatrixPage";
+import OrderDetailModal from "./components/OrderDetailModal";
+import SellerDetailModal from "./components/SellerDetailModal";
+import NotificationDetailModal from "./components/NotificationDetailModal";
+import SubscriptionDetailModal from "./components/SubscriptionDetailModal";
+import PlanDetailModal from "./components/PlanDetailModal";
+import SellerNotificationsModal from "./components/SellerNotificationsModal";
+import QuotationWizardModal from "./components/QuotationWizardModal";
+import useQuotationWizard from "./hooks/useQuotationWizard";
+import useSellerConfigurationStudio from "./hooks/useSellerConfigurationStudio";
+import { applyShippingAddressGstReuse, createEmptyShippingAddress, updateShippingAddressValue } from "./utils/customerShipping";
 import {
   getQuotationCustomFieldEntries,
   getQuotationItemDimensionText,
@@ -17,8 +40,13 @@ import srijanLabsLogo from "./assets/Srijan_Labs.png";
 import srijanHero from "./assets/srijan_hero.png";
 import spanLogo from "./assets/span.jpeg";
 
+const REMEMBER_ME_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
+const AUTH_STORAGE_KEY = "billbuddyAuth";
+
 const SELLER_MODULES = [
   "Dashboard",
+  "Help Center",
+  "Roles & Permissions",
   "Users",
   "Orders",
   "Products",
@@ -30,8 +58,12 @@ const SELLER_MODULES = [
   "Settings"
 ];
 
+const SUB_USER_MODULES = ["Dashboard", "Help Center"];
+
 const PLATFORM_MODULES = [
   "Dashboard",
+  "Help Center",
+  "Roles & Permissions",
   "Leads",
   "Sellers",
   "Configuration Studio",
@@ -42,7 +74,7 @@ const PLATFORM_MODULES = [
   "Settings"
 ];
 
-const QUICK_ACTIONS = ["Create Order", "Add Customer"];
+const QUICK_ACTIONS = ["Create Quotation", "Add Customer"];
 
 const THEME_OPTIONS = [
   { value: "matte-blue", label: "Matte Blue" },
@@ -83,6 +115,58 @@ const LEAD_STATUS_OPTIONS = [
   { value: "lost", label: "Lost" }
 ];
 
+const BUSINESS_CATEGORY_SEGMENTS = {
+  "Traders & Distributors": [
+    "Wholesale traders",
+    "Electrical / hardware / building materials",
+    "FMCG distributors",
+    "Industrial suppliers"
+  ],
+  "Manufacturers & Fabricators": [
+    "Steel / aluminium / glass fabricators",
+    "Furniture manufacturers",
+    "Machinery / equipment makers",
+    "Custom product businesses"
+  ],
+  "Contractors & Project-Based Businesses": [
+    "Interior contractors",
+    "Civil contractors",
+    "Electrical / plumbing contractors",
+    "EPC / project vendors"
+  ],
+  "Service Providers (B2B & B2C)": [
+    "Marketing agencies",
+    "IT / software vendors",
+    "Event companies",
+    "Consulting firms"
+  ]
+};
+
+const BUSINESS_CATEGORY_OPTIONS = Object.keys(BUSINESS_CATEGORY_SEGMENTS);
+const PERMISSION_KEYS = {
+  quotationCreate: "quotation.create",
+  quotationSearch: "quotation.search",
+  quotationDownloadPdf: "quotation.download_pdf",
+  quotationEdit: "quotation.edit",
+  quotationRevise: "quotation.revise",
+  quotationSend: "quotation.send",
+  quotationMarkPaid: "quotation.mark_paid",
+  customerCreate: "customer.create",
+  customerEdit: "customer.edit",
+  productCreate: "product.create",
+  productEdit: "product.edit",
+  userCreate: "user.create",
+  userEdit: "user.edit",
+  settingsEdit: "settings.edit",
+  configurationEdit: "configuration.edit",
+  configurationSaveDraft: "configuration.save_draft",
+  configurationPublish: "configuration.publish"
+};
+
+function getBusinessSegments(category) {
+  return BUSINESS_CATEGORY_SEGMENTS[category] || [];
+}
+
 const ORDER_STATUS_OPTIONS = [
   { value: "NEW", label: "New" },
   { value: "READY_DISPATCH", label: "Ready for Dispatched" },
@@ -91,9 +175,10 @@ const ORDER_STATUS_OPTIONS = [
 ];
 
 const MODULE_META = {
-  Dashboard: { eyebrow: "Control Center", title: "Operations Dashboard", subtitle: "A polished daily cockpit for orders, quotations, dispatch, and receivables." },
+  Dashboard: { eyebrow: "Control Center", title: "Operations Dashboard", subtitle: "A polished daily cockpit for quotations, dispatch, and receivables." },
+  "Help Center": { eyebrow: "Support", title: "Help Center", subtitle: "Understand Quotsy workflows, search FAQs, and get role-aware guidance in one place." },
   Users: { eyebrow: "Access", title: "User Access Management", subtitle: "Create master users and team accounts with clear role control." },
-  Orders: { eyebrow: "Workflow", title: "Order Tracker", subtitle: "Monitor quotation status, payment flow, and message-based order capture." },
+  Orders: { eyebrow: "Workflow", title: "Quotation Tracker", subtitle: "Monitor quotation status, payment flow, and message-based quotation capture." },
   Products: { eyebrow: "Catalogue", title: "Product Catalogue", subtitle: "Manage upload-ready product structure for matching, inventory, and pricing." },
   Customers: { eyebrow: "CRM", title: "Customer Directory", subtitle: "Keep your customer master clean, searchable, and ready for quotation flow." },
   "Configuration Studio": { eyebrow: "Schema", title: "Configuration Studio", subtitle: "Configure seller-specific catalogue structure, quotation columns, preview, and publishing in one workspace." },
@@ -111,7 +196,7 @@ const QUOTATION_TEMPLATE_PRESETS = {
       footer_text: "We look forward to working with you.",
       accent_color: "#2563eb",
       notes_text: "Delivery and installation charges are extra unless mentioned.",
-      terms_text: "Payment terms and final scope will be confirmed at order stage."
+      terms_text: "Payment terms and final scope will be confirmed at quotation stage."
     }
   },
   invoice_classic: {
@@ -123,7 +208,7 @@ const QUOTATION_TEMPLATE_PRESETS = {
       footer_text: "Thank you for the opportunity to serve you.",
       accent_color: "#0f4c81",
       notes_text: "Freight, unloading, and site execution are extra unless specifically included.",
-      terms_text: "Rates are exclusive of applicable taxes unless otherwise stated. Validity and payment terms will apply as per final order confirmation."
+      terms_text: "Rates are exclusive of applicable taxes unless otherwise stated. Validity and payment terms will apply as per final quotation confirmation."
     }
   },
   executive_boardroom: {
@@ -152,7 +237,7 @@ const QUOTATION_TEMPLATE_PRESETS = {
   },
   html_puppeteer: {
     label: "HTML Puppeteer",
-    description: "Browser-rendered quotation matching the structured invoice reference while preserving BillBuddy logic.",
+    description: "Browser-rendered quotation matching the structured invoice reference while preserving Quotsy logic.",
     defaults: {
       header_text: "Sai Laser Pvt. Ltd.",
       body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
@@ -165,12 +250,14 @@ const QUOTATION_TEMPLATE_PRESETS = {
 };
 
 const PLATFORM_MODULE_META = {
-  Dashboard: { eyebrow: "Platform", title: "BillBuddy Control Plane", subtitle: "See seller growth, billing drivers, onboarding progress, and account health in one place." },
+  Dashboard: { eyebrow: "Platform", title: "Quotsy Control Plane", subtitle: "See seller growth, billing drivers, onboarding progress, and account health in one place." },
+  "Help Center": { eyebrow: "Support", title: "Help Center", subtitle: "Search guides and FAQs for platform operations, seller onboarding, and product usage." },
+  "Roles & Permissions": { eyebrow: "Governance", title: "Roles & Permissions", subtitle: "Review the current RBAC model, role coverage, and permission boundaries used across platform and seller scopes." },
   Leads: { eyebrow: "Pipeline", title: "Lead Management", subtitle: "Capture, qualify, and progress prospective sellers from first touch to onboarding." },
   Sellers: { eyebrow: "Tenants", title: "Seller Management", subtitle: "Create sellers, review lifecycle, and manage tenant health from a dedicated operating screen." },
   "Configuration Studio": { eyebrow: "Schema", title: "Seller Configuration Studio", subtitle: "Configure catalogue fields, quotation columns, preview, and publishing as a full workspace instead of a modal." },
   Subscriptions: { eyebrow: "Entitlements", title: "Subscription Management", subtitle: "Review active seller plans, trial windows, and plan state without mixing it into seller profile edits." },
-  Plans: { eyebrow: "Commercials", title: "Plan Management", subtitle: "Manage BillBuddy plans, feature limits, and upgrade paths in one place." },
+  Plans: { eyebrow: "Commercials", title: "Plan Management", subtitle: "Manage Quotsy plans, feature limits, and upgrade paths in one place." },
   Notifications: { eyebrow: "Engagement", title: "Notification Center", subtitle: "Create platform notices for seller segments and review delivery logs in one place." },
   Users: { eyebrow: "Platform Access", title: "Platform User Management", subtitle: "Control platform-level user access, seller-side administrators, and access governance." },
   Settings: { eyebrow: "Platform Setup", title: "Platform Settings", subtitle: "Onboard sellers, manage lifecycle, and configure the SaaS operating model." }
@@ -185,12 +272,15 @@ const SUPPORTED_CATALOGUE_FIELD_META = {
   unit_type: { formKey: "unitType", label: "Unit Type", inputType: "unit-select" },
   pricing_type: { formKey: "pricingType", label: "Pricing Type", inputType: "pricing-select" },
   base_price: { formKey: "basePrice", label: "Base Price", inputType: "number", required: true },
+  limit_rate_edit: { formKey: "limitRateEdit", label: "Limit Rate Edit", inputType: "checkbox" },
+  max_discount_percent: { formKey: "maxDiscountPercent", label: "Max Discount Limit", inputType: "text" },
   sku: { formKey: "sku", label: "SKU ID", inputType: "text", required: true },
   always_available: { formKey: "alwaysAvailable", label: "Always Available", inputType: "checkbox" },
   ps_supported: { formKey: "psSupported", label: "PS Supported", inputType: "checkbox" }
 };
 
 const MANDATORY_SYSTEM_CATALOGUE_KEYS = ["material_name", "category", "sku"];
+const ALWAYS_INCLUDED_CATALOGUE_KEYS = [...MANDATORY_SYSTEM_CATALOGUE_KEYS, "limit_rate_edit", "max_discount_percent"];
 
 const SUPPORTED_QUOTATION_COLUMN_META = {
   material_name: { formKey: "materialName", label: "Material Name", inputType: "text" },
@@ -207,19 +297,87 @@ const SUPPORTED_QUOTATION_COLUMN_META = {
   note: { formKey: "note", label: "Item Note", inputType: "text", fullWidth: true }
 };
 
+function clearStoredAuth() {
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore storage cleanup failures.
+  }
+}
+
 function getStoredAuth() {
   try {
-    let raw = sessionStorage.getItem("billbuddyAuth");
+    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) {
-      raw = localStorage.getItem("billbuddyAuth");
-      if (raw) {
-        sessionStorage.setItem("billbuddyAuth", raw);
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed?.token) {
+      clearStoredAuth();
+      return null;
+    }
+
+    if (parsed.sessionExpiresAt) {
+      const expiresAt = new Date(parsed.sessionExpiresAt).getTime();
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        clearStoredAuth();
+        return null;
       }
     }
-    return raw ? JSON.parse(raw) : null;
+
+    return parsed;
   } catch {
+    clearStoredAuth();
     return null;
   }
+}
+
+function PhoneFieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2a1.5 1.5 0 0 1 1.5-.36c1.18.39 2.42.59 3.7.59A1.4 1.4 0 0 1 22 16.84V20a1.4 1.4 0 0 1-1.4 1.4C10.33 21.4 2.6 13.67 2.6 4.4A1.4 1.4 0 0 1 4 3h3.16a1.4 1.4 0 0 1 1.4 1.4c0 1.28.2 2.52.59 3.7a1.5 1.5 0 0 1-.36 1.5l-2.19 2.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function LockFieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M7 10V7.75a5 5 0 1 1 10 0V10m-11 0h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EyeFieldIcon({ open = false }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M2.75 12s3.35-5.5 9.25-5.5 9.25 5.5 9.25 5.5-3.35 5.5-9.25 5.5S2.75 12 2.75 12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+      {!open && <path d="m4 20 16-16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />}
+    </svg>
+  );
 }
 
 function formatCurrency(value) {
@@ -335,7 +493,7 @@ function getSupportedCatalogueFields(configuration) {
 
   if (resolved.length) {
     const mandatoryFallbacks = fallbackFields
-      .filter((field) => MANDATORY_SYSTEM_CATALOGUE_KEYS.includes(normalizeConfigKey(field.key)))
+      .filter((field) => ALWAYS_INCLUDED_CATALOGUE_KEYS.includes(normalizeConfigKey(field.key)))
       .filter((field) => !resolved.some((entry) => entry.normalizedKey === normalizeConfigKey(field.key)))
       .map((field) => ({
         ...field,
@@ -409,6 +567,10 @@ function getProductPreviewFieldValue(row, field) {
       return row.unitType || "-";
     case "base_price":
       return row.basePrice ?? 0;
+    case "limit_rate_edit":
+      return row.limitRateEdit ? "Yes" : "No";
+    case "max_discount_percent":
+      return formatMaxDiscountLimit(row.maxDiscountPercent, row.maxDiscountType || "percent") || 0;
     case "sku":
       return row.sku || "-";
     case "material_group":
@@ -445,6 +607,10 @@ function getProductTemplateSampleValue(fieldKey, fieldLabel = "") {
       return "SFT";
     case "base_price":
       return 15;
+    case "limit_rate_edit":
+      return false;
+    case "max_discount_percent":
+      return "10%";
     case "sku":
       return "ACR-2";
     case "always_available":
@@ -470,6 +636,10 @@ function getProductConfigurationFieldValue(product, fieldKey) {
       return product.unit_type || "";
     case "base_price":
       return product.base_price ?? "";
+    case "limit_rate_edit":
+      return Boolean(product.limit_rate_edit);
+    case "max_discount_percent":
+      return formatMaxDiscountLimit(product.max_discount_percent, product.max_discount_type || "percent");
     case "sku":
       return product.sku || "";
     case "material_group":
@@ -516,6 +686,10 @@ function getProductFieldDisplayValue(product, fieldKey) {
       return product.pricing_type || "-";
     case "base_price":
       return product.base_price || "-";
+    case "limit_rate_edit":
+      return product.limit_rate_edit ? "Yes" : "No";
+    case "max_discount_percent":
+      return formatMaxDiscountLimit(product.max_discount_percent, product.max_discount_type || "percent") || "0";
     case "sku":
       return product.sku || "-";
     case "always_available":
@@ -695,14 +869,19 @@ function mapProductRow(row) {
     normalized.name ||
     "";
 
+  const parsedDiscountLimit = parseMaxDiscountLimit(normalized.max_discount_percent || "");
+
   return {
     materialName: String(primaryName).trim(),
-    category: String(normalized.category || "").trim() || null,
-    thickness: String(normalized.thickness || "").trim() || null,
-    unitType: String(normalized.unit_type || normalized.unit || normalized.uom || "COUNT").trim() || "COUNT",
-    basePrice: Number(normalized.base_price || normalized.rate || normalized.price || 0),
-    sku: String(normalized.sku || "").trim() || null,
-    alwaysAvailable: toBool(normalized.always_available),
+      category: String(normalized.category || "").trim() || null,
+      thickness: String(normalized.thickness || "").trim() || null,
+      unitType: String(normalized.unit_type || normalized.unit || normalized.uom || "COUNT").trim() || "COUNT",
+      basePrice: Number(normalized.base_price || normalized.rate || normalized.price || 0),
+      limitRateEdit: toBool(normalized.limit_rate_edit),
+    maxDiscountPercent: String(normalized.max_discount_percent || "").trim(),
+    maxDiscountType: parsedDiscountLimit.type,
+      sku: String(normalized.sku || "").trim() || null,
+      alwaysAvailable: toBool(normalized.always_available),
     materialGroup: String(normalized.material_group || normalized.material_type || "").trim() || null,
     colorName: String(normalized.color_name || normalized.colour_name || normalized.colour || normalized.color || "").trim() || null,
     psSupported: toBool(normalized.ps_supported),
@@ -737,6 +916,7 @@ function parseProductTextRows(text) {
 function validateProductRows(rows) {
   return rows.map((row, index) => {
     const issues = [];
+    const parsedDiscountLimit = parseMaxDiscountLimit(row.maxDiscountPercent);
     if (!row.materialName) issues.push("Missing primary item name");
     if (!String(row.category || "").trim()) issues.push("Category is required");
     if (!String(row.sku || "").trim()) issues.push("SKU ID is required");
@@ -746,12 +926,16 @@ function validateProductRows(rows) {
     if (Number.isNaN(Number(row.basePrice))) {
       issues.push("Base Price must be numeric");
     }
+    if (row.maxDiscountPercent && !parsedDiscountLimit.isValid) {
+      issues.push("Max Discount Limit must be a number or percentage like 10%");
+    }
 
     return {
       ...row,
       unitType: String(row.unitType || "COUNT").toUpperCase(),
       basePrice: Number(row.basePrice || 0),
       pricingType: String(row.pricingType || "SFT").toUpperCase(),
+      maxDiscountType: parsedDiscountLimit.type,
       rowNumber: index + 1,
       issues
     };
@@ -895,6 +1079,7 @@ function createQuotationWizardItem(product = null) {
   return {
     id: null,
     productId: product?.id ? String(product.id) : "",
+    catalogueSource: product?.catalogue_source || "primary",
     materialName: product?.material_name || "",
     category: normalizeQuotationWizardCategory(product?.category),
     color: product?.color_name || "",
@@ -906,6 +1091,10 @@ function createQuotationWizardItem(product = null) {
     unit: "ft",
     quantity: "1",
     rate: product?.base_price ? String(product.base_price) : "",
+    catalogueBasePrice: Number(product?.base_price || 0),
+    limitRateEdit: Boolean(product?.limit_rate_edit),
+    maxDiscountPercent: formatMaxDiscountLimit(product?.max_discount_percent, product?.max_discount_type || "percent"),
+    maxDiscountType: product?.max_discount_type || "percent",
     note: "",
     customFields: {}
   };
@@ -924,7 +1113,8 @@ function createInitialQuotationWizardState(firstProduct = null) {
       email: "",
       address: "",
       gstNumber: "",
-      monthlyBilling: false
+      monthlyBilling: false,
+      shippingAddresses: [createEmptyShippingAddress()]
     },
     itemForm: createQuotationWizardItem(firstProduct),
     items: [],
@@ -937,6 +1127,19 @@ function createInitialQuotationWizardState(firstProduct = null) {
   };
 }
 
+function createInitialCustomerForm() {
+  return {
+    name: "",
+    firmName: "",
+    mobile: "",
+    email: "",
+    address: "",
+    gstNumber: "",
+    monthlyBilling: false,
+    shippingAddresses: [createEmptyShippingAddress()]
+  };
+}
+
 function createInitialSingleProductForm() {
   return {
     materialName: "",
@@ -944,6 +1147,8 @@ function createInitialSingleProductForm() {
     thickness: "",
     unitType: "COUNT",
     basePrice: "",
+    limitRateEdit: false,
+    maxDiscountPercent: "",
     sku: "",
     alwaysAvailable: true,
     materialGroup: "",
@@ -952,6 +1157,30 @@ function createInitialSingleProductForm() {
     pricingType: "SFT",
     customFields: {}
   };
+}
+
+function parseMaxDiscountLimit(value, fallbackType = "percent") {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return { type: fallbackType, value: 0, raw: "", isValid: true };
+  }
+
+  const isPercent = raw.includes("%");
+  const numeric = Number(raw.replace(/%/g, "").replace(/,/g, "").trim());
+  const resolvedType = isPercent ? "percent" : "amount";
+
+  return {
+    type: resolvedType,
+    value: Number.isFinite(numeric) ? Math.max(0, numeric) : 0,
+    raw,
+    isValid: Number.isFinite(numeric)
+  };
+}
+
+function formatMaxDiscountLimit(value, type = "percent") {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric <= 0) return "";
+  return type === "percent" ? `${numeric}%` : String(numeric);
 }
 
 function toQuotationWizardAmount(value) {
@@ -1003,6 +1232,29 @@ function validateQuotationWizardItem(item) {
     return toQuotationWizardAmount(item?.width) > 0 && toQuotationWizardAmount(item?.height) > 0;
   }
   return true;
+}
+
+function getQuotationRateValidationMessage(item) {
+  if (!item?.limitRateEdit) return "";
+  const basePrice = toQuotationWizardAmount(item?.catalogueBasePrice);
+  const rate = resolveQuotationWizardRate(item);
+  const parsedLimit = parseMaxDiscountLimit(item?.maxDiscountPercent, item?.maxDiscountType || "percent");
+  const limitValue = parsedLimit.value;
+  const limitType = parsedLimit.type;
+  if (basePrice <= 0 || rate <= 0) return "";
+
+  const minimumAllowedRate = Number(
+    Math.max(
+      limitType === "percent"
+        ? basePrice - (basePrice * limitValue / 100)
+        : basePrice - limitValue,
+      0
+    ).toFixed(2)
+  );
+  if (rate + 0.0001 >= minimumAllowedRate) return "";
+
+  const itemName = item.materialName || "This item";
+  return `${itemName} cannot be added below Rs ${minimumAllowedRate.toLocaleString("en-IN")}. Maximum allowed discount is ${limitType === "percent" ? `${limitValue}%` : `Rs ${limitValue.toLocaleString("en-IN")}`}.`;
 }
 
 function buildQuotationWizardPayloadItems(items) {
@@ -1103,6 +1355,12 @@ function mapProductRowWithConfiguration(row, runtimeFields = [], unsupportedFiel
       case "base_price":
         baseRow.basePrice = Number(rawValue || 0);
         break;
+      case "limit_rate_edit":
+        baseRow.limitRateEdit = toBool(rawValue);
+        break;
+      case "max_discount_percent":
+        baseRow.maxDiscountPercent = String(rawValue || "").trim();
+        break;
       case "sku":
         baseRow.sku = String(rawValue).trim();
         break;
@@ -1184,7 +1442,9 @@ function createDefaultSellerConfiguration(seller) {
       { id: "cat-sku", displayOrder: 3, key: "sku", label: "SKU ID", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true },
       { id: "cat-thickness", displayOrder: 4, key: "thickness", label: "Thickness", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true },
       { id: "cat-colour", displayOrder: 5, key: "colour", label: "Colour", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true },
-      { id: "cat-base-price", displayOrder: 6, key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true }
+      { id: "cat-base-price", displayOrder: 6, key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true },
+      { id: "cat-limit-rate-edit", displayOrder: 7, key: "limit_rate_edit", label: "Limit Rate Edit", type: "checkbox", options: [], required: false, visibleInList: false, uploadEnabled: false },
+      { id: "cat-max-discount", displayOrder: 8, key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false }
     ],
     quotationColumns: [
         { id: "col-material", displayOrder: 1, key: "material_name", label: "Material", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false },
@@ -1248,8 +1508,11 @@ function PublicLeadCapturePage({
   successMessage,
   errorMessage,
   onChange,
-  onSubmit
+  onSubmit,
+  businessCategoryOptions,
+  getBusinessSegments
 }) {
+  const segmentOptions = getBusinessSegments(form.businessType);
   return (
     <div className="auth-wrap lead-capture-shell">
       <div className="app-ambience" aria-hidden="true">
@@ -1260,7 +1523,7 @@ function PublicLeadCapturePage({
       <div className="auth-bg-glow" />
       <div className="auth-grid lead-capture-grid">
         <div className="glass-card hero-card">
-          <p className="eyebrow">BillBuddy Lead Capture</p>
+          <p className="eyebrow">Quotsy Lead Capture</p>
           <h1>Start with a quick lead form.</h1>
           <p>Share your business details and requirement. Our team will track your lead, schedule a demo if needed, and move you toward onboarding.</p>
           <div className="lead-capture-points">
@@ -1270,7 +1533,7 @@ function PublicLeadCapturePage({
             </div>
             <div>
               <strong>Demo-friendly</strong>
-              <span>Mark demo interest and we’ll route it into the platform lead workflow.</span>
+              <span>Mark demo interest and weâ€™ll route it into the platform lead workflow.</span>
             </div>
             <div>
               <strong>Sales-ready</strong>
@@ -1288,7 +1551,24 @@ function PublicLeadCapturePage({
           <input placeholder="Email" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
           <input placeholder="Business Name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
           <input placeholder="City" value={form.city} onChange={(e) => onChange("city", e.target.value)} />
-          <input placeholder="Business Type" value={form.businessType} onChange={(e) => onChange("businessType", e.target.value)} />
+          <select value={form.businessType} onChange={(e) => onChange("businessType", e.target.value)}>
+            <option value="">Select Business Category</option>
+            {businessCategoryOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+          <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!form.businessType}>
+            <option value="">{form.businessType ? "Select Segment" : "Select category first"}</option>
+            {segmentOptions.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+          {form.interestedInDemo ? (
+            <label className="seller-toggle">
+              <input type="checkbox" checked={Boolean(form.wantsSampleData)} onChange={(e) => onChange("wantsSampleData", e.target.checked)} style={{ width: "auto" }} />
+              Seed sample data for this business category
+            </label>
+          ) : null}
           <textarea rows={4} placeholder="Requirement" value={form.requirement} onChange={(e) => onChange("requirement", e.target.value)} />
           <label className="seller-toggle">
             <input type="checkbox" checked={form.interestedInDemo} onChange={(e) => onChange("interestedInDemo", e.target.checked)} style={{ width: "auto" }} />
@@ -1302,14 +1582,185 @@ function PublicLeadCapturePage({
   );
 }
 
+const PUBLIC_VISITOR_FAQS = [
+  {
+    question: "What is Quotsy?",
+    answer: "Quotsy is a quotation-first business workspace that helps teams manage customers, products, quotations, branding, PDFs, and follow-up workflows from one system."
+  },
+  {
+    question: "Who is Quotsy built for?",
+    answer: "Quotsy is designed for MSMEs, distributors, manufacturers, fabricators, contractors, and service providers who need faster quotation and customer operations."
+  },
+  {
+    question: "Can I try Quotsy before buying a plan?",
+    answer: "Yes. You can register for a demo account and explore the workflow in a ready-to-use workspace before moving to a paid plan."
+  },
+  {
+    question: "How long is the demo access?",
+    answer: "The demo signup flow creates a seller workspace with a 14-day trial so your team can evaluate the product in real working conditions."
+  },
+  {
+    question: "Do I need technical knowledge to use Quotsy?",
+    answer: "No. Quotsy is designed for operational teams, sales teams, and business owners, not just technical users."
+  },
+  {
+    question: "Can I create quotations in PDF format?",
+    answer: "Yes. Quotations can be previewed and downloaded as branded PDFs using seller-specific templates."
+  },
+  {
+    question: "Can I use my company logo or header image in quotation PDFs?",
+    answer: "Yes. You can upload either a full quotation header image or a company logo and configure the PDF branding from Business Settings."
+  },
+  {
+    question: "Can my team use the same seller account together?",
+    answer: "Yes. Seller accounts support multiple users with different roles such as admin, master user, and sub-user."
+  },
+  {
+    question: "What can a sub-user do?",
+    answer: "A sub-user gets a focused workspace to create quotations, search quotations, create customers during quotation entry, and download PDFs."
+  },
+  {
+    question: "Can I manage my product catalogue in Quotsy?",
+    answer: "Yes. You can maintain a structured product catalogue and also create secondary catalogue items directly during quotation creation."
+  },
+  {
+    question: "What is secondary catalogue?",
+    answer: "Secondary catalogue stores new seller-specific items created during quotation entry, so your team can reuse them later without polluting the main structured catalogue."
+  },
+  {
+    question: "Can I add a customer while creating a quotation?",
+    answer: "Yes. The quotation wizard lets you create a new customer without leaving the quotation flow."
+  },
+  {
+    question: "Can a customer have multiple shipping addresses?",
+    answer: "Yes. Customers can have multiple shipping addresses, and each shipping location can also store warehouse GST details."
+  },
+  {
+    question: "Does Quotsy support GST details?",
+    answer: "Yes. Seller GST, customer GST, and warehouse GST can be captured and used where relevant in quotations and PDFs."
+  },
+  {
+    question: "Can I control who edits price while preparing quotations?",
+    answer: "Yes. Products can be configured with rate-edit protection using a Max Discount Limit. You can define it as a percentage like 10% or as a fixed amount like 100, and the system blocks rates that go below the allowed minimum."
+  },
+  {
+    question: "Can Quotsy support different business types?",
+    answer: "Yes. During onboarding, users can choose business category and segment so the system can seed relevant fields, quotation settings, and optional sample data."
+  },
+  {
+    question: "What business categories are supported in demo onboarding?",
+    answer: "Demo onboarding currently supports Traders and Distributors, Manufacturers and Fabricators, Contractors and Project-Based Businesses, and Service Providers."
+  },
+  {
+    question: "Will I get sample data in the demo account?",
+    answer: "Yes, if you choose sample data during demo signup. Quotsy can seed category-specific products, customers, and configuration to help you explore faster."
+  },
+  {
+    question: "Can I use my own data instead of sample data?",
+    answer: "Yes. You can choose to start with your own data and still get the category-based system structure without inserting sample products or customers."
+  },
+  {
+    question: "Can I upload products in bulk?",
+    answer: "Yes. Sellers can use the product import flow and upload catalogue data using the system template."
+  },
+  {
+    question: "Can I search quotations by customer name or mobile number?",
+    answer: "Yes. Quotation search supports customer name, firm name, quotation number, and mobile number to make retrieval faster for daily operations."
+  },
+  {
+    question: "Does Quotsy support OTP login?",
+    answer: "Yes. In addition to password login, Quotsy also supports OTP-based login for supported users."
+  },
+  {
+    question: "Can platform admins manage multiple sellers?",
+    answer: "Yes. Quotsy includes a platform control plane for leads, sellers, subscriptions, plans, onboarding, and notifications across tenants."
+  },
+  {
+    question: "Is Quotsy only for quotations?",
+    answer: "Quotsy is quotation-first, but it also supports customer management, product master setup, branding, subscription workflows, configuration control, and operational coordination."
+  },
+  {
+    question: "How quickly can I get started?",
+    answer: "Most teams can get started by setting up branding, catalogue, and customers first, then creating their first quotation the same day."
+  }
+];
+
+function PublicVisitorFaqPage() {
+  const [openQuestion, setOpenQuestion] = useState(PUBLIC_VISITOR_FAQS[0]?.question || "");
+
+  return (
+    <div className="auth-wrap lead-capture-shell">
+      <div className="app-ambience" aria-hidden="true">
+        <span className="shape shape-cube" />
+        <span className="shape shape-ring" />
+        <span className="shape shape-panel" />
+      </div>
+      <div className="auth-bg-glow" />
+      <div className="auth-grid auth-grid-duo auth-grid-public-help">
+        <div className="glass-card hero-card auth-showcase-card">
+          <p className="eyebrow">Quotsy Visitor Guide</p>
+          <h1>Before You Sign Up</h1>
+          <p>Everything a first-time visitor usually wants to understand before starting a demo, creating an account, or sharing the product internally with a team.</p>
+          <div className="lead-capture-points">
+            <div>
+              <strong>What You Will Learn</strong>
+              <span>What Quotsy does, who it is built for, how demo setup works, and how quotations, GST, catalogue, and team access fit together.</span>
+            </div>
+            <div>
+              <strong>Who This Helps</strong>
+              <span>Business owners, operations managers, sales teams, fabricators, distributors, contractors, and service providers evaluating the platform.</span>
+            </div>
+          </div>
+          <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
+            <a className="glass-btn lead-login-link" href="/login">Back to Login</a>
+            <a className="glass-btn lead-login-link" href="/try-demo">Go to Demo Signup</a>
+          </div>
+        </div>
+
+        <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card">
+          <div className="auth-visitor-faq-head">
+            <p className="eyebrow">All Visitor Questions</p>
+            <h3>Quotsy FAQs for New Visitors</h3>
+            <p>Open any question to see a direct answer. This page is meant for people who have not registered yet and want to understand the product clearly.</p>
+          </div>
+          <div className="auth-visitor-faq-list">
+            {PUBLIC_VISITOR_FAQS.map((faq) => {
+              const isOpen = openQuestion === faq.question;
+              return (
+                <article key={faq.question} className={`auth-visitor-faq-item${isOpen ? " open" : ""}`}>
+                  <button
+                    type="button"
+                    className="auth-visitor-faq-toggle"
+                    onClick={() => setOpenQuestion((current) => (current === faq.question ? "" : faq.question))}
+                    aria-expanded={isOpen}
+                  >
+                    <span>{faq.question}</span>
+                    <span className="auth-visitor-faq-plus" aria-hidden="true">{isOpen ? "-" : "+"}</span>
+                  </button>
+                  {isOpen && <p className="auth-visitor-faq-answer">{faq.answer}</p>}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 function PublicDemoSignupPage({
   form,
   submitting,
   successMessage,
   errorMessage,
   onChange,
-  onSubmit
+  onSubmit,
+  businessCategoryOptions,
+  getBusinessSegments,
+  onBrandingImageChange
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const segmentOptions = getBusinessSegments(form.businessCategory);
   const demoValueCards = [
     {
       title: "Instant Demo Workspace",
@@ -1318,7 +1769,7 @@ function PublicDemoSignupPage({
     },
     {
       title: "14-Day Trial Access",
-      text: "Get a ready-to-use BillBuddy workspace with the demo plan applied automatically for two weeks.",
+      text: "Get a ready-to-use Quotsy workspace with the demo plan applied automatically for two weeks.",
       tone: "indigo"
     },
     {
@@ -1338,8 +1789,8 @@ function PublicDemoSignupPage({
       <div className="auth-bg-glow" />
       <div className="auth-grid lead-capture-grid">
         <div className="glass-card hero-card auth-showcase-card">
-          <p className="eyebrow">BillBuddy Demo</p>
-          <h1>BillBuddy Demo</h1>
+          <p className="eyebrow">Quotsy Demo</p>
+          <h1>Quotsy Demo</h1>
           <p>Start a 14-day trial with full access, watermark-enabled quotations, and a ready-to-use seller workspace without waiting for manual onboarding.</p>
           <div className="auth-value-stack">
             {demoValueCards.map((card) => (
@@ -1352,58 +1803,157 @@ function PublicDemoSignupPage({
               </div>
             ))}
           </div>
-          <div className="landing-hero-actions auth-home-link-row">
+          <div className="glass-card auth-visitor-mini-card">
+            <strong>{PUBLIC_VISITOR_FAQS[0].question}</strong>
+            <p>{PUBLIC_VISITOR_FAQS[0].answer}</p>
+          </div>
+          <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
             <a className="glass-btn lead-login-link" href="/">Back to Home</a>
+            <a className="glass-btn lead-login-link auth-more-details-link" href="/visitor-help" target="_blank" rel="noreferrer">More Details...</a>
           </div>
         </div>
 
-        <div className="glass-card auth-card auth-panel-card lead-capture-form">
-          <div className="auth-panel-tabs" role="tablist" aria-label="Demo and login navigation">
-            <a className="auth-panel-tab auth-panel-tab-link" href="/login">Login</a>
-            <span className="auth-panel-tab active">Register for Demo</span>
+        <div className="auth-public-side">
+          <div className="glass-card auth-card auth-panel-card auth-demo-panel">
+            <div className="auth-panel-tabs" role="tablist" aria-label="Demo and login navigation">
+              <a className="auth-panel-tab auth-panel-tab-link" href="/login">Login</a>
+              <span className="auth-panel-tab active">Register for Demo</span>
+            </div>
+            <div className="auth-panel-divider" />
+            <div className="auth-panel-copy">
+              <h2>Register for Demo</h2>
+              <p>Create your demo seller workspace and start a 14-day trial instantly.</p>
+            </div>
+            {successMessage && <div className="notice">{successMessage}</div>}
+            {errorMessage && <div className="notice error">{errorMessage}</div>}
+            <form className="auth-form-shell auth-demo-form" onSubmit={onSubmit}>
+              <label className="auth-field auth-field-caps">
+                <span>Your Name</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter your name" value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Mobile Number</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter mobile number" value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Password</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><LockFieldIcon /></span>
+                  <input
+                    placeholder="Create password"
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) => onChange("password", e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="auth-input-toggle"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((current) => !current)}
+                  >
+                    <EyeFieldIcon open={showPassword} />
+                  </button>
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Email</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter email address" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Business Name</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter business name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>City</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter city" value={form.city} onChange={(e) => onChange("city", e.target.value)} />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>State</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <input placeholder="Enter state" value={form.state} onChange={(e) => onChange("state", e.target.value)} />
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Business Category</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <select value={form.businessCategory} onChange={(e) => onChange("businessCategory", e.target.value)}>
+                    <option value="">Select business category</option>
+                    {businessCategoryOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Business Segment</span>
+                <div className="auth-input-shell">
+                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                  <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!form.businessCategory}>
+                    <option value="">{form.businessCategory ? "Select segment" : "Select category first"}</option>
+                    {segmentOptions.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Demo Data Preference</span>
+                <div className="auth-choice-group">
+                  <label className="auth-choice-pill">
+                    <input type="radio" name="sampleData" checked={Boolean(form.wantsSampleData)} onChange={() => onChange("wantsSampleData", true)} />
+                    <span>Use sample data</span>
+                  </label>
+                  <label className="auth-choice-pill">
+                    <input type="radio" name="sampleData" checked={!form.wantsSampleData} onChange={() => onChange("wantsSampleData", false)} />
+                    <span>I will use my own data</span>
+                  </label>
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>Branding for Quotation</span>
+                <div className="auth-choice-group">
+                  <label className="auth-choice-pill">
+                    <input type="radio" name="brandingMode" checked={form.brandingMode === "header"} onChange={() => onChange("brandingMode", "header")} />
+                    <span>Upload Header Image</span>
+                  </label>
+                  <label className="auth-choice-pill">
+                    <input type="radio" name="brandingMode" checked={form.brandingMode === "logo"} onChange={() => onChange("brandingMode", "logo")} />
+                    <span>Upload Company Logo</span>
+                  </label>
+                </div>
+              </label>
+              <label className="auth-field auth-field-caps">
+                <span>{form.brandingMode === "logo" ? "Company Logo" : "Quotation Header Image"}</span>
+                <div className="auth-upload-block">
+                  <input type="file" accept="image/*" onChange={(e) => onBrandingImageChange(form.brandingMode === "logo" ? "logoImageData" : "headerImageData", e)} />
+                  <small>{form.brandingMode === "logo" ? (form.logoImageData ? "Logo uploaded" : "Optional upload") : (form.headerImageData ? "Header image uploaded" : "Optional upload")}</small>
+                </div>
+              </label>
+              <div className="auth-panel-footer-note">
+                <span>We will configure your demo workspace based on your business category and selected segment.</span>
+                <strong>{form.wantsSampleData ? "Sample catalogue and quotation setup will be created for you." : "We will create the structure and you can upload your own data."}</strong>
+              </div>
+              <button type="submit" className="auth-submit-btn" disabled={submitting}>{submitting ? "Creating demo..." : "Create Demo Account ->"}</button>
+            </form>
           </div>
-          <div className="auth-panel-divider" />
-          <div className="auth-panel-copy">
-            <h2>Register for Demo</h2>
-            <p>Create your demo seller workspace and start a 14-day trial instantly.</p>
-          </div>
-          {successMessage && <div className="notice">{successMessage}</div>}
-          {errorMessage && <div className="notice error">{errorMessage}</div>}
-          <form className="auth-form-shell" onSubmit={onSubmit}>
-            <label className="auth-field">
-              <span>Your Name</span>
-              <input placeholder="Enter your name" value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
-            </label>
-            <label className="auth-field">
-              <span>Mobile Number</span>
-              <input placeholder="Enter mobile number" value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
-            </label>
-            <label className="auth-field">
-              <span>Password</span>
-              <input placeholder="Create password" type="password" value={form.password} onChange={(e) => onChange("password", e.target.value)} required />
-            </label>
-            <label className="auth-field">
-              <span>Email</span>
-              <input placeholder="Enter email address" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
-            </label>
-            <label className="auth-field">
-              <span>Business Name</span>
-              <input placeholder="Enter business name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
-            </label>
-            <label className="auth-field">
-              <span>City</span>
-              <input placeholder="Enter city" value={form.city} onChange={(e) => onChange("city", e.target.value)} />
-            </label>
-            <label className="auth-field">
-              <span>State</span>
-              <input placeholder="Enter state" value={form.state} onChange={(e) => onChange("state", e.target.value)} />
-            </label>
-            <label className="auth-field">
-              <span>Business Category</span>
-              <input placeholder="Enter business category" value={form.businessCategory} onChange={(e) => onChange("businessCategory", e.target.value)} />
-            </label>
-            <button type="submit" disabled={submitting}>{submitting ? "Creating demo..." : "Create Demo Account"}</button>
-          </form>
         </div>
       </div>
     </div>
@@ -1412,9 +1962,11 @@ function PublicDemoSignupPage({
 
 function PublicLoginPage({
   bootstrapRequired,
+  bootstrapHint,
   loginForm,
   setupForm,
   rememberMe,
+  infoMessage,
   errorMessage,
   onLoginFormChange,
   onSetupFormChange,
@@ -1423,15 +1975,16 @@ function PublicLoginPage({
   onBootstrapAdmin
 }) {
   const showSetup = Boolean(bootstrapRequired);
-  const showLogin = bootstrapRequired === false;
+  const showLogin = !showSetup;
+  const [showPassword, setShowPassword] = useState(false);
   const authTitle = showSetup ? "First-Time Setup" : "Login";
   const authSubtitle = showSetup
-    ? "Create the first platform admin account to bootstrap BillBuddy."
-    : "Sign in to manage quotations, customers, orders, and platform operations.";
+    ? "Create the first platform admin account to bootstrap Quotsy."
+    : "Sign in to manage quotations, customers, products, and platform operations.";
   const valueCards = [
     {
       title: "Seller Workspace",
-      text: "Manage quotations, customers, products, and orders from one connected workspace.",
+      text: "Manage quotations, customers, products, and follow-ups from one connected workspace.",
       tone: "blue"
     },
     {
@@ -1455,86 +2008,135 @@ function PublicLoginPage({
       </div>
       <div className="auth-bg-glow" />
       <div className={`auth-grid ${showSetup || showLogin ? "auth-grid-duo" : ""}`}>
-        <div className="glass-card hero-card auth-showcase-card">
-          <p className="eyebrow">BillBuddy Multi-Tenant SaaS</p>
-          <h1>BillBuddy Platform</h1>
-          <p>Run your sales, quotations, customer operations, and multi-tenant governance from one connected workspace built for growing MSMEs.</p>
-          <div className="auth-value-stack">
-            {valueCards.map((card) => (
-              <div key={card.title} className={`auth-value-card auth-value-card-${card.tone}`}>
-                <span className="auth-value-icon" aria-hidden="true" />
-                <div>
-                  <strong>{card.title}</strong>
-                  <span>{card.text}</span>
+        {(showSetup || showLogin) && (
+          <div className="glass-card hero-card auth-showcase-card">
+            <p className="eyebrow">Quotsy Multi-Tenant SaaS</p>
+            <h1>Quotsy Platform</h1>
+            <p>Run your sales, quotations, customer operations, and multi-tenant governance from one connected workspace built for growing MSMEs.</p>
+            <div className="auth-value-stack">
+              {valueCards.map((card) => (
+                <div key={card.title} className={`auth-value-card auth-value-card-${card.tone}`}>
+                  <span className="auth-value-icon" aria-hidden="true" />
+                  <div>
+                    <strong>{card.title}</strong>
+                    <span>{card.text}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            <div className="glass-card auth-visitor-mini-card">
+              <strong>{PUBLIC_VISITOR_FAQS[0].question}</strong>
+              <p>{PUBLIC_VISITOR_FAQS[0].answer}</p>
+            </div>
+            <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
+              <a className="glass-btn lead-login-link" href="/">Back to Home</a>
+              <a className="glass-btn lead-login-link auth-more-details-link" href="/visitor-help" target="_blank" rel="noreferrer">More Details...</a>
+            </div>
           </div>
-          <div className="landing-hero-actions auth-home-link-row">
-            <a className="glass-btn lead-login-link" href="/">Back to Home</a>
-          </div>
-        </div>
+        )}
 
-        <div className="glass-card auth-card auth-panel-card">
-          <div className="auth-panel-tabs" role="tablist" aria-label="Authentication mode">
-            {showSetup ? (
-              <span className="auth-panel-tab active">First-Time Setup</span>
-            ) : (
-              <>
-                <span className="auth-panel-tab active">Login</span>
-                <a className="auth-panel-tab auth-panel-tab-link" href="/try-demo">Register for Demo</a>
-              </>
+        <div className="auth-public-side">
+          <div className="glass-card auth-card auth-panel-card">
+            <div className="auth-panel-tabs" role="tablist" aria-label="Authentication mode">
+              {showSetup ? (
+                <span className="auth-panel-tab active">First-Time Setup</span>
+              ) : (
+                <>
+                  <span className="auth-panel-tab active">Login</span>
+                  <a className="auth-panel-tab auth-panel-tab-link" href="/try-demo">Register for Demo</a>
+                </>
+              )}
+            </div>
+            <div className="auth-panel-divider" />
+            <div className="auth-panel-copy">
+              {!showSetup && <div className="auth-access-badge">Secure Access</div>}
+              <h2>{showSetup ? authTitle : "Welcome back"}</h2>
+              <p>{showSetup ? authSubtitle : "Sign in to manage quotations, customers, products, and platform operations."}</p>
+            </div>
+
+            {bootstrapHint && (
+              <div className="notice info">
+                First-time platform setup is required before normal login. Open <a href="/platform-setup">Platform Setup</a>.
+              </div>
+            )}
+
+            {showLogin && (
+              <form className="auth-form-shell" onSubmit={onLogin}>
+                <label className="auth-field auth-field-caps">
+                  <span>Mobile Number</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <input
+                      placeholder="Enter your mobile number"
+                      value={loginForm.mobile}
+                      onChange={(e) => onLoginFormChange({ ...loginForm, mobile: e.target.value })}
+                      required
+                    />
+                  </div>
+                </label>
+                <label className="auth-field auth-field-caps">
+                  <span>Password</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><LockFieldIcon /></span>
+                    <input
+                      placeholder="Enter your password"
+                      type={showPassword ? "text" : "password"}
+                      value={loginForm.password}
+                      onChange={(e) => onLoginFormChange({ ...loginForm, password: e.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="auth-input-toggle"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      onClick={() => setShowPassword((current) => !current)}
+                    >
+                      <EyeFieldIcon open={showPassword} />
+                    </button>
+                  </div>
+                </label>
+                <div className="auth-login-meta-row">
+                  <label className="auth-checkbox-row">
+                    <input type="checkbox" checked={rememberMe} onChange={(e) => onRememberMeChange(e.target.checked)} />
+                    <span>Remember me on this device</span>
+                  </label>
+                  <button type="button" className="auth-forgot-link" onClick={() => onLoginFormChange({ ...loginForm, password: "", otp: "" })}>
+                    Forgot?
+                  </button>
+                </div>
+                {infoMessage && <div className="notice info">{infoMessage}</div>}
+                <button type="submit" className="auth-submit-btn">
+                  {"Sign In ->"}
+                </button>
+                <div className="auth-panel-meta">
+                  <span>Trusted by growing sellers & teams</span>
+                  <strong>Srijan Labs</strong>
+                </div>
+              </form>
+            )}
+
+            {showSetup && (
+              <form className="auth-form-shell" onSubmit={onBootstrapAdmin}>
+                <label className="auth-field">
+                  <span>Admin Name</span>
+                  <input placeholder="Enter admin name" value={setupForm.name} onChange={(e) => onSetupFormChange({ ...setupForm, name: e.target.value })} required />
+                </label>
+                <label className="auth-field">
+                  <span>Mobile Number</span>
+                  <input placeholder="Enter admin mobile number" value={setupForm.mobile} onChange={(e) => onSetupFormChange({ ...setupForm, mobile: e.target.value })} required />
+                </label>
+                <label className="auth-field">
+                  <span>Password</span>
+                  <input placeholder="Create admin password" type="password" value={setupForm.password} onChange={(e) => onSetupFormChange({ ...setupForm, password: e.target.value })} required />
+                </label>
+                <button type="submit">Create Platform Admin</button>
+                <div className="auth-panel-footer-note">
+                  <span>This setup appears only until the first user is created.</span>
+                  <strong>After setup, normal seller/admin login will appear here.</strong>
+                </div>
+              </form>
             )}
           </div>
-          <div className="auth-panel-divider" />
-          <div className="auth-panel-copy">
-            <h2>{authTitle}</h2>
-            <p>{authSubtitle}</p>
-          </div>
-
-          {showLogin && (
-            <form className="auth-form-shell" onSubmit={onLogin}>
-              <label className="auth-field">
-                <span>Mobile Number</span>
-                <input placeholder="Enter your mobile number" value={loginForm.mobile} onChange={(e) => onLoginFormChange({ ...loginForm, mobile: e.target.value })} required />
-              </label>
-              <label className="auth-field">
-                <span>Password</span>
-                <input placeholder="Enter your password" type="password" value={loginForm.password} onChange={(e) => onLoginFormChange({ ...loginForm, password: e.target.value })} required />
-              </label>
-              <label className="auth-checkbox-row">
-                <input type="checkbox" checked={rememberMe} onChange={(e) => onRememberMeChange(e.target.checked)} />
-                <span>Remember me on this device</span>
-              </label>
-              <button type="submit">Sign In</button>
-              <div className="auth-panel-footer-note">
-                <span>Trusted by growing sellers and teams</span>
-                <strong>Built by Srijan Labs</strong>
-              </div>
-            </form>
-          )}
-
-          {showSetup && (
-            <form className="auth-form-shell" onSubmit={onBootstrapAdmin}>
-              <label className="auth-field">
-                <span>Admin Name</span>
-                <input placeholder="Enter admin name" value={setupForm.name} onChange={(e) => onSetupFormChange({ ...setupForm, name: e.target.value })} required />
-              </label>
-              <label className="auth-field">
-                <span>Mobile Number</span>
-                <input placeholder="Enter admin mobile number" value={setupForm.mobile} onChange={(e) => onSetupFormChange({ ...setupForm, mobile: e.target.value })} required />
-              </label>
-              <label className="auth-field">
-                <span>Password</span>
-                <input placeholder="Create admin password" type="password" value={setupForm.password} onChange={(e) => onSetupFormChange({ ...setupForm, password: e.target.value })} required />
-              </label>
-              <button type="submit">Create Platform Admin</button>
-              <div className="auth-panel-footer-note">
-                <span>This setup appears only until the first user is created.</span>
-                <strong>After setup, normal seller/admin login will appear here.</strong>
-              </div>
-            </form>
-          )}
         </div>
       </div>
       {errorMessage && <div className="error-toast">{errorMessage}</div>}
@@ -1547,11 +2149,11 @@ function PublicLandingPage() {
     {
       name: "Quicksy",
       eyebrow: "Commerce Platform",
-      title: "Smart order and operations management for MSMEs that need speed and control.",
+      title: "Smart quotation and operations management for MSMEs that need speed and control.",
       description:
-        "Manage orders, customers, deliveries, and daily execution from one modern system designed to help MSMEs move beyond manual coordination.",
+        "Manage quotations, customers, deliveries, and daily execution from one modern system designed to help MSMEs move beyond manual coordination.",
       bullets: [
-        "Order management",
+        "Quotation management",
         "Customer management",
         "Delivery tracking",
         "Business dashboards"
@@ -1560,7 +2162,7 @@ function PublicLandingPage() {
       primaryLabel: "Explore Quicksy"
     },
     {
-      name: "BillBuddy",
+      name: "Quotsy",
       eyebrow: "Quotation & Billing SaaS",
       title: "Professional quotation and billing workflows for growing MSME teams.",
       description:
@@ -1572,7 +2174,7 @@ function PublicLandingPage() {
         "Multi-user access"
       ],
       primaryHref: "/try-demo",
-      primaryLabel: "Explore BillBuddy"
+      primaryLabel: "Explore Quotsy"
     }
   ];
 
@@ -1583,7 +2185,7 @@ function PublicLandingPage() {
     },
     {
       title: "Operational Discipline",
-      text: "Our products bring clarity to quotations, orders, follow-ups, and day-to-day business operations."
+      text: "Our products bring clarity to quotations, follow-ups, and day-to-day business operations."
     },
     {
       title: "Commerce Enablement",
@@ -1637,7 +2239,7 @@ function PublicLandingPage() {
     },
     {
       name: "Span Media",
-      role: "Hardware Partner – Digital Media Transformation",
+      role: "Hardware Partner â€“ Digital Media Transformation",
       logo: spanLogo,
       description:
         "Span Media partners with Srijan Labs to provide the hardware infrastructure required for digital media transformation solutions. Their expertise in display technologies and digital hardware enables organizations to implement modern screen networks and smart media systems.",
@@ -1648,7 +2250,7 @@ function PublicLandingPage() {
         "Integrated hardware setups for content management platforms"
       ],
       closing:
-        "With Span Media’s hardware capabilities and Srijan Labs’ software platforms, organizations can build complete end-to-end digital media ecosystems."
+        "With Span Mediaâ€™s hardware capabilities and Srijan Labsâ€™ software platforms, organizations can build complete end-to-end digital media ecosystems."
     }
   ];
 
@@ -1689,10 +2291,10 @@ function PublicLandingPage() {
       <main className="labs-main">
         <section className="labs-hero">
           <div className="labs-hero-copy">
-            <div className="labs-pill">MSME Digitization · SaaS Products · Operational Systems</div>
+            <div className="labs-pill">MSME Digitization Â· SaaS Products Â· Operational Systems</div>
             <h1>Empowering MSMEs through practical digitization and modern business software.</h1>
             <p>
-              Srijan Labs builds modern SaaS products that help MSMEs digitize quotations, orders, customers,
+              Srijan Labs builds modern SaaS products that help MSMEs digitize quotations, customers,
               billing, and operations without losing the practical rhythm of how their business actually runs.
             </p>
             <div className="labs-hero-actions">
@@ -1719,13 +2321,13 @@ function PublicLandingPage() {
                 <img className="labs-product-logo" src={quicksyLogo} alt="Quicksy" />
                 <h4>Commerce operations for MSME teams</h4>
                 <div className="labs-mini-list">
-                  <span>Orders · Customers · Deliveries</span>
+                  <span>Quotations · Customers · Deliveries</span>
                   <span>Inventory visibility</span>
                 </div>
               </article>
 
               <article className="labs-hero-support-card">
-                <p className="eyebrow">BillBuddy</p>
+                <p className="eyebrow">Quotsy</p>
                 <h4>Quotation intelligence for modern MSMEs</h4>
                 <div className="labs-mini-list">
                   <span>Fast quotation creation</span>
@@ -1794,9 +2396,9 @@ function PublicLandingPage() {
             <article className="labs-showcase-card dark">
               <p className="eyebrow">Quicksy</p>
               <h3>The modern commerce platform for everyday execution.</h3>
-              <p>Built for MSME teams that need operational speed across order management, customer tracking, and delivery orchestration.</p>
+              <p>Built for MSME teams that need operational speed across quotation management, customer tracking, and delivery orchestration.</p>
               <div className="labs-dark-kpis">
-                <div><p>Orders Today</p><strong>284</strong></div>
+                <div><p>Quotations Today</p><strong>284</strong></div>
                 <div><p>Active Riders</p><strong>42</strong></div>
               </div>
               <div className="labs-bar-panel">
@@ -1809,7 +2411,7 @@ function PublicLandingPage() {
             </article>
 
             <article className="labs-showcase-card">
-              <p className="eyebrow">BillBuddy</p>
+              <p className="eyebrow">Quotsy</p>
               <h3>Smart quotation and billing control for growth-stage MSMEs.</h3>
               <p>Designed for businesses that need faster quotations, cleaner customer handling, and stronger billing discipline.</p>
               <div className="labs-quote-card">
@@ -1904,7 +2506,7 @@ function PublicLandingPage() {
               <div>
                 <p className="eyebrow">Let&apos;s Build</p>
                 <h2>Ready to digitize business operations with software that actually helps MSMEs?</h2>
-                <p>Explore Quicksy and BillBuddy, or connect with Srijan Labs to build the next digital layer your business actually needs.</p>
+                <p>Explore Quicksy and Quotsy, or connect with Srijan Labs to build the next digital layer your business actually needs.</p>
               </div>
 
               <div className="labs-contact-actions">
@@ -1938,7 +2540,7 @@ function PublicLandingPage() {
             <h4>Products</h4>
             <div className="labs-footer-links">
               <a href="#products">Quicksy</a>
-              <a href="#products">BillBuddy</a>
+              <a href="#products">Quotsy</a>
             </div>
           </div>
 
@@ -1961,7 +2563,7 @@ function PublicLandingPage() {
             </div>
           </div>
         </div>
-        <div className="labs-footer-bottom">© 2026 Srijan Labs. All rights reserved.</div>
+        <div className="labs-footer-bottom">Â© 2026 Srijan Labs. All rights reserved.</div>
       </footer>
     </div>
   );
@@ -1972,6 +2574,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(null);
   const [error, setError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -1980,15 +2583,9 @@ function App() {
   const [search, setSearch] = useState("");
   const [orderSort, setOrderSort] = useState({ key: "created_at", direction: "desc" });
 
-  const [loginForm, setLoginForm] = useState({ mobile: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ mobile: "", password: "", otp: "" });
   const [setupForm, setSetupForm] = useState({ name: "", mobile: "", password: "" });
-  const [rememberMe, setRememberMe] = useState(() => {
-    try {
-      return !sessionStorage.getItem("billbuddyAuth");
-    } catch {
-      return true;
-    }
-  });
+  const [rememberMe, setRememberMe] = useState(() => Boolean(getStoredAuth()?.rememberMe));
   const [publicDemoForm, setPublicDemoForm] = useState({
     name: "",
     mobile: "",
@@ -1997,7 +2594,12 @@ function App() {
     businessName: "",
     city: "",
     state: "",
-    businessCategory: ""
+    businessCategory: "",
+    businessSegment: "",
+    wantsSampleData: true,
+    brandingMode: "header",
+    headerImageData: null,
+    logoImageData: null
   });
   const [publicLeadForm, setPublicLeadForm] = useState({
     name: "",
@@ -2006,6 +2608,8 @@ function App() {
     businessName: "",
     city: "",
     businessType: "",
+    businessSegment: "",
+    wantsSampleData: true,
     requirement: "",
     interestedInDemo: false
   });
@@ -2027,6 +2631,7 @@ function App() {
   const [theme, setTheme] = useState("matte-blue");
   const [brandColor, setBrandColor] = useState("#2563eb");
   const [quotationNumberPrefix, setQuotationNumberPrefix] = useState("QTN");
+  const [sellerGstNumber, setSellerGstNumber] = useState("");
   const [bankName, setBankName] = useState("");
   const [bankBranch, setBankBranch] = useState("");
   const [bankAccountNo, setBankAccountNo] = useState("");
@@ -2060,7 +2665,7 @@ function App() {
     show_logo_only: false,
     accent_color: "#2563eb",
     notes_text: "Delivery and installation charges are extra unless mentioned.",
-    terms_text: "Payment terms and final scope will be confirmed at order stage.",
+    terms_text: "Payment terms and final scope will be confirmed at quotation stage.",
     email_enabled: false,
     whatsapp_enabled: true
   });
@@ -2102,14 +2707,7 @@ function App() {
   const [selectedSellerDetail, setSelectedSellerDetail] = useState(null);
   const [showSellerDetailModal, setShowSellerDetailModal] = useState(false);
   const [sellerDetailLoading, setSellerDetailLoading] = useState(false);
-  const [selectedSellerConfigSeller, setSelectedSellerConfigSeller] = useState(null);
-  const [sellerConfigTab, setSellerConfigTab] = useState("dashboard");
-  const [sellerConfigPreviewTab, setSellerConfigPreviewTab] = useState("product-form");
-  const [sellerConfigurations, setSellerConfigurations] = useState({});
   const [currentSellerConfiguration, setCurrentSellerConfiguration] = useState(null);
-  const [sellerConfigLoading, setSellerConfigLoading] = useState(false);
-  const [sellerConfigSaving, setSellerConfigSaving] = useState(false);
-  const [sellerConfigPublishing, setSellerConfigPublishing] = useState(false);
   const [selectedPlanDetail, setSelectedPlanDetail] = useState(null);
   const [showPlanDetailModal, setShowPlanDetailModal] = useState(false);
   const [upgradeRequestLoading, setUpgradeRequestLoading] = useState(false);
@@ -2127,6 +2725,11 @@ function App() {
     city: "",
     state: "",
     businessCategory: "",
+    businessSegment: "",
+    wantsSampleData: true,
+    brandingMode: "header",
+    headerImageData: null,
+    logoImageData: null,
     masterUserName: "",
     masterUserMobile: "",
     masterUserPassword: ""
@@ -2173,21 +2776,9 @@ function App() {
     roleId: "",
     createdBy: ""
   });
-  const [customerForm, setCustomerForm] = useState({
-    name: "",
-    firmName: "",
-    mobile: "",
-    email: "",
-    address: "",
-    gstNumber: "",
-    monthlyBilling: false
-  });
+  const [customerForm, setCustomerForm] = useState(createInitialCustomerForm);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [showMessageSimulatorModal, setShowMessageSimulatorModal] = useState(false);
-  const [quotationWizard, setQuotationWizard] = useState(() => createInitialQuotationWizardState());
-  const [quotationWizardSubmitting, setQuotationWizardSubmitting] = useState(false);
-  const [quotationPreviewUrl, setQuotationPreviewUrl] = useState("");
   const [showProductUploadModal, setShowProductUploadModal] = useState(false);
   const [showSingleProductModal, setShowSingleProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -2216,39 +2807,54 @@ function App() {
   const [customerPage, setCustomerPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
   const [userPage, setUserPage] = useState(1);
+  const [subUserAction, setSubUserAction] = useState("");
+  const [subUserSearchInput, setSubUserSearchInput] = useState("");
 
   const PAGE_SIZE = 10;
   const isPlatformAdmin = Boolean(auth?.user?.isPlatformAdmin);
-  const currentModules = isPlatformAdmin ? PLATFORM_MODULES : SELLER_MODULES;
+  const isSubUser = !isPlatformAdmin && auth?.user?.role === "Sub User";
+  const grantedPermissions = useMemo(() => new Set(Array.isArray(auth?.user?.permissions) ? auth.user.permissions : []), [auth?.user?.permissions]);
+  const hasPermission = (permissionKey) => grantedPermissions.has("*") || grantedPermissions.has(permissionKey);
+  const canCreateQuotation = hasPermission(PERMISSION_KEYS.quotationCreate);
+  const canSearchQuotation = hasPermission(PERMISSION_KEYS.quotationSearch);
+  const canDownloadQuotationPdf = hasPermission(PERMISSION_KEYS.quotationDownloadPdf);
+  const canEditQuotation = hasPermission(PERMISSION_KEYS.quotationEdit);
+  const canReviseQuotation = hasPermission(PERMISSION_KEYS.quotationRevise);
+  const canSendQuotation = hasPermission(PERMISSION_KEYS.quotationSend);
+  const canMarkPaid = hasPermission(PERMISSION_KEYS.quotationMarkPaid);
+  const canCreateCustomer = hasPermission(PERMISSION_KEYS.customerCreate);
+  const canCreateProduct = hasPermission(PERMISSION_KEYS.productCreate);
+  const canEditProduct = hasPermission(PERMISSION_KEYS.productEdit);
+  const canCreateUser = hasPermission(PERMISSION_KEYS.userCreate);
+  const canEditSettings = hasPermission(PERMISSION_KEYS.settingsEdit);
+  const canEditConfiguration = hasPermission(PERMISSION_KEYS.configurationEdit);
+  const canSaveConfigurationDraft = hasPermission(PERMISSION_KEYS.configurationSaveDraft);
+  const canPublishConfiguration = hasPermission(PERMISSION_KEYS.configurationPublish);
+  const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : SELLER_MODULES;
   const currentModuleMeta = isPlatformAdmin ? PLATFORM_MODULE_META : MODULE_META;
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
-    const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
+  const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
+  const publicVisitorHelpPaths = new Set(["/visitor-help", "/visitor-faqs"]);
+  const bootstrapSetupPaths = new Set(["/platform-setup", "/setup-admin"]);
   const isPublicLandingPage = window.location.pathname === "/";
   const isPublicLeadPage = publicLeadPaths.has(window.location.pathname);
   const isPublicDemoPage = publicDemoPaths.has(window.location.pathname);
+  const isPublicVisitorHelpPage = publicVisitorHelpPaths.has(window.location.pathname);
+  const isBootstrapSetupPage = bootstrapSetupPaths.has(window.location.pathname);
 
   function saveAuth(authData, shouldRemember = true) {
-    sessionStorage.setItem("billbuddyAuth", JSON.stringify(authData));
-    if (shouldRemember) {
-      localStorage.setItem("billbuddyAuth", JSON.stringify(authData));
-    }
-    setAuth(authData);
+    const nextAuth = {
+      ...authData,
+      rememberMe: shouldRemember,
+      sessionExpiresAt: authData.sessionExpiresAt || (shouldRemember ? new Date(Date.now() + REMEMBER_ME_DURATION_MS).toISOString() : null)
+    };
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextAuth));
+    setAuth(nextAuth);
   }
 
   function clearAuth(message = "") {
-    const localRaw = localStorage.getItem("billbuddyAuth");
-    if (localRaw) {
-      try {
-        const parsed = JSON.parse(localRaw);
-        if (!auth?.token || parsed?.token === auth.token) {
-          localStorage.removeItem("billbuddyAuth");
-        }
-      } catch {
-        localStorage.removeItem("billbuddyAuth");
-      }
-    }
-    sessionStorage.removeItem("billbuddyAuth");
+    clearStoredAuth();
     setAuth(null);
     if (message) setError(message);
   }
@@ -2265,15 +2871,63 @@ function App() {
   function updatePublicLeadField(field, value) {
     setPublicLeadForm((prev) => ({
       ...prev,
-      [field]: value
+      ...(field === "businessType"
+        ? {
+            businessType: value,
+            businessSegment: getBusinessSegments(value)[0] || ""
+          }
+        : {
+            [field]: value
+          })
     }));
   }
 
   function updatePublicDemoField(field, value) {
     setPublicDemoForm((prev) => ({
       ...prev,
-      [field]: value
+      ...(field === "businessCategory"
+        ? {
+            businessCategory: value,
+            businessSegment: getBusinessSegments(value)[0] || ""
+          }
+        : {
+            [field]: value
+          })
     }));
+  }
+
+  async function handlePublicDemoBrandingImageChange(targetField, event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setPublicDemoForm((prev) => ({
+        ...prev,
+        [targetField]: dataUrl
+      }));
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      event.target.value = "";
+    }
+  }
+
+  async function handleLeadConvertBrandingImageChange(targetField, event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setLeadConvertForm((prev) => ({
+        ...prev,
+        [targetField]: dataUrl
+      }));
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      event.target.value = "";
+    }
   }
 
   async function handleSubmitPublicLead(event) {
@@ -2294,6 +2948,8 @@ function App() {
         businessName: "",
         city: "",
         businessType: "",
+        businessSegment: "",
+        wantsSampleData: true,
         requirement: "",
         interestedInDemo: false
       });
@@ -2322,16 +2978,14 @@ function App() {
 
     try {
       const me = await apiFetch("/api/auth/me");
-      const localRaw = localStorage.getItem("billbuddyAuth");
-      let shouldRemember = false;
-      if (localRaw) {
-        try {
-          shouldRemember = JSON.parse(localRaw)?.token === auth.token;
-        } catch {
-          shouldRemember = false;
-        }
-      }
-      saveAuth({ token: auth.token, user: me.user }, shouldRemember);
+      saveAuth(
+        {
+          token: auth.token,
+          user: me.user,
+          sessionExpiresAt: auth.sessionExpiresAt || null
+        },
+        Boolean(auth.rememberMe)
+      );
       setBootstrapRequired(false);
     } catch {
       clearAuth("Please login to continue.");
@@ -2359,6 +3013,7 @@ function App() {
       if (currentSeller?.quotation_number_prefix) {
         setQuotationNumberPrefix(currentSeller.quotation_number_prefix);
       }
+      setSellerGstNumber(currentSeller?.gst_number || "");
       setBankName(currentSeller?.bank_name || "");
       setBankBranch(currentSeller?.bank_branch || "");
       setBankAccountNo(currentSeller?.bank_account_no || "");
@@ -2413,7 +3068,7 @@ function App() {
         body: JSON.stringify(publicDemoForm)
       });
       setPublicDemoSuccess(response.message || "Demo account created successfully.");
-      saveAuth({ token: response.token, user: response.user });
+      saveAuth({ token: response.token, user: response.user, sessionExpiresAt: response.expiresAt || null });
       setPublicDemoForm({
         name: "",
         mobile: "",
@@ -2422,7 +3077,12 @@ function App() {
         businessName: "",
         city: "",
         state: "",
-        businessCategory: ""
+        businessCategory: "",
+        businessSegment: "",
+        wantsSampleData: true,
+        brandingMode: "header",
+        headerImageData: null,
+        logoImageData: null
       });
       window.history.replaceState({}, "", "/");
     } catch (err) {
@@ -2510,16 +3170,12 @@ function App() {
   }, [sellerSearch]);
 
   useEffect(() => {
-    document.body.setAttribute("data-theme", theme);
-  }, [theme]);
+    setOrderPage(1);
+  }, [search]);
 
   useEffect(() => {
-    return () => {
-      if (quotationPreviewUrl) {
-        URL.revokeObjectURL(quotationPreviewUrl);
-      }
-    };
-  }, [quotationPreviewUrl]);
+    document.body.setAttribute("data-theme", theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!currentModules.includes(activeModule)) {
@@ -2528,10 +3184,11 @@ function App() {
   }, [activeModule, currentModules]);
 
   useEffect(() => {
-    if (activeModule !== "Configuration Studio" || isPlatformAdmin || !seller?.id) return;
-    if (selectedSellerConfigSeller?.id === seller.id) return;
-    openSellerConfigurationStudio(seller);
-  }, [activeModule, isPlatformAdmin, seller?.id, selectedSellerConfigSeller?.id]);
+    if (!isSubUser) {
+      setSubUserAction("");
+      setSubUserSearchInput("");
+    }
+  }, [isSubUser]);
 
   const chartSeries = useMemo(() => {
     const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -2569,7 +3226,8 @@ function App() {
       return (
         String(getVisibleQuotationNumber(row) || "").toLowerCase().includes(term) ||
         String(row.customer_name || "").toLowerCase().includes(term) ||
-        String(row.firm_name || "").toLowerCase().includes(term)
+        String(row.firm_name || "").toLowerCase().includes(term) ||
+        String(row.mobile || "").toLowerCase().includes(term)
       );
     });
 
@@ -2589,6 +3247,38 @@ function App() {
       return direction === "asc" ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
     });
   }, [quotations, search, orderSort]);
+
+  const topSearchSuggestions = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return [];
+
+    return quotations
+      .filter((row) =>
+        [
+          getVisibleQuotationNumber(row),
+          row.customer_name,
+          row.firm_name,
+          row.mobile
+        ].some((value) => String(value || "").toLowerCase().includes(term))
+      )
+      .slice(0, 6);
+  }, [quotations, search]);
+
+  const subUserQuotationResults = useMemo(() => {
+    const term = subUserSearchInput.trim().toLowerCase();
+    if (!term) return [];
+
+    return quotations
+      .filter((row) =>
+        [
+          getVisibleQuotationNumber(row),
+          row.customer_name,
+          row.firm_name,
+          row.mobile
+        ].some((value) => String(value || "").toLowerCase().includes(term))
+      )
+      .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [quotations, subUserSearchInput]);
 
   const filteredSellers = useMemo(() => {
     const term = sellerSearch.trim().toLowerCase();
@@ -2640,12 +3330,54 @@ function App() {
       || (subscriptions || []).find((subscription) => String(subscription.status || "").toLowerCase() === "trial")
       || null;
   }, [subscriptions]);
-  const configurationStudioSeller = isPlatformAdmin ? selectedSellerConfigSeller : seller;
-  const activeSellerConfiguration = configurationStudioSeller ? getSellerConfiguration(configurationStudioSeller) : null;
+
+  const {
+    selectedSellerConfigSeller,
+    sellerConfigTab,
+    setSellerConfigTab,
+    sellerConfigPreviewTab,
+    setSellerConfigPreviewTab,
+    sellerConfigLoading,
+    sellerConfigSaving,
+    sellerConfigPublishing,
+    configurationStudioSeller,
+    activeSellerConfiguration,
+    openSellerConfigurationStudio,
+    closeSellerConfigurationStudio,
+    saveSellerConfigurationDraft,
+    publishSellerConfiguration,
+    addCatalogueField,
+    updateCatalogueField,
+    commitCatalogueFieldOptions,
+    removeCatalogueField,
+    addQuotationColumn,
+    updateQuotationColumn,
+    commitQuotationColumnOptions,
+    removeQuotationColumn,
+    updateSellerConfigurationModule
+  } = useSellerConfigurationStudio({
+    isPlatformAdmin,
+    seller,
+    setActiveModule,
+    createDefaultSellerConfiguration,
+    mapSellerConfigurationResponse,
+    apiFetch,
+    handleApiError,
+    setCurrentSellerConfiguration,
+    setError,
+    parseOptionsInput
+  });
+
   const runtimeSellerConfiguration = useMemo(
     () => mapSellerConfigurationResponse(currentSellerConfiguration, seller),
     [currentSellerConfiguration, seller]
   );
+  useEffect(() => {
+    if (activeModule !== "Configuration Studio" || isPlatformAdmin || !seller?.id) return;
+    if (selectedSellerConfigSeller?.id === seller.id) return;
+    openSellerConfigurationStudio(seller);
+  }, [activeModule, isPlatformAdmin, seller?.id, selectedSellerConfigSeller?.id]);
+
   const runtimeCatalogueFields = useMemo(
     () => sortConfigEntries(getSupportedCatalogueFields(runtimeSellerConfiguration)),
     [runtimeSellerConfiguration]
@@ -2666,18 +3398,6 @@ function App() {
     () => sortConfigEntries(getUnsupportedQuotationColumns(runtimeSellerConfiguration)),
     [runtimeSellerConfiguration]
   );
-  const sellerCatalogueCategories = useMemo(() => {
-    const options = new Set();
-    products.forEach((product) => {
-      const value = String(product?.category || "").trim();
-      if (value) options.add(value);
-    });
-    if (!options.size) {
-      ["Sheet", "Product", "Services"].forEach((value) => options.add(value));
-    }
-    return Array.from(options);
-  }, [products]);
-
   const aiSuggestions = useMemo(() => {
     const pending = Number(dashboardData?.pendingOverall || 0);
     const walkin = Number(dashboardData?.totals?.walk_in_sales || 0);
@@ -2713,8 +3433,70 @@ function App() {
     }, 0);
   }, [isPlatformAdmin, notifications]);
 
+  const {
+    showMessageSimulatorModal,
+    quotationWizard,
+    setQuotationWizard,
+    quotationWizardSubmitting,
+    quotationPreviewUrl,
+    quotationWizardNotice,
+    quotationWizardCustomerMatches,
+    quotationWizardSelectedProduct,
+    quotationWizardMaterialSuggestions,
+    quotationWizardVisibleVariantFields,
+    quotationWizardItemRules,
+    quotationWizardItemReady,
+    quotationWizardGrossTotal,
+    quotationWizardDiscountAmount,
+    quotationWizardAdvanceAmount,
+    quotationWizardBalanceAmount,
+    openQuotationWizard,
+    closeQuotationWizard,
+    updateQuotationWizardCustomerField,
+    updateQuotationWizardShippingAddress,
+    addQuotationWizardShippingAddress,
+    removeQuotationWizardShippingAddress,
+    updateQuotationWizardItemForm,
+    updateQuotationWizardCustomField,
+    handleQuotationWizardMaterialInput,
+    handleQuotationWizardMaterialSelect,
+    handleQuotationWizardVariantSelection,
+    handleSaveQuotationWizardSecondaryProduct,
+    handleAddQuotationWizardItem,
+    handleRemoveQuotationWizardItem,
+    handleQuotationWizardNext,
+    handleQuotationWizardBack,
+    handleSubmitQuotationWizard
+  } = useQuotationWizard({
+    auth,
+    products,
+    customers,
+    runtimeCatalogueFields,
+    unsupportedRuntimeCatalogueFields,
+    unsupportedRuntimeQuotationColumns,
+    createInitialQuotationWizardState,
+    createQuotationWizardItem,
+    getCatalogueDrivenQuotationCustomFields,
+    getCustomQuotationValidationError,
+    getQuotationWizardRules,
+    validateQuotationWizardItem,
+    calculateQuotationWizardItemTotal,
+    toQuotationWizardAmount,
+    buildQuotationWizardPayloadItems,
+    getQuotationRateValidationMessage,
+    apiFetch,
+    setCustomers,
+    setProducts,
+    loadDashboardData,
+    dashboardRange,
+    handleApiError,
+    setError
+  });
+
+  const previewQuotationNumber = `${(quotationNumberPrefix || "QTN").trim() || "QTN"}-0001`;
+
   const quotationPreview = {
-    quotation_number: "QTN-2403",
+    quotation_number: previewQuotationNumber,
     customer_name: "Wanex Industries",
     customer_mobile: "9876543210",
     total_amount: "1,24,500",
@@ -2724,40 +3506,6 @@ function App() {
     delivery_pincode: "410218"
   };
 
-  const quotationWizardCustomerMatches = useMemo(() => {
-    const term = quotationWizard.customerSearch.trim().toLowerCase();
-    if (term.length < 2) return [];
-
-    return (customers || [])
-      .filter((customer) =>
-        [
-          customer.name,
-          customer.firm_name,
-          customer.mobile,
-          customer.email
-        ].some((value) => String(value || "").toLowerCase().includes(term))
-      )
-      .slice(0, 8);
-  }, [customers, quotationWizard.customerSearch]);
-
-  const quotationWizardSelectedProduct = useMemo(() => {
-    return products.find((product) => String(product.id) === String(quotationWizard.itemForm.productId)) || null;
-  }, [products, quotationWizard.itemForm.productId]);
-
-  const quotationWizardItemRules = getQuotationWizardRules(quotationWizard.itemForm);
-  const quotationWizardItemReady = validateQuotationWizardItem(quotationWizard.itemForm);
-  const quotationWizardGrossTotal = useMemo(() => {
-    return Number(
-      quotationWizard.items.reduce((sum, item) => sum + calculateQuotationWizardItemTotal(item), 0).toFixed(2)
-    );
-  }, [quotationWizard.items]);
-  const quotationWizardDiscountAmount = toQuotationWizardAmount(quotationWizard.amounts.discountAmount);
-  const quotationWizardAdvanceAmount = toQuotationWizardAmount(quotationWizard.amounts.advanceAmount);
-  const quotationWizardBalanceAmount = Math.max(
-    Number((quotationWizardGrossTotal - quotationWizardDiscountAmount - quotationWizardAdvanceAmount).toFixed(2)),
-    0
-  );
-
   const selectedVersionRecord = orderVersions.find((version) => String(version.id) === String(selectedVersionId)) || orderVersions[0] || null;
   const displayedQuotation = selectedVersionRecord?.quotation_snapshot || selectedOrderDetails?.quotation || null;
   const displayedItems = selectedVersionRecord?.items_snapshot || selectedOrderDetails?.items || [];
@@ -2766,6 +3514,25 @@ function App() {
   const comparisonQuotation = previousVersionRecord?.quotation_snapshot || null;
   const comparisonItems = previousVersionRecord?.items_snapshot || [];
   const shouldShowVersionSelector = Number(selectedOrderDetails?.quotation?.version_no || 1) > 1 || (orderVersions || []).length > 1;
+  const isAnyModalOpen = Boolean(
+    showSellerCreateModal ||
+    showPlanCreateModal ||
+    showNotificationCreateModal ||
+    showUserModal ||
+    showMessageSimulatorModal ||
+    showCustomerModal ||
+    showProductUploadModal ||
+    showSingleProductModal ||
+    showProductPreviewModal ||
+    showOrderDetailsModal ||
+    showSellerDetailModal ||
+    showSubscriptionModal ||
+    showPlanDetailModal ||
+    showNotificationDetailModal ||
+    showSellerNotificationsModal ||
+    showLeadDetailModal ||
+    showLeadConvertModal
+  );
 
   function quotationFieldChanged(field) {
     if (!displayedQuotation || !comparisonQuotation) return false;
@@ -2781,13 +3548,14 @@ function App() {
   async function handleLogin(event) {
     event.preventDefault();
     setError("");
+    setAuthNotice("");
     try {
       const result = await apiFetch("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify(loginForm)
+        body: JSON.stringify({ ...loginForm, rememberMe })
       });
-      saveAuth({ token: result.token, user: result.user }, rememberMe);
-      setLoginForm({ mobile: "", password: "" });
+      saveAuth({ token: result.token, user: result.user, sessionExpiresAt: result.expiresAt || null }, rememberMe);
+      setLoginForm({ mobile: "", password: "", otp: "" });
       setBootstrapRequired(false);
       setAuthReady(true);
     } catch (err) {
@@ -2821,6 +3589,16 @@ function App() {
     setAuthReady(true);
   }
 
+  function handleSubUserQuotationSearch() {
+    setSubUserAction("search");
+  }
+
+  function handleHeaderSearchSelect(quotationId) {
+    setActiveModule("Orders");
+    setSearch("");
+    handleOpenOrderDetails(quotationId);
+  }
+
   async function handleSeedRoles() {
     try {
       await apiFetch("/api/roles/seed", { method: "POST" });
@@ -2834,6 +3612,11 @@ function App() {
   async function handleCreateUser(event) {
     event.preventDefault();
     setError("");
+
+    if (!canCreateUser) {
+      setError("You do not have permission to create users.");
+      return;
+    }
 
     try {
       await apiFetch("/api/users", {
@@ -2869,16 +3652,23 @@ function App() {
   }
 
   async function handleResetUserPassword(user) {
-    const confirmed = window.confirm(`Generate a new temporary password for ${user.name}?`);
-    if (!confirmed) return;
+    const newPassword = window.prompt(`Set a new password for ${user.name}. It must include uppercase, lowercase, number, and special character.`);
+    if (!newPassword) return;
+
+    const confirmPassword = window.prompt(`Confirm the new password for ${user.name}.`);
+    if (confirmPassword !== newPassword) {
+      setError("Password confirmation does not match.");
+      return;
+    }
 
     try {
       const response = await apiFetch(`/api/users/${user.id}/reset-password`, {
-        method: "PATCH"
+        method: "PATCH",
+        body: JSON.stringify({ newPassword })
       });
 
-      window.alert(`Temporary password for ${response.user.name}: ${response.temporaryPassword}`);
-      setError(`Temporary password generated for ${response.user.name}.`);
+      window.alert(`Password updated for ${response.user.name}. Existing sessions were signed out.`);
+      setError(response.message || `Password updated for ${response.user.name}.`);
     } catch (err) {
       handleApiError(err);
     }
@@ -2888,6 +3678,11 @@ function App() {
     event.preventDefault();
     setError("");
 
+    if (!canCreateCustomer) {
+      setError("You do not have permission to create customers.");
+      return;
+    }
+
     try {
       await apiFetch("/api/customers", {
         method: "POST",
@@ -2896,15 +3691,7 @@ function App() {
 
       const customerRows = await apiFetch("/api/customers");
       setCustomers(customerRows);
-      setCustomerForm({
-        name: "",
-        firmName: "",
-        mobile: "",
-        email: "",
-        address: "",
-        gstNumber: "",
-        monthlyBilling: false
-      });
+      setCustomerForm(createInitialCustomerForm());
       setShowCustomerModal(false);
     } catch (err) {
       handleApiError(err);
@@ -2929,9 +3716,38 @@ function App() {
     }
   }
 
+  function handleCustomerShippingAddressChange(index, field, value) {
+    setCustomerForm((prev) => ({
+      ...prev,
+      shippingAddresses: updateShippingAddressValue(prev.shippingAddresses, index, field, value)
+    }));
+  }
+
+  function handleAddCustomerShippingAddress() {
+    setCustomerForm((prev) => ({
+      ...prev,
+      shippingAddresses: [...applyShippingAddressGstReuse(prev.shippingAddresses), createEmptyShippingAddress()]
+    }));
+  }
+
+  function handleRemoveCustomerShippingAddress(index) {
+    setCustomerForm((prev) => {
+      const nextAddresses = (prev.shippingAddresses || []).filter((_, entryIndex) => entryIndex !== index);
+      return {
+        ...prev,
+        shippingAddresses: nextAddresses.length ? applyShippingAddressGstReuse(nextAddresses) : [createEmptyShippingAddress()]
+      };
+    });
+  }
+
   async function handleCreateSingleProduct(event) {
     event.preventDefault();
     setError("");
+
+    if (editingProductId ? !canEditProduct : !canCreateProduct) {
+      setError(editingProductId ? "You do not have permission to edit products." : "You do not have permission to create products.");
+      return;
+    }
 
     try {
       const missingRuntimeField = runtimeCatalogueFields.find((field) => {
@@ -2952,12 +3768,20 @@ function App() {
         throw new Error(customFieldError);
       }
 
+      const parsedDiscountLimit = parseMaxDiscountLimit(singleProductForm.maxDiscountPercent);
+      if (String(singleProductForm.maxDiscountPercent || "").trim() && !parsedDiscountLimit.isValid) {
+        throw new Error("Max Discount Limit must be a number or percentage like 10%.");
+      }
+
       const payload = {
         materialName: singleProductForm.materialName,
         category: singleProductForm.category,
         thickness: singleProductForm.thickness || null,
         unitType: singleProductForm.unitType,
         basePrice: Number(singleProductForm.basePrice || 0),
+        limitRateEdit: Boolean(singleProductForm.limitRateEdit),
+        maxDiscountPercent: parsedDiscountLimit.value,
+        maxDiscountType: parsedDiscountLimit.type,
         sku: singleProductForm.sku || null,
         alwaysAvailable: Boolean(singleProductForm.alwaysAvailable),
         materialGroup: singleProductForm.materialGroup || null,
@@ -2986,6 +3810,10 @@ function App() {
   }
 
   function handleEditProduct(product) {
+    if (!canEditProduct) {
+      setError("You do not have permission to edit products.");
+      return;
+    }
     const nextForm = createInitialSingleProductForm();
     runtimeCatalogueFields.forEach((field) => {
       if (field?.meta?.formKey) {
@@ -3120,6 +3948,10 @@ function App() {
 
   async function handleSaveThemeSettings(event) {
     event.preventDefault();
+    if (!canEditSettings) {
+      setError("You do not have permission to edit business settings.");
+      return;
+    }
     try {
       const response = await apiFetch("/api/sellers/me/settings", {
         method: "PUT",
@@ -3127,6 +3959,7 @@ function App() {
           themeKey: theme,
           brandPrimaryColor: brandColor,
           quotationNumberPrefix,
+          sellerGstNumber,
           bankName,
           bankBranch,
           bankAccountNo,
@@ -3372,233 +4205,6 @@ function App() {
     setSelectedSellerDetail(null);
   }
 
-  function getSellerConfiguration(sellerRow) {
-    if (!sellerRow?.id) return createDefaultSellerConfiguration(sellerRow);
-    return sellerConfigurations[sellerRow.id] || createDefaultSellerConfiguration(sellerRow);
-  }
-
-  function updateSellerConfiguration(sellerId, updater) {
-    setSellerConfigurations((prev) => {
-      const current = prev[sellerId] || createDefaultSellerConfiguration(configurationStudioSeller || { id: sellerId });
-      return {
-        ...prev,
-        [sellerId]: typeof updater === "function" ? updater(current) : updater
-      };
-    });
-  }
-
-  async function openSellerConfigurationStudio(sellerRow) {
-    setSelectedSellerConfigSeller(sellerRow);
-    setSellerConfigTab("dashboard");
-    setSellerConfigPreviewTab("product-form");
-    setSellerConfigurations((prev) => ({
-      ...prev,
-      [sellerRow.id]: prev[sellerRow.id] || createDefaultSellerConfiguration(sellerRow)
-    }));
-    setActiveModule("Configuration Studio");
-
-    try {
-      setSellerConfigLoading(true);
-      const response = await apiFetch(`/api/seller-configurations/${sellerRow.id}`);
-      setSellerConfigurations((prev) => ({
-        ...prev,
-        [sellerRow.id]: mapSellerConfigurationResponse(response.config, sellerRow)
-      }));
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      setSellerConfigLoading(false);
-    }
-  }
-
-  function closeSellerConfigurationStudio() {
-    if (isPlatformAdmin) {
-      setSelectedSellerConfigSeller(null);
-      setActiveModule("Sellers");
-    } else {
-      setActiveModule("Dashboard");
-    }
-    setSellerConfigTab("dashboard");
-    setSellerConfigPreviewTab("product-form");
-    setSellerConfigLoading(false);
-    setSellerConfigSaving(false);
-    setSellerConfigPublishing(false);
-  }
-
-  async function saveSellerConfigurationDraft() {
-    if (!configurationStudioSeller?.id || !activeSellerConfiguration) return;
-
-    try {
-      setSellerConfigSaving(true);
-      const response = await apiFetch(`/api/seller-configurations/${configurationStudioSeller.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          profileName: activeSellerConfiguration.profileName,
-          status: "draft",
-          modules: activeSellerConfiguration.modules,
-          catalogueFields: activeSellerConfiguration.catalogueFields,
-          quotationColumns: activeSellerConfiguration.quotationColumns
-        })
-      });
-
-      setSellerConfigurations((prev) => ({
-        ...prev,
-        [configurationStudioSeller.id]: mapSellerConfigurationResponse(response.config, configurationStudioSeller)
-      }));
-      setError(response.message || "Seller configuration draft saved.");
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      setSellerConfigSaving(false);
-    }
-  }
-
-  async function publishSellerConfiguration() {
-    if (!configurationStudioSeller?.id) return;
-
-    try {
-      setSellerConfigPublishing(true);
-      const response = await apiFetch(`/api/seller-configurations/${configurationStudioSeller.id}/publish`, {
-        method: "POST"
-      });
-      setSellerConfigurations((prev) => ({
-        ...prev,
-        [configurationStudioSeller.id]: mapSellerConfigurationResponse(response.config, configurationStudioSeller)
-      }));
-      if (!isPlatformAdmin && seller?.id === configurationStudioSeller.id) {
-        setCurrentSellerConfiguration(response.config || null);
-      }
-      setError(response.message || "Seller configuration published.");
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      setSellerConfigPublishing(false);
-    }
-  }
-
-  function addCatalogueField() {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      catalogueFields: [
-        ...current.catalogueFields,
-        {
-          id: `cat-${Date.now()}`,
-          displayOrder: current.catalogueFields.length + 1,
-          key: "",
-          label: "",
-          type: "text",
-          options: [],
-          required: false,
-          visibleInList: true,
-          uploadEnabled: true
-        }
-      ]
-    }));
-  }
-
-  function updateCatalogueField(fieldId, key, value) {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      catalogueFields: current.catalogueFields.map((field) => (field.id === fieldId ? { ...field, [key]: value } : field))
-    }));
-  }
-
-  function commitCatalogueFieldOptions(fieldId, rawValue) {
-    if (!configurationStudioSeller?.id) return;
-    const parsedOptions = parseOptionsInput(rawValue);
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      catalogueFields: current.catalogueFields.map((field) => (
-        field.id === fieldId
-          ? {
-              ...field,
-              options: parsedOptions,
-              optionsText: parsedOptions.join(", ")
-            }
-          : field
-      ))
-    }));
-  }
-
-  function removeCatalogueField(fieldId) {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      catalogueFields: current.catalogueFields.filter((field) => field.id !== fieldId)
-    }));
-  }
-
-  function addQuotationColumn() {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      quotationColumns: [
-        ...current.quotationColumns,
-        {
-          id: `col-${Date.now()}`,
-          displayOrder: current.quotationColumns.length + 1,
-          key: "",
-          label: "",
-            type: "text",
-            options: [],
-            definition: "",
-            formulaExpression: "",
-            required: false,
-            visibleInForm: true,
-            visibleInPdf: true,
-            helpTextInPdf: false,
-            includedInCalculation: false
-          }
-        ]
-    }));
-  }
-
-  function updateQuotationColumn(columnId, key, value) {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      quotationColumns: current.quotationColumns.map((column) => (column.id === columnId ? { ...column, [key]: value } : column))
-    }));
-  }
-
-  function commitQuotationColumnOptions(columnId, rawValue) {
-    if (!configurationStudioSeller?.id) return;
-    const parsedOptions = parseOptionsInput(rawValue);
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      quotationColumns: current.quotationColumns.map((column) => (
-        column.id === columnId
-          ? {
-              ...column,
-              options: parsedOptions,
-              optionsText: parsedOptions.join(", ")
-            }
-          : column
-      ))
-    }));
-  }
-
-  function removeQuotationColumn(columnId) {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      quotationColumns: current.quotationColumns.filter((column) => column.id !== columnId)
-    }));
-  }
-
-  function updateSellerConfigurationModule(moduleKey, enabled) {
-    if (!configurationStudioSeller?.id) return;
-    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
-      ...current,
-      modules: {
-        ...current.modules,
-        [moduleKey]: enabled
-      }
-    }));
-  }
-
   function openPlanDetail(plan) {
     setSelectedPlanDetail(plan);
     setShowPlanDetailModal(true);
@@ -3812,6 +4418,11 @@ function App() {
       city: lead.city || "",
       state: "",
       businessCategory: lead.business_type || "",
+      businessSegment: lead.business_segment || getBusinessSegments(lead.business_type || "")[0] || "",
+      wantsSampleData: Boolean(lead.wants_sample_data ?? true),
+      brandingMode: "header",
+      headerImageData: null,
+      logoImageData: null,
       masterUserName: lead.name || "",
       masterUserMobile: lead.mobile || "",
       masterUserPassword: ""
@@ -3950,250 +4561,12 @@ function App() {
     }
   }
 
-  function openQuotationWizard() {
-    if (!auth?.user?.isPlatformAdmin) {
-      setQuotationWizard(createInitialQuotationWizardState(products[0] || null));
-      if (quotationPreviewUrl) {
-        URL.revokeObjectURL(quotationPreviewUrl);
-      }
-      setQuotationPreviewUrl("");
-      setShowMessageSimulatorModal(true);
-      setError("");
-    }
-  }
-
-  function closeQuotationWizard() {
-    if (quotationPreviewUrl) {
-      URL.revokeObjectURL(quotationPreviewUrl);
-    }
-    setQuotationPreviewUrl("");
-    setQuotationWizard(createInitialQuotationWizardState(products[0] || null));
-    setQuotationWizardSubmitting(false);
-    setShowMessageSimulatorModal(false);
-  }
-
-  function updateQuotationWizardCustomerField(field, value) {
-    setQuotationWizard((prev) => ({
-      ...prev,
-      customer: {
-        ...prev.customer,
-        [field]: value
-      }
-    }));
-  }
-
-  function updateQuotationWizardItemForm(field, value) {
-    setQuotationWizard((prev) => ({
-      ...prev,
-      itemForm: {
-        ...prev.itemForm,
-        [field]: value
-      }
-    }));
-  }
-
-  function updateQuotationWizardCustomField(fieldKey, value) {
-    setQuotationWizard((prev) => ({
-      ...prev,
-      itemForm: {
-        ...prev.itemForm,
-        customFields: {
-          ...(prev.itemForm.customFields || {}),
-          [fieldKey]: value
-        }
-      }
-    }));
-  }
-
-  function handleQuotationWizardProductChange(productId) {
-    const selectedProduct = products.find((product) => String(product.id) === String(productId)) || null;
-    setQuotationWizard((prev) => ({
-      ...prev,
-      itemForm: {
-        ...createQuotationWizardItem(selectedProduct),
-        customFields: getCatalogueDrivenQuotationCustomFields(
-          selectedProduct,
-          unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
-          prev.itemForm.customFields
-        )
-      }
-    }));
-  }
-
-  function handleAddQuotationWizardItem() {
-    if (!quotationWizardItemReady) {
-      setError("Please complete the selected item before adding it.");
-      return;
-    }
-
-      const effectiveCustomFields = getCatalogueDrivenQuotationCustomFields(
-        quotationWizardSelectedProduct,
-        unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
-        quotationWizard.itemForm.customFields
-      );
-      const customFieldError = getCustomQuotationValidationError(
-        unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
-        effectiveCustomFields
-      );
-
-    if (customFieldError) {
-      setError(customFieldError);
-      return;
-    }
-
-      const itemToAdd = {
-        ...quotationWizard.itemForm,
-        customFields: effectiveCustomFields,
-        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
-      };
-
-    setQuotationWizard((prev) => ({
-      ...prev,
-      items: [...prev.items, itemToAdd],
-      itemForm: createQuotationWizardItem(quotationWizardSelectedProduct || products[0] || null)
-    }));
-    setError("");
-  }
-
-  function handleRemoveQuotationWizardItem(itemId) {
-    setQuotationWizard((prev) => ({
-      ...prev,
-      items: prev.items.filter((item) => item.id !== itemId)
-    }));
-  }
-
-  function handleQuotationWizardNext() {
-    if (quotationWizard.step === "customer") {
-      if (quotationWizard.customerMode === "existing" && !quotationWizard.selectedCustomerId) {
-        setError("Please select a customer before continuing.");
-        return;
-      }
-      if (quotationWizard.customerMode === "new" && !quotationWizard.customer.name.trim()) {
-        setError("Please enter customer details before continuing.");
-        return;
-      }
-      setQuotationWizard((prev) => ({ ...prev, step: "items" }));
-      setError("");
-      return;
-    }
-
-    if (quotationWizard.step === "items") {
-      if (!quotationWizard.items.length) {
-        setError("Please add at least one item before continuing.");
-        return;
-      }
-      setQuotationWizard((prev) => ({ ...prev, step: "amounts" }));
-      setError("");
-    }
-  }
-
-  function handleQuotationWizardBack() {
-    setError("");
-    setQuotationWizard((prev) => ({
-      ...prev,
-      step: prev.step === "amounts" ? "items" : "customer"
-    }));
-  }
-
-  async function ensureQuotationWizardCustomer() {
-    if (quotationWizard.customerMode === "existing") {
-      return Number(quotationWizard.selectedCustomerId);
-    }
-
-    const createdCustomer = await apiFetch("/api/customers", {
-      method: "POST",
-      body: JSON.stringify(quotationWizard.customer)
-    });
-    const customerRows = await apiFetch("/api/customers");
-    setCustomers(customerRows);
-    setQuotationWizard((prev) => ({
-      ...prev,
-      customerMode: "existing",
-      selectedCustomerId: String(createdCustomer.id)
-    }));
-    return createdCustomer.id;
-  }
-
-  async function createQuotationPreviewUrl(quotationId) {
-    const token = auth?.token;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download`, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to load quotation preview");
-    }
-
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  }
-
-  async function handleSubmitQuotationWizard() {
-    try {
-      setQuotationWizardSubmitting(true);
-      setError("");
-      const customerId = await ensureQuotationWizardCustomer();
-      const response = await apiFetch("/api/quotations", {
-        method: "POST",
-        body: JSON.stringify({
-          customerId,
-          items: buildQuotationWizardPayloadItems(quotationWizard.items),
-          gstPercent: 0,
-          transportCharges: 0,
-          designCharges: 0,
-          discountAmount: quotationWizardDiscountAmount,
-          advanceAmount: quotationWizardAdvanceAmount,
-          deliveryDate: quotationWizard.amounts.deliveryDate || null,
-          balanceAmount: quotationWizardBalanceAmount,
-          paymentStatus: quotationWizardAdvanceAmount > 0 && quotationWizardBalanceAmount > 0 ? "partial" : "pending",
-          orderStatus: "NEW",
-          deliveryType: "PICKUP",
-          sourceChannel: "seller-dashboard-modal",
-          recordStatus: "submitted",
-          customerMonthlyBilling: Boolean(quotationWizard.customer.monthlyBilling)
-        })
-      });
-
-      setQuotationWizard((prev) => ({
-        ...prev,
-        submittedQuotation: response.quotation,
-        step: "preview"
-      }));
-      setQuotationWizardSubmitting(false);
-
-      try {
-        const previewUrl = await createQuotationPreviewUrl(response.quotation.id);
-        if (quotationPreviewUrl) {
-          URL.revokeObjectURL(quotationPreviewUrl);
-        }
-        setQuotationPreviewUrl(previewUrl);
-      } catch {
-        setQuotationPreviewUrl("");
-      }
-
-      try {
-        await loadDashboardData(dashboardRange);
-      } catch {
-        // Keep the created quotation visible even if dashboard refresh is delayed.
-      }
-
-      if (Array.isArray(response.inventoryWarnings) && response.inventoryWarnings.length > 0) {
-        setError(`Quotation created successfully. ${response.inventoryWarnings.join(" ")}`);
-      } else {
-        setError("Quotation created successfully.");
-      }
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      setQuotationWizardSubmitting(false);
-    }
-  }
-
   async function handleSaveDecodeRules(event) {
     event.preventDefault();
+    if (!canEditSettings) {
+      setError("You do not have permission to edit business settings.");
+      return;
+    }
     try {
       const updated = await apiFetch("/api/whatsapp/decode-rules", {
         method: "PUT",
@@ -4214,6 +4587,10 @@ function App() {
   }
   async function handleSaveQuotationTemplate(event) {
     event.preventDefault();
+    if (!canEditSettings) {
+      setError("You do not have permission to edit quotation settings.");
+      return;
+    }
     try {
       await apiFetch("/api/quotations/templates/current", {
         method: "PUT",
@@ -4488,6 +4865,8 @@ function App() {
         errorMessage={publicLeadError}
         onChange={updatePublicLeadField}
         onSubmit={handleSubmitPublicLead}
+        businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
+        getBusinessSegments={getBusinessSegments}
       />
     );
   }
@@ -4501,8 +4880,15 @@ function App() {
         errorMessage={publicDemoError}
         onChange={updatePublicDemoField}
         onSubmit={handleSubmitPublicDemo}
+        businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
+        getBusinessSegments={getBusinessSegments}
+        onBrandingImageChange={handlePublicDemoBrandingImageChange}
       />
     );
+  }
+
+  if (isPublicVisitorHelpPage) {
+    return <PublicVisitorFaqPage />;
   }
 
   if (!auth?.token) {
@@ -4511,10 +4897,12 @@ function App() {
     }
     return (
       <PublicLoginPage
-        bootstrapRequired={bootstrapRequired}
+        bootstrapRequired={Boolean(bootstrapRequired && isBootstrapSetupPage)}
+        bootstrapHint={Boolean(bootstrapRequired && !isBootstrapSetupPage)}
         loginForm={loginForm}
         setupForm={setupForm}
         rememberMe={rememberMe}
+        infoMessage={authNotice}
         errorMessage={error}
         onLoginFormChange={setLoginForm}
         onSetupFormChange={setSetupForm}
@@ -4534,7 +4922,7 @@ function App() {
           <div className="auth-bg-glow" />
           <div className="auth-grid">
             <div className="glass-card hero-card">
-              <p className="eyebrow">BillBuddy Platform</p>
+              <p className="eyebrow">Quotsy Platform</p>
               <h1>Platform admins use the control-plane interface.</h1>
               <p>The responsive `/web` workspace is reserved for seller-side quotation work. Please continue in the platform console for seller management and governance.</p>
               <div style={{ display: "flex", gap: "12px", marginTop: "16px", flexWrap: "wrap" }}>
@@ -4571,7 +4959,7 @@ function App() {
         <div className="brand-block">
           <div className="brand-dot" />
           <div>
-            <h2>{isPlatformAdmin ? "BillBuddy Platform" : "BillBuddy"}</h2>
+            <h2>{isPlatformAdmin ? "Quotsy Platform" : "Quotsy"}</h2>
             <p>{isPlatformAdmin ? "Control Plane" : (seller?.name || "Seller Workspace")}</p>
           </div>
         </div>
@@ -4595,15 +4983,75 @@ function App() {
             </button>
           ))}
         </nav>
+
+        {!isPlatformAdmin && sellerSubscriptionBanner && (
+          <div className={`sidebar-subscription-card glass-panel ${sellerSubscriptionBanner.tone === "error" ? "is-error" : sellerSubscriptionBanner.tone === "info" ? "is-info" : ""}`}>
+            <div className="sidebar-subscription-head">
+              <span className="eyebrow">Subscription</span>
+              <strong>{sellerSubscriptionBanner.title}</strong>
+            </div>
+            <p>{sellerSubscriptionBanner.message}</p>
+            {sellerSubscriptionBanner.showUpgradeCta && (
+              <div className="sidebar-subscription-actions">
+                {(sellerSubscriptionBanner.suggestedPlans || []).map((plan) => (
+                  <button
+                    key={plan.id}
+                    type="button"
+                    className="ghost-btn compact-btn"
+                    disabled={upgradeRequestLoading}
+                    onClick={() => handleSellerUpgradeRequest(plan.plan_code)}
+                  >
+                    {upgradeRequestLoading ? "Sending..." : `Upgrade to ${plan.plan_name}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </aside>
 
       <div className="workspace">
         <header className="topbar glass-panel">
-          <div className="search-wrap">
-            <input placeholder="Search orders, customers, products..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          <div className={`topbar-main ${!isPlatformAdmin ? "topbar-main-seller" : ""}`}>
+            {!isPlatformAdmin && (
+              <div className="topbar-intro">
+                <p className="eyebrow">Seller Workspace</p>
+                <h1>{seller?.name || "Seller Workspace"}</h1>
+              </div>
+            )}
+            {!isSubUser && canSearchQuotation && (
+              <div className="search-wrap">
+                <input placeholder="Search quotations by number, customer, or mobile..." value={search} onChange={(e) => setSearch(e.target.value)} />
+                {topSearchSuggestions.length > 0 && (
+                  <div className="search-suggestion-popover glass-panel">
+                    {topSearchSuggestions.map((quotation) => (
+                      <div key={quotation.id} className="search-suggestion-item">
+                        <button
+                          type="button"
+                          className="search-suggestion-open"
+                          onClick={() => handleHeaderSearchSelect(quotation.id)}
+                        >
+                          <strong>{formatQuotationLabel(quotation)}</strong>
+                          <span>{quotation.firm_name || quotation.customer_name || "-"}</span>
+                          <small>{quotation.mobile || "-"}</small>
+                        </button>
+                        {canDownloadQuotationPdf && (
+                          <button
+                            type="button"
+                            className="ghost-btn compact-btn search-suggestion-download"
+                            onClick={() => handleDownloadQuotation(quotation.id)}
+                          >
+                            PDF
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <div className="top-actions">
-            <button className="glass-btn alerts-btn" type="button">Alerts</button>
             <button
               className="glass-btn notifications-btn"
               type="button"
@@ -4636,212 +5084,37 @@ function App() {
         </header>
 
         {loading && <div className="notice">Syncing latest data...</div>}
-        {error && !showMessageSimulatorModal && <div className="notice error">{error}</div>}
-        {!isPlatformAdmin && sellerSubscriptionBanner && (
-          <div className={`notice ${sellerSubscriptionBanner.tone === "error" ? "error" : sellerSubscriptionBanner.tone === "info" ? "info" : ""}`}>
-            <div className="notice-stack">
-              <div>
-                <strong>{sellerSubscriptionBanner.title}</strong> {sellerSubscriptionBanner.message}
-              </div>
-              {sellerSubscriptionBanner.showUpgradeCta && (
-                <div className="banner-actions">
-                  {(sellerSubscriptionBanner.suggestedPlans || []).map((plan) => (
-                    <button
-                      key={plan.id}
-                      type="button"
-                      className="ghost-btn compact-btn"
-                      disabled={upgradeRequestLoading}
-                      onClick={() => handleSellerUpgradeRequest(plan.plan_code)}
-                    >
-                      {upgradeRequestLoading ? "Sending..." : `Upgrade to ${plan.plan_name}`}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {error && !isAnyModalOpen && <div className="notice error">{error}</div>}
 
         {activeModule === "Leads" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Leads.eyebrow}</p>
-                <h2>{currentModuleMeta.Leads.title}</h2>
-                <p>{currentModuleMeta.Leads.subtitle}</p>
-              </div>
-              <div className="banner-stat">
-                <span>Total Leads</span>
-                <strong>{leads.length}</strong>
-              </div>
-            </div>
-
-            <div className="section-head">
-              <h3>Lead List</h3>
-              <span>Click a row to open lead detail</span>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr><th>Name</th><th>Mobile</th><th>Business</th><th>City</th><th>Status</th><th>Demo</th><th>Source</th></tr>
-              </thead>
-              <tbody>
-                {leads.length === 0 ? (
-                  <tr><td colSpan="7">No leads captured yet.</td></tr>
-                ) : (
-                  leads.map((lead) => (
-                    <tr key={lead.id} className="lead-row" onClick={() => openLeadDetail(lead.id)}>
-                      <td>{lead.name}</td>
-                      <td>{lead.mobile}</td>
-                      <td>{lead.business_name || "-"}</td>
-                      <td>{lead.city || "-"}</td>
-                      <td><span className="badge pending">{lead.status || "new"}</span></td>
-                      <td>{lead.interested_in_demo ? "Yes" : "No"}</td>
-                      <td>{lead.source || "-"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {showLeadConvertModal && selectedLeadDetail?.lead && (
-              <div className="modal-overlay" onClick={closeLeadConvertModal}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Convert Lead to Demo</h3>
-                    <button type="button" className="ghost-btn" onClick={closeLeadConvertModal}>Close</button>
-                  </div>
-                  <form className="auth-card compact-form" onSubmit={handleConvertLeadToDemo}>
-                    <input placeholder="Seller Name" value={leadConvertForm.sellerName} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, sellerName: e.target.value }))} required />
-                    <input placeholder="Business Name" value={leadConvertForm.businessName} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, businessName: e.target.value }))} />
-                    <input placeholder="Seller Code" value={leadConvertForm.sellerCode} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, sellerCode: e.target.value.toUpperCase() }))} required />
-                    <input placeholder="City" value={leadConvertForm.city} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, city: e.target.value }))} />
-                    <input placeholder="State" value={leadConvertForm.state} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, state: e.target.value }))} />
-                    <input placeholder="Business Category" value={leadConvertForm.businessCategory} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, businessCategory: e.target.value }))} />
-                    <input placeholder="Master User Name" value={leadConvertForm.masterUserName} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, masterUserName: e.target.value }))} />
-                    <input placeholder="Master User Mobile" value={leadConvertForm.masterUserMobile} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, masterUserMobile: e.target.value }))} />
-                    <input placeholder="Master User Password" type="password" value={leadConvertForm.masterUserPassword} onChange={(e) => setLeadConvertForm((prev) => ({ ...prev, masterUserPassword: e.target.value }))} />
-                    <button type="submit" disabled={leadConvertSubmitting}>
-                      {leadConvertSubmitting ? "Creating Demo..." : "Create Demo Account"}
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {showLeadDetailModal && (
-              <div className="modal-overlay" onClick={closeLeadDetailModal}>
-                <div className="modal-card modal-wide glass-panel lead-detail-modal" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Lead Detail</h3>
-                    <button type="button" className="ghost-btn" onClick={closeLeadDetailModal}>Close</button>
-                  </div>
-                  {leadDetailLoading ? (
-                    <p className="muted">Loading lead detail...</p>
-                  ) : !selectedLeadDetail ? (
-                    <p className="muted">Lead detail is unavailable right now.</p>
-                  ) : (
-                    <>
-                      <div className="seller-detail-grid">
-                        <article className="seller-detail-card">
-                          <h4>Basic Info</h4>
-                          <div className="seller-detail-list">
-                            <div><span>Name</span><strong>{selectedLeadDetail.lead.name}</strong></div>
-                            <div><span>Mobile</span><strong>{selectedLeadDetail.lead.mobile}</strong></div>
-                            <div><span>Email</span><strong>{selectedLeadDetail.lead.email || "-"}</strong></div>
-                            <div><span>Business</span><strong>{selectedLeadDetail.lead.business_name || "-"}</strong></div>
-                            <div><span>City</span><strong>{selectedLeadDetail.lead.city || "-"}</strong></div>
-                            <div><span>Business type</span><strong>{selectedLeadDetail.lead.business_type || "-"}</strong></div>
-                          </div>
-                        </article>
-
-                        <article className="seller-detail-card">
-                          <h4>Lifecycle</h4>
-                          <div className="seller-detail-list">
-                            <div><span>Status</span><strong>{selectedLeadDetail.lead.status || "new"}</strong></div>
-                            <div><span>Source</span><strong>{selectedLeadDetail.lead.source || "-"}</strong></div>
-                            <div><span>Interested in demo</span><strong>{selectedLeadDetail.lead.interested_in_demo ? "Yes" : "No"}</strong></div>
-                            <div><span>Assigned user</span><strong>{selectedLeadDetail.lead.assigned_user_name || "-"}</strong></div>
-                            <div><span>Linked seller</span><strong>{selectedLeadDetail.lead.seller_id || "-"}</strong></div>
-                            <div><span>Created</span><strong>{formatDateTime(selectedLeadDetail.lead.created_at)}</strong></div>
-                            <div><span>Updated</span><strong>{formatDateTime(selectedLeadDetail.lead.updated_at)}</strong></div>
-                          </div>
-                        </article>
-
-                        <article className="seller-detail-card">
-                          <h4>Requirement</h4>
-                          <p>{selectedLeadDetail.lead.requirement || "No requirement added yet."}</p>
-                        </article>
-                      </div>
-
-                      <article className="seller-detail-section">
-                        <div className="section-head compact">
-                          <h3>Activity History</h3>
-                          <span>{selectedLeadDetail.activity?.length || 0} entries</span>
-                        </div>
-                        <form className="auth-card compact-form" onSubmit={handleAddLeadActivity} style={{ marginBottom: "14px" }}>
-                          <textarea
-                            rows={3}
-                            placeholder="Add follow-up note"
-                            value={leadActivityNote}
-                            onChange={(e) => setLeadActivityNote(e.target.value)}
-                          />
-                          <button type="submit">Add Note</button>
-                        </form>
-                        <table className="data-table">
-                          <thead>
-                            <tr><th>When</th><th>Type</th><th>Actor</th><th>Note</th></tr>
-                          </thead>
-                          <tbody>
-                            {(selectedLeadDetail.activity || []).length === 0 ? (
-                              <tr><td colSpan="4">No activity yet.</td></tr>
-                            ) : (
-                              selectedLeadDetail.activity.map((entry) => (
-                                <tr key={entry.id}>
-                                  <td>{formatDateTime(entry.created_at)}</td>
-                                  <td>{formatAuditActionLabel(entry.activity_type)}</td>
-                                  <td>{entry.actor_name || entry.actor_mobile || "System"}</td>
-                                  <td>{entry.note || "-"}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </article>
-
-                      <div className="modal-fixed-actions">
-                        <select
-                          value={selectedLeadDetail.lead.status || "new"}
-                          onChange={(e) => handleLeadUpdate(selectedLeadDetail.lead.id, { status: e.target.value })}
-                        >
-                          {LEAD_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                        <select
-                          value={selectedLeadDetail.lead.assigned_user_id || ""}
-                          onChange={(e) => handleLeadUpdate(selectedLeadDetail.lead.id, { assignedUserId: e.target.value || null })}
-                        >
-                          <option value="">Assign owner</option>
-                          {users.map((user) => (
-                            <option key={user.id} value={user.id}>{user.name} ({user.mobile})</option>
-                          ))}
-                        </select>
-                        <button type="button" className="ghost-btn" onClick={() => handleLeadUpdate(selectedLeadDetail.lead.id, { status: "demo_created", note: "Lead moved to demo created stage." })}>
-                          Mark Demo Created
-                        </button>
-                        <button
-                          type="button"
-                          className="ghost-btn"
-                          onClick={openLeadConvertModal}
-                          disabled={Boolean(selectedLeadDetail.lead.seller_id)}
-                        >
-                          {selectedLeadDetail.lead.seller_id ? "Demo Linked" : "Convert to Demo"}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
+          <LeadsPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            leads={leads}
+            openLeadDetail={openLeadDetail}
+            showLeadConvertModal={showLeadConvertModal}
+            selectedLeadDetail={selectedLeadDetail}
+            closeLeadConvertModal={closeLeadConvertModal}
+            handleConvertLeadToDemo={handleConvertLeadToDemo}
+            leadConvertForm={leadConvertForm}
+            setLeadConvertForm={setLeadConvertForm}
+            leadConvertSubmitting={leadConvertSubmitting}
+            showLeadDetailModal={showLeadDetailModal}
+            closeLeadDetailModal={closeLeadDetailModal}
+            leadDetailLoading={leadDetailLoading}
+            formatDateTime={formatDateTime}
+            handleAddLeadActivity={handleAddLeadActivity}
+            leadActivityNote={leadActivityNote}
+            setLeadActivityNote={setLeadActivityNote}
+            formatAuditActionLabel={formatAuditActionLabel}
+            handleLeadUpdate={handleLeadUpdate}
+            LEAD_STATUS_OPTIONS={LEAD_STATUS_OPTIONS}
+            users={users}
+            openLeadConvertModal={openLeadConvertModal}
+            businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
+            getBusinessSegments={getBusinessSegments}
+            handleLeadConvertBrandingImageChange={handleLeadConvertBrandingImageChange}
+          />
         ) : activeModule === "Sellers" ? (
           <section className="module-placeholder glass-panel">
             <div className="page-banner">
@@ -4937,6 +5210,7 @@ function App() {
                     <input placeholder="Master User Name" value={sellerForm.masterName} onChange={(e) => setSellerForm((prev) => ({ ...prev, masterName: e.target.value }))} />
                     <input placeholder="Master User Mobile" value={sellerForm.masterMobile} onChange={(e) => setSellerForm((prev) => ({ ...prev, masterMobile: e.target.value }))} />
                     <input placeholder="Master User Password" type="password" value={sellerForm.masterPassword} onChange={(e) => setSellerForm((prev) => ({ ...prev, masterPassword: e.target.value }))} />
+                    {error && <div className="notice error">{error}</div>}
                     <button type="submit">Create Seller</button>
                   </form>
                 </div>
@@ -4944,1768 +5218,298 @@ function App() {
             )}
           </section>
         ) : activeModule === "Subscriptions" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Subscriptions.eyebrow}</p>
-                <h2>{currentModuleMeta.Subscriptions.title}</h2>
-                <p>{currentModuleMeta.Subscriptions.subtitle}</p>
-              </div>
-              <div className="banner-stat">
-                <span>Total Subscriptions</span>
-                <strong>{subscriptions.length}</strong>
-              </div>
-            </div>
-
-            <div className="section-head">
-              <h3>Subscription List</h3>
-              <div className="toolbar-controls">
-                <input
-                  type="search"
-                  className="toolbar-search"
-                  placeholder={isPlatformAdmin ? "Search seller, plan, status..." : "Search plan, status, billing..."}
-                  value={subscriptionSearch}
-                  onChange={(e) => setSubscriptionSearch(e.target.value)}
-                />
-                <span>{filteredSubscriptions.length} subscription(s)</span>
-              </div>
-            </div>
-
-            {!isPlatformAdmin && (
-              <div className="seller-subscription-summary">
-                {currentSellerSubscription ? (
-                  <>
-                    <div className="seller-subscription-summary-card">
-                      <span className="eyebrow">Current Active Plan</span>
-                      <h3>{currentSellerSubscription.plan_name || currentSellerSubscription.plan_code || "Plan"}</h3>
-                      <div className="seller-detail-list">
-                        <div><span>Status</span><strong>{currentSellerSubscription.status || "-"}</strong></div>
-                        <div><span>Billing</span><strong>{currentSellerSubscription.billing_cycle || "-"}</strong></div>
-                        <div><span>Trial End</span><strong>{formatDateIST(currentSellerSubscription.trial_end_at)}</strong></div>
-                        <div><span>Start Date</span><strong>{formatDateIST(currentSellerSubscription.start_date)}</strong></div>
-                      </div>
-                    </div>
-                    <div className="seller-subscription-summary-card">
-                      <span className="eyebrow">Plan Visibility</span>
-                      <p className="muted">This block always shows the currently active subscription for your seller account. Historical and expired subscriptions remain listed below.</p>
-                    </div>
-                  </>
-                ) : (
-                  <div className="seller-subscription-summary-card">
-                    <span className="eyebrow">Current Active Plan</span>
-                    <h3>No subscription activated</h3>
-                    <p className="muted">No active or trial subscription record is currently linked to this seller account.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <table className="data-table">
-              <thead>
-                <tr>
-                  {isPlatformAdmin ? <th>Seller</th> : <th>Subscription</th>}
-                  <th>Plan</th>
-                  <th>Status</th>
-                  <th>Trial End</th>
-                  <th>Start</th>
-                  <th>End</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSubscriptions.length === 0 ? (
-                  <tr><td colSpan="6">No subscriptions found.</td></tr>
-                ) : (
-                  filteredSubscriptions.map((subscription) => (
-                    <tr
-                      key={subscription.id}
-                      className={`${isPlatformAdmin ? "lead-row " : ""}${String(subscription.status || "").toLowerCase() === "active" ? "subscription-row-active" : ""}`}
-                      onClick={isPlatformAdmin ? () => openSubscriptionDetail({
-                        id: subscription.seller_id,
-                        name: subscription.seller_name,
-                        seller_code: subscription.seller_code
-                      }) : undefined}
-                    >
-                      <td>
-                        <strong>{isPlatformAdmin ? subscription.seller_name : `Sub #${subscription.id}`}</strong>
-                        <div className="seller-meta-stack">
-                          <span>{isPlatformAdmin ? subscription.seller_code : (subscription.billing_cycle || "-")}</span>
-                          <span>{isPlatformAdmin ? `Sub #${subscription.id}` : (subscription.updated_at ? `Updated ${formatDateIST(subscription.updated_at)}` : "History")}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <strong>{subscription.plan_name || "-"}</strong>
-                        <div className="seller-meta-stack">
-                          <span>{subscription.plan_code || "-"}</span>
-                          <span>{subscription.is_demo_plan ? "Demo plan" : "Standard plan"}</span>
-                        </div>
-                      </td>
-                      <td><span className={`badge ${subscription.status === "active" ? "success" : "pending"}`}>{subscription.status || "-"}</span></td>
-                      <td>{formatDateIST(subscription.trial_end_at)}</td>
-                      <td>{formatDateIST(subscription.start_date)}</td>
-                      <td>{formatDateIST(subscription.end_date)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
+          <SubscriptionsPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            subscriptions={subscriptions}
+            isPlatformAdmin={isPlatformAdmin}
+            subscriptionSearch={subscriptionSearch}
+            setSubscriptionSearch={setSubscriptionSearch}
+            filteredSubscriptions={filteredSubscriptions}
+            currentSellerSubscription={currentSellerSubscription}
+            formatDateIST={formatDateIST}
+            openSubscriptionDetail={openSubscriptionDetail}
+          />
         ) : activeModule === "Plans" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Plans.eyebrow}</p>
-                <h2>{currentModuleMeta.Plans.title}</h2>
-                <p>{currentModuleMeta.Plans.subtitle}</p>
-              </div>
-              <div className="banner-stat">
-                <span>Total Plans</span>
-                <strong>{plans.length}</strong>
-              </div>
-            </div>
-
-            <div className="section-head">
-              <h3>Plan List</h3>
-              <div className="toolbar-controls">
-                <input
-                  type="search"
-                  className="toolbar-search"
-                  placeholder="Search plan, code, billing..."
-                  value={planSearch}
-                  onChange={(e) => setPlanSearch(e.target.value)}
-                />
-                <span>{filteredPlans.length} plan(s)</span>
-                <button type="button" className="action-btn" onClick={() => setShowPlanCreateModal(true)}>Create New Plan</button>
-              </div>
-            </div>
-
-            <table className="data-table">
-              <thead>
-                <tr><th>Plan</th><th>Price</th><th>Billing</th><th>Trial</th><th>Users</th><th>Quotations</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                {filteredPlans.length === 0 ? (
-                  <tr><td colSpan="7">No plans created yet.</td></tr>
-                ) : (
-                  filteredPlans.map((plan) => (
-                    <tr key={plan.id} className="lead-row" onClick={() => openPlanDetail(plan)}>
-                      <td>
-                        <strong>{plan.plan_name}</strong>
-                        <div className="seller-meta-stack">
-                          <span>{plan.plan_code}</span>
-                          <span>{plan.is_demo_plan ? "Demo plan" : "Paid/standard plan"}</span>
-                        </div>
-                      </td>
-                      <td>{formatCurrency(plan.price || 0)}</td>
-                      <td>{plan.billing_cycle || "-"}</td>
-                      <td>{plan.trial_enabled ? `${plan.trial_duration_days || 0} days` : "No"}</td>
-                      <td>{plan.max_users ?? "-"}</td>
-                      <td>{plan.max_quotations ?? "-"}</td>
-                      <td><span className={`badge ${plan.is_active ? "success" : "pending"}`}>{plan.is_active ? "Active" : "Inactive"}</span></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {showPlanCreateModal && (
-              <div className="modal-overlay" onClick={() => setShowPlanCreateModal(false)}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Create Plan</h3>
-                    <button type="button" className="ghost-btn" onClick={() => setShowPlanCreateModal(false)}>Close</button>
-                  </div>
-                  <form className="auth-card compact-form" onSubmit={handleCreatePlan}>
-                    <div className="seller-lifecycle-grid">
-                      <input placeholder="Plan Code" value={planForm.planCode} onChange={(e) => setPlanForm((prev) => ({ ...prev, planCode: e.target.value.toUpperCase() }))} required />
-                      <input placeholder="Plan Name" value={planForm.planName} onChange={(e) => setPlanForm((prev) => ({ ...prev, planName: e.target.value }))} required />
-                      <input placeholder="Price" type="number" min="0" step="0.01" value={planForm.price} onChange={(e) => setPlanForm((prev) => ({ ...prev, price: e.target.value }))} />
-                      <select value={planForm.billingCycle} onChange={(e) => setPlanForm((prev) => ({ ...prev, billingCycle: e.target.value }))}>
-                        {BILLING_CYCLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                      <input placeholder="Trial Days" type="number" min="0" value={planForm.trialDurationDays} onChange={(e) => setPlanForm((prev) => ({ ...prev, trialDurationDays: e.target.value }))} />
-                      <input placeholder="Watermark Text" value={planForm.watermarkText} onChange={(e) => setPlanForm((prev) => ({ ...prev, watermarkText: e.target.value }))} />
-                      <input placeholder="Max Users" type="number" min="0" value={planForm.maxUsers} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxUsers: e.target.value }))} />
-                      <input placeholder="Max Quotations" type="number" min="0" value={planForm.maxQuotations} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxQuotations: e.target.value }))} />
-                      <input placeholder="Max Customers" type="number" min="0" value={planForm.maxCustomers} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxCustomers: e.target.value }))} />
-                    </div>
-                    <div className="seller-lifecycle-grid">
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.isActive} onChange={(e) => setPlanForm((prev) => ({ ...prev, isActive: e.target.checked }))} style={{ width: "auto" }} />Active</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.isDemoPlan} onChange={(e) => setPlanForm((prev) => ({ ...prev, isDemoPlan: e.target.checked }))} style={{ width: "auto" }} />Demo Plan</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.trialEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, trialEnabled: e.target.checked }))} style={{ width: "auto" }} />Trial Enabled</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.inventoryEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, inventoryEnabled: e.target.checked }))} style={{ width: "auto" }} />Inventory</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.reportsEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, reportsEnabled: e.target.checked }))} style={{ width: "auto" }} />Reports</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.gstEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, gstEnabled: e.target.checked }))} style={{ width: "auto" }} />GST</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.exportsEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, exportsEnabled: e.target.checked }))} style={{ width: "auto" }} />Exports</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.quotationWatermarkEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, quotationWatermarkEnabled: e.target.checked }))} style={{ width: "auto" }} />Watermark</label>
-                      <label className="seller-toggle"><input type="checkbox" checked={planForm.quotationCreationLockedAfterExpiry} onChange={(e) => setPlanForm((prev) => ({ ...prev, quotationCreationLockedAfterExpiry: e.target.checked }))} style={{ width: "auto" }} />Lock After Expiry</label>
-                    </div>
-                    <button type="submit">Create Plan</button>
-                  </form>
-                </div>
-              </div>
-            )}
-          </section>
+          <PlansPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            plans={plans}
+            planSearch={planSearch}
+            setPlanSearch={setPlanSearch}
+            filteredPlans={filteredPlans}
+            setShowPlanCreateModal={setShowPlanCreateModal}
+            openPlanDetail={openPlanDetail}
+            formatCurrency={formatCurrency}
+            showPlanCreateModal={showPlanCreateModal}
+            handleCreatePlan={handleCreatePlan}
+            error={error}
+            planForm={planForm}
+            setPlanForm={setPlanForm}
+            BILLING_CYCLE_OPTIONS={BILLING_CYCLE_OPTIONS}
+          />
         ) : activeModule === "Notifications" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Notifications.eyebrow}</p>
-                <h2>{currentModuleMeta.Notifications.title}</h2>
-                <p>{currentModuleMeta.Notifications.subtitle}</p>
-              </div>
-              <div className="banner-stat">
-                <span>Notifications</span>
-                <strong>{notifications.length}</strong>
-              </div>
-            </div>
-
-            <div className="section-head">
-              <h3>Notification History</h3>
-              <div className="toolbar-controls">
-                <button type="button" className="action-btn" onClick={() => setShowNotificationCreateModal(true)}>Create Notification</button>
-                <span>{notifications.length} record(s)</span>
-              </div>
-            </div>
-
-            <table className="data-table">
-              <thead>
-                <tr><th>Title</th><th>Audience</th><th>Channel</th><th>Created By</th><th>Recipients</th><th>Read</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                {notifications.length === 0 ? (
-                  <tr><td colSpan="7">No notifications created yet.</td></tr>
-                ) : (
-                  notifications.map((notification) => (
-                    <tr key={notification.id} className="lead-row" onClick={() => openNotificationDetail(notification.id)}>
-                      <td>
-                        <strong>{notification.title}</strong>
-                        <div className="seller-meta-stack">
-                          <span>{notification.message}</span>
-                          <span>{notification.created_at ? formatDateTime(notification.created_at) : "-"}</span>
-                        </div>
-                      </td>
-                      <td>{notification.audience_type}</td>
-                      <td>{notification.channel}</td>
-                      <td>{notification.creator_name || "System"}</td>
-                      <td>{notification.recipient_count ?? 0}</td>
-                      <td>
-                        <span className={`badge ${(notification.unread_count || 0) > 0 ? "pending" : "success"}`}>
-                          {(notification.read_count || 0)}/{(notification.recipient_count || 0)} read
-                        </span>
-                      </td>
-                      <td><span className={`badge ${notification.sent_at ? "success" : "pending"}`}>{notification.sent_at ? "Sent" : "Scheduled"}</span></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
+          <NotificationsPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            notifications={notifications}
+            setShowNotificationCreateModal={setShowNotificationCreateModal}
+            openNotificationDetail={openNotificationDetail}
+            formatDateTime={formatDateTime}
+            showNotificationCreateModal={showNotificationCreateModal}
+            handleCreateNotification={handleCreateNotification}
+            error={error}
+            notificationForm={notificationForm}
+            setNotificationForm={setNotificationForm}
+            sellers={sellers}
+          />
         ) : activeModule === "Users" ? (
-          <section className="module-placeholder glass-panel user-access">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Users.eyebrow}</p>
-                <h2>{currentModuleMeta.Users.title}</h2>
-                <p>{isPlatformAdmin ? "Manage platform-visible user access, lock controls, and governance." : "Create seller-side users, seed roles, and keep access governance organized."}</p>
-              </div>
-            </div>
-            <div className="section-head">
-              <h3>User Access Management</h3>
-              <div className="toolbar-controls">
-                <button className="ghost-btn" type="button" onClick={handleSeedRoles}>Seed Roles</button>
-                <button className="action-btn" type="button" onClick={() => setShowUserModal(true)}>Create New User</button>
-              </div>
-            </div>
-            <div className="user-grid">
-              <div>
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Sr.</th><th>Name</th><th>Mobile</th><th>Role</th><th>Status</th><th>Lock</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {pagedUsers.map((user, index) => (
-                      <tr key={user.id}>
-                        <td>{(userPage - 1) * PAGE_SIZE + index + 1}</td>
-                        <td>{user.name}</td>
-                        <td>{user.mobile}</td>
-                        <td>{user.role_name || "-"}</td>
-                        <td><span className={`badge ${user.status ? "success" : "pending"}`}>{user.status ? "Active" : "Inactive"}</span></td>
-                        <td>
-                          {auth.user?.isPlatformAdmin ? (
-                            <button className="ghost-btn" type="button" onClick={() => handleLockToggle(user)}>{user.locked ? "Unlock" : "Lock"}</button>
-                          ) : (
-                            <span>{user.locked ? "Locked" : "Open"}</span>
-                          )}
-                        </td>
-                        <td>
-                          {isPlatformAdmin ? (
-                            <button className="ghost-btn compact-btn" type="button" onClick={() => handleResetUserPassword(user)}>Reset Password</button>
-                          ) : (
-                            <span>-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {renderPagination(userPage, setUserPage, users.length)}
-              </div>
-            </div>
-
-            {showUserModal && (
-              <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Create User</h3>
-                    <button type="button" className="ghost-btn" onClick={() => setShowUserModal(false)}>Close</button>
-                  </div>
-                  <form className="auth-card compact-form" onSubmit={handleCreateUser}>
-                    <input placeholder="Name" value={userForm.name} onChange={(event) => setUserForm((prev) => ({ ...prev, name: event.target.value }))} required />
-                    <input placeholder="Mobile" value={userForm.mobile} onChange={(event) => setUserForm((prev) => ({ ...prev, mobile: event.target.value }))} required />
-                    <input placeholder="Password" type="password" value={userForm.password} onChange={(event) => setUserForm((prev) => ({ ...prev, password: event.target.value }))} />
-                    <select value={userForm.roleId} onChange={(event) => setUserForm((prev) => ({ ...prev, roleId: event.target.value }))} required>
-                      <option value="">Select Role</option>
-                      {roles.map((role) => <option key={role.id} value={role.id}>{role.role_name}</option>)}
-                    </select>
-                    <select value={userForm.createdBy} onChange={(event) => setUserForm((prev) => ({ ...prev, createdBy: event.target.value }))}>
-                      <option value="">Created By (Optional)</option>
-                      {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-                    </select>
-                    <button type="submit">Create User</button>
-                  </form>
-                </div>
-              </div>
-            )}
-          </section>
+          <UsersPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            isPlatformAdmin={isPlatformAdmin}
+            handleSeedRoles={handleSeedRoles}
+            setShowUserModal={setShowUserModal}
+            canCreateUser={canCreateUser}
+            pagedUsers={pagedUsers}
+            userPage={userPage}
+            PAGE_SIZE={PAGE_SIZE}
+            auth={auth}
+            handleLockToggle={handleLockToggle}
+            handleResetUserPassword={handleResetUserPassword}
+            renderPagination={renderPagination}
+            setUserPage={setUserPage}
+            users={users}
+            showUserModal={showUserModal}
+            handleCreateUser={handleCreateUser}
+            error={error}
+            userForm={userForm}
+            setUserForm={setUserForm}
+            roles={roles}
+          />
         ) : activeModule === "Orders" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">Workflow</p>
-                <h2>Order Tracker</h2>
-                <p>See all orders, quotation status, and message-driven captures in one refined command view.</p>
-              </div>
-              <div className="banner-stat">
-                <span>Active Orders</span>
-                <strong>{filteredOrders.length}</strong>
-              </div>
-            </div>
-            <div className="section-head"><h3>Order Tracker</h3><span>{filteredOrders.length} total</span></div>
-            <table className="data-table order-table">
-              <thead>
-                <tr>
-                  <th>Sr</th>
-                  <th>Order #</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Quotation</th>
-                  <th>Payment</th>
-                  <th>Order Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedOrders.map((order, index) => (
-                  <tr key={order.id}>
-                    <td>{(orderPage - 1) * PAGE_SIZE + index + 1}</td>
-                    <td><button type="button" className="link-btn" onClick={() => handleOpenOrderDetails(order.id)}>{formatQuotationLabel(order)}</button></td>
-                    <td>{order.firm_name || order.customer_name}</td>
-                    <td>{formatCurrency(order.total_amount)}</td>
-                    <td>
-                      <span className={`badge ${order.quotation_sent ? "success" : "pending"}`}>
-                        {order.quotation_sent ? "Sent" : "Not Sent"}
-                      </span>
-                    </td>
-                    <td><span className={`badge ${order.payment_status === "paid" ? "success" : "pending"}`}>{statusLabel(order.payment_status)}</span></td>
-                    <td>
-                      <select value={order.order_status || "NEW"} onChange={(event) => handleOrderStatusUpdate(order.id, event.target.value)}>
-                        {ORDER_STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>{option.label}</option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <div className="order-actions">
-                        <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkQuotationSent(order.id)} disabled={order.quotation_sent}>Send</button>
-                        <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkPaid(order.id)} disabled={order.payment_status === "paid"}>Paid</button>
-                        <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotationSheet(order.id)} title="Download XLSX">XLSX</button>
-                        <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
-                        <button type="button" className="ghost-btn order-action-btn" onClick={() => handleDownloadRichPdfDebug(order.id)} title="Run Rich PDF Debug">Rich PDF Debug</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {renderPagination(orderPage, setOrderPage, filteredOrders.length)}
-          </section>
+          <OrdersPage
+            activeModule={activeModule}
+            filteredOrders={filteredOrders}
+            pagedOrders={pagedOrders}
+            orderPage={orderPage}
+            PAGE_SIZE={PAGE_SIZE}
+            setOrderPage={setOrderPage}
+            handleOpenOrderDetails={handleOpenOrderDetails}
+            formatQuotationLabel={formatQuotationLabel}
+            formatCurrency={formatCurrency}
+            statusLabel={statusLabel}
+            handleOrderStatusUpdate={handleOrderStatusUpdate}
+            ORDER_STATUS_OPTIONS={ORDER_STATUS_OPTIONS}
+            handleMarkQuotationSent={handleMarkQuotationSent}
+            handleMarkPaid={handleMarkPaid}
+            handleDownloadQuotationSheet={handleDownloadQuotationSheet}
+            handleDownloadQuotation={handleDownloadQuotation}
+            handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
+            renderPagination={renderPagination}
+            canEditQuotation={canEditQuotation}
+            canSendQuotation={canSendQuotation}
+            canMarkPaid={canMarkPaid}
+            canDownloadQuotationPdf={canDownloadQuotationPdf}
+          />
         ) : activeModule === "Customers" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">CRM</p>
-                <h2>Customer Directory</h2>
-                <p>Every customer profile stays ready for repeat orders, quotation sending, and follow-up flow.</p>
-              </div>
-              <div className="banner-stat">
-                <span>Total Customers</span>
-                <strong>{customers.length}</strong>
-              </div>
-            </div>
-            <div className="section-head">
-              <h3>Customers</h3>
-              <div className="toolbar-controls">
-                <span>{customers.length} total</span>
-                <button type="button" className="action-btn" onClick={() => setShowCustomerModal(true)}>Add Customer</button>
-              </div>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Sr</th>
-                  <th>Name</th>
-                  <th>Firm</th>
-                  <th>Mobile</th>
-                  <th>Email</th>
-                  <th>Address</th>
-                  <th>GST</th>
-                </tr>
-              </thead>
-              <tbody>
-                {customers.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="muted">No customers found yet.</td>
-                  </tr>
-                ) : (
-                  pagedCustomers.map((customer, index) => (
-                    <tr key={customer.id}>
-                      <td>{(customerPage - 1) * PAGE_SIZE + index + 1}</td>
-                      <td>{customer.name}</td>
-                      <td>{customer.firm_name || "-"}</td>
-                      <td>{customer.mobile || "-"}</td>
-                      <td>{customer.email || "-"}</td>
-                      <td>{customer.address || "-"}</td>
-                      <td>{customer.gst_number || "-"}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            {renderPagination(customerPage, setCustomerPage, customers.length)}
-
-          </section>
+          <CustomersPage
+            activeModule={activeModule}
+            customers={customers}
+            setShowCustomerModal={setShowCustomerModal}
+            canCreateCustomer={canCreateCustomer}
+            pagedCustomers={pagedCustomers}
+            customerPage={customerPage}
+            setCustomerPage={setCustomerPage}
+            PAGE_SIZE={PAGE_SIZE}
+            renderPagination={renderPagination}
+          />
         ) : activeModule === "Products" ? (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">Catalogue</p>
-                <h2>Product Catalogue</h2>
-                <p>Upload structured products for smarter order matching, inventory rules, and cleaner quotations.</p>
-              </div>
-              <div className="banner-stat">
-                <span>Total Products</span>
-                <strong>{products.length}</strong>
-              </div>
-            </div>
-            <div className="section-head">
-              <h3>Product Catalogue</h3>
-              <div className="toolbar-controls">
-                <span>{products.length} total</span>
-                <button type="button" className="ghost-btn" onClick={handleDownloadProductTemplate}>Download Template</button>
-                <label className="ghost-btn file-trigger">
-                  Upload Product
-                  <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelProductUpload} />
-                </label>
-                <button type="button" className="action-btn" onClick={() => setShowSingleProductModal(true)}>Add Single Product</button>
-                <button type="button" className="ghost-btn" onClick={() => setShowProductUploadModal(true)}>Bulk Paste</button>
-              </div>
-            </div>
-            {!isPlatformAdmin && (
-              <div className="notice info">
-                Product form and template are using the seller&apos;s published catalogue configuration.
-              </div>
-            )}
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Sr</th>
-                  {visibleCatalogueTableFields.map((field) => (
-                    <th key={field.id}>{field.label}</th>
-                  ))}
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.length === 0 ? (
-                  <tr>
-                    <td colSpan={visibleCatalogueTableFields.length + 2} className="muted">No products uploaded yet.</td>
-                  </tr>
-                ) : (
-                  pagedProducts.map((product, index) => (
-                    <tr key={product.id}>
-                      <td>{(productPage - 1) * PAGE_SIZE + index + 1}</td>
-                      {visibleCatalogueTableFields.map((field) => (
-                        <td key={`${product.id}-${field.id}`}>{getProductFieldDisplayValue(product, field.normalizedKey || field.key)}</td>
-                      ))}
-                      <td>
-                        <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            {renderPagination(productPage, setProductPage, products.length)}
-
-            {showProductUploadModal && (
-              <div className="modal-overlay" onClick={() => {
-                setShowProductUploadModal(false);
-                setProductUploadModalMessage("");
-              }}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Bulk Paste Products</h3>
-                    <button type="button" className="ghost-btn" onClick={() => {
-                      setShowProductUploadModal(false);
-                      setProductUploadModalMessage("");
-                    }}>Close</button>
-                  </div>
-                  {productUploadModalMessage && <div className="notice error">{productUploadModalMessage}</div>}
-                  <form className="auth-card" onSubmit={handleBulkProductUpload}>
-                    <p>Paste one product per line using this format:</p>
-                    <p><code>Product Name | Category | Thickness | Unit Type | Base Price | SKU | Always Available</code></p>
-                    <p>Template download now follows the seller&apos;s published catalogue field configuration. Excel upload will validate the mapped runtime fields from that structure.</p>
-                    <textarea
-                      rows={10}
-                      placeholder={"Acrylic | Sheet | 2 mm | SFT | 15 | ACR-2 | true\nName Plate | Signage | - | COUNT | 900 | NP-01 | true"}
-                      value={productUploadText}
-                      onChange={(e) => setProductUploadText(e.target.value)}
-                      required
-                    />
-                    <button type="submit">Validate Product Upload</button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {showSingleProductModal && (
-              <div className="modal-overlay" onClick={() => setShowSingleProductModal(false)}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>{editingProductId ? "Edit Product" : "Add Single Product"}</h3>
-                    <button type="button" className="ghost-btn" onClick={() => {
-                      setShowSingleProductModal(false);
-                      setEditingProductId(null);
-                      setSingleProductForm(createInitialSingleProductForm());
-                    }}>Close</button>
-                  </div>
-                  <form className="auth-card" onSubmit={handleCreateSingleProduct}>
-                    {runtimeCatalogueFields.map((field) => {
-                      const value = singleProductForm[field.meta.formKey];
-                      if (field.type === "checkbox" || field.meta.inputType === "checkbox") {
-                        return (
-                          <label key={field.id} style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                            <input
-                              type="checkbox"
-                              checked={Boolean(value)}
-                              onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.checked)}
-                              style={{ width: "auto" }}
-                            />
-                            {field.label}
-                          </label>
-                        );
-                      }
-
-                      if (field.type === "dropdown") {
-                        return (
-                          <select
-                            key={field.id}
-                            value={value ?? ""}
-                            onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.value)}
-                            required={Boolean(field.required || field.meta.required)}
-                          >
-                            <option value="">{field.label}</option>
-                            {getConfiguredOptions(field).map((option) => (
-                              <option key={`${field.id}-${option}`} value={option}>{option}</option>
-                            ))}
-                          </select>
-                        );
-                      }
-
-                      if (field.meta.inputType === "unit-select") {
-                        return (
-                          <select key={field.id} value={value} onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.value)} required={Boolean(field.required || field.meta.required)}>
-                            <option value="COUNT">{field.label}: COUNT</option>
-                            <option value="SFT">{field.label}: SFT</option>
-                          </select>
-                        );
-                      }
-
-                      if (field.meta.inputType === "pricing-select") {
-                        return (
-                          <select key={field.id} value={value} onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.value)} required={Boolean(field.required || field.meta.required)}>
-                            <option value="SFT">{field.label}: SFT</option>
-                            <option value="UNIT">{field.label}: UNIT</option>
-                            <option value="FIXED">{field.label}: FIXED</option>
-                          </select>
-                        );
-                      }
-
-                      return (
-                        <input
-                          key={field.id}
-                          type={field.meta.inputType === "number" ? "number" : "text"}
-                          placeholder={field.label}
-                          value={value}
-                          onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.value)}
-                          required={Boolean(field.required || field.meta.required)}
-                        />
-                      );
-                    })}
-                    {unsupportedRuntimeCatalogueFields.length > 0 && (
-                      <>
-                        {unsupportedRuntimeCatalogueFields.map((field) => {
-                          const value = singleProductForm.customFields?.[field.key];
-                          if (field.type === "checkbox") {
-                            return (
-                              <label key={field.id} style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(value)}
-                                  onChange={(e) => updateSingleProductCustomField(field.key, e.target.checked)}
-                                  style={{ width: "auto" }}
-                                />
-                                {field.label}
-                              </label>
-                            );
-                          }
-
-                          if (field.type === "dropdown") {
-                            return (
-                              <select
-                                key={field.id}
-                                value={value ?? ""}
-                                onChange={(e) => updateSingleProductCustomField(field.key, e.target.value)}
-                                required={Boolean(field.required)}
-                              >
-                                <option value="">{field.label}</option>
-                                {getConfiguredOptions(field).map((option) => (
-                                  <option key={`${field.id}-${option}`} value={option}>{option}</option>
-                                ))}
-                              </select>
-                            );
-                          }
-
-                          return (
-                            <input
-                              key={field.id}
-                              type={field.type === "number" ? "number" : "text"}
-                              placeholder={field.label}
-                              value={value ?? ""}
-                              onChange={(e) => updateSingleProductCustomField(field.key, e.target.value)}
-                              required={Boolean(field.required)}
-                            />
-                          );
-                        })}
-                        <p className="muted">
-                          Additional seller-specific catalogue fields are being stored in product custom data.
-                        </p>
-                      </>
-                    )}
-                    {editingProductId && <p className="muted">SKU stays unchanged unless you edit this field yourself.</p>}
-                    <button type="submit">{editingProductId ? "Update Product" : "Save Product"}</button>
-                  </form>
-                </div>
-              </div>
-            )}
-
-            {showProductPreviewModal && (
-              <div className="modal-overlay" onClick={() => {
-                setShowProductPreviewModal(false);
-                setProductUploadModalMessage("");
-              }}>
-                <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-                  <div className="section-head">
-                    <h3>Validate Product Upload</h3>
-                    <button type="button" className="ghost-btn" onClick={() => {
-                      setShowProductPreviewModal(false);
-                      setProductUploadModalMessage("");
-                    }}>Close</button>
-                  </div>
-                  {productUploadModalMessage && <div className="notice error">{productUploadModalMessage}</div>}
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Row</th>
-                        {[...runtimeCatalogueFields, ...unsupportedRuntimeCatalogueFields]
-                          .filter((field) => field.uploadEnabled)
-                          .map((field) => (
-                            <th key={`preview-head-${field.id}`}>{field.label}</th>
-                          ))}
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productPreviewRows.map((row) => (
-                        <tr key={row.rowNumber}>
-                          <td>{row.rowNumber}</td>
-                          {[...runtimeCatalogueFields, ...unsupportedRuntimeCatalogueFields]
-                            .filter((field) => field.uploadEnabled)
-                            .map((field) => (
-                              <td key={`${row.rowNumber}-${field.id}`}>{getProductPreviewFieldValue(row, field)}</td>
-                            ))}
-                          <td>{row.issues.length === 0 ? "Ready" : row.issues.join(", ")}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="toolbar-controls" style={{ marginTop: "14px" }}>
-                    <button type="button" className="ghost-btn" onClick={() => {
-                      setShowProductPreviewModal(false);
-                      setProductUploadModalMessage("");
-                    }}>Cancel</button>
-                    <button type="button" onClick={handleConfirmProductUpload}>Confirm Upload</button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+          <ProductsPage
+            activeModule={activeModule}
+            products={products}
+            handleDownloadProductTemplate={handleDownloadProductTemplate}
+            handleExcelProductUpload={handleExcelProductUpload}
+            setShowSingleProductModal={setShowSingleProductModal}
+            setShowProductUploadModal={setShowProductUploadModal}
+            canCreateProduct={canCreateProduct}
+            canEditProduct={canEditProduct}
+            isPlatformAdmin={isPlatformAdmin}
+            visibleCatalogueTableFields={visibleCatalogueTableFields}
+            pagedProducts={pagedProducts}
+            productPage={productPage}
+            PAGE_SIZE={PAGE_SIZE}
+            getProductFieldDisplayValue={getProductFieldDisplayValue}
+            handleEditProduct={handleEditProduct}
+            renderPagination={renderPagination}
+            setProductPage={setProductPage}
+            showProductUploadModal={showProductUploadModal}
+            setProductUploadModalMessage={setProductUploadModalMessage}
+            productUploadModalMessage={productUploadModalMessage}
+            handleBulkProductUpload={handleBulkProductUpload}
+            productUploadText={productUploadText}
+            setProductUploadText={setProductUploadText}
+            error={error}
+            showSingleProductModal={showSingleProductModal}
+            editingProductId={editingProductId}
+            setEditingProductId={setEditingProductId}
+            setSingleProductForm={setSingleProductForm}
+            createInitialSingleProductForm={createInitialSingleProductForm}
+            handleCreateSingleProduct={handleCreateSingleProduct}
+            runtimeCatalogueFields={runtimeCatalogueFields}
+            singleProductForm={singleProductForm}
+            updateSingleProductField={updateSingleProductField}
+            getConfiguredOptions={getConfiguredOptions}
+            unsupportedRuntimeCatalogueFields={unsupportedRuntimeCatalogueFields}
+            updateSingleProductCustomField={updateSingleProductCustomField}
+            showProductPreviewModal={showProductPreviewModal}
+            setShowProductPreviewModal={setShowProductPreviewModal}
+            productPreviewRows={productPreviewRows}
+            getProductPreviewFieldValue={getProductPreviewFieldValue}
+            handleConfirmProductUpload={handleConfirmProductUpload}
+          />
+        ) : activeModule === "Help Center" ? (
+          <HelpCenterPage
+            activeModule={activeModule}
+            isPlatformAdmin={isPlatformAdmin}
+            isSubUser={isSubUser}
+          />
+        ) : activeModule === "Roles & Permissions" ? (
+          <RbacMatrixPage isPlatformAdmin={isPlatformAdmin} />
         ) : activeModule === "Settings" ? (
-          <section className="module-placeholder glass-panel settings-grid">
-            <div className="glass-panel page-banner settings-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta.Settings.eyebrow}</p>
-                <h2>{currentModuleMeta.Settings.title}</h2>
-                <p>{isPlatformAdmin ? "Onboard sellers, manage lifecycle, and track platform-side controls." : "Shape branding, automation rules, quotation design, and seller setup in one premium admin space."}</p>
-              </div>
-              <div className="banner-stat">
-                <span>{isPlatformAdmin ? "Mode" : "Theme"}</span>
-                <strong>{isPlatformAdmin ? "Platform Admin" : (THEME_OPTIONS.find((option) => option.value === theme)?.label || "Custom")}</strong>
-              </div>
-            </div>
-            {!isPlatformAdmin && (
-            <>
-            <div className="settings-card glass-panel">
-              <h3>Branding & Theme</h3>
-              <p>Seller-level design configuration for this tenant.</p>
-              <form className="auth-card" onSubmit={handleSaveThemeSettings}>
-                <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-                  {THEME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-                <input type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} />
-                <input
-                  type="text"
-                  placeholder="Quotation Prefix"
-                  value={quotationNumberPrefix}
-                  onChange={(e) => setQuotationNumberPrefix(e.target.value.toUpperCase())}
-                />
-                <input
-                  type="text"
-                  placeholder="Bank Name"
-                  value={bankName}
-                  onChange={(e) => setBankName(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Bank Branch"
-                  value={bankBranch}
-                  onChange={(e) => setBankBranch(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Bank Account Number"
-                  value={bankAccountNo}
-                  onChange={(e) => setBankAccountNo(e.target.value)}
-                />
-                <input
-                  type="text"
-                  placeholder="Bank IFSC"
-                  value={bankIfsc}
-                  onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
-                />
-                <button type="submit">Save Seller Settings</button>
-              </form>
-            </div>            <div className="settings-card glass-panel">
-              <h3>Message Decode Formula</h3>
-              <p>Map line position for plain WhatsApp message format.</p>
-              <form className="auth-card" onSubmit={handleSaveDecodeRules}>
-                <input type="number" min="1" placeholder="Customer line" value={decodeRules.customer_line || 1} onChange={(e) => setDecodeRules((prev) => ({ ...prev, customer_line: e.target.value }))} />
-                <input type="number" min="1" placeholder="Mobile line" value={decodeRules.mobile_line || 2} onChange={(e) => setDecodeRules((prev) => ({ ...prev, mobile_line: e.target.value }))} />
-                <input type="number" min="1" placeholder="Item line" value={decodeRules.item_line || 3} onChange={(e) => setDecodeRules((prev) => ({ ...prev, item_line: e.target.value }))} />
-                <input type="number" min="1" placeholder="Delivery date line" value={decodeRules.delivery_date_line || 4} onChange={(e) => setDecodeRules((prev) => ({ ...prev, delivery_date_line: e.target.value }))} />
-                <input type="number" min="1" placeholder="Delivery type line" value={decodeRules.delivery_type_line || 5} onChange={(e) => setDecodeRules((prev) => ({ ...prev, delivery_type_line: e.target.value }))} />
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                  <input type="checkbox" checked={Boolean(decodeRules.enabled)} onChange={(e) => setDecodeRules((prev) => ({ ...prev, enabled: e.target.checked }))} style={{ width: "auto" }} />
-                  Enable line-based decode formula
-                </label>
-                <button type="submit">Save Decode Formula</button>
-              </form>
-            </div>
-
-
-
-            
-            <div className="settings-card glass-panel">
-              <h3>Quotation Format</h3>
-              <p>Configure default quotation format for download/share. Presets give sellers a starting point without hardcoding one layout for every tenant.</p>
-              <form className="auth-card" onSubmit={handleSaveQuotationTemplate}>
-                <label style={{ display: "grid", gap: "8px", color: "var(--muted)" }}>
-                  Template preset
-                  <select
-                    value={quotationTemplate.template_preset || "commercial_offer"}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, template_preset: e.target.value }))}
-                  >
-                    {Object.entries(QUOTATION_TEMPLATE_PRESETS).map(([key, preset]) => (
-                      <option key={key} value={key}>{preset.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <div className="seller-config-help-card">
-                  <strong>{QUOTATION_TEMPLATE_PRESETS[quotationTemplate.template_preset || "commercial_offer"]?.label || "Commercial Offer"}</strong>
-                  <p className="muted">{QUOTATION_TEMPLATE_PRESETS[quotationTemplate.template_preset || "commercial_offer"]?.description || ""}</p>
-                  <button type="button" className="ghost-btn" onClick={() => applyQuotationTemplatePreset(quotationTemplate.template_preset || "commercial_offer")}>
-                    Apply Preset Defaults
-                  </button>
-                </div>
-                <input
-                  placeholder="Header text"
-                  value={quotationTemplate.header_text || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, header_text: e.target.value }))}
-                />
-                <input
-                  placeholder="Company mobile number"
-                  value={quotationTemplate.company_phone || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, company_phone: e.target.value }))}
-                />
-                <input
-                  placeholder="Company email"
-                  value={quotationTemplate.company_email || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, company_email: e.target.value }))}
-                />
-                <textarea
-                  rows={3}
-                  placeholder="Company address"
-                  value={quotationTemplate.company_address || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, company_address: e.target.value }))}
-                />
-                <label style={{ display: "grid", gap: "8px", color: "var(--muted)" }}>
-                  Header image / logo
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleQuotationHeaderImageChange}
-                  />
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(quotationTemplate.show_header_image)}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, show_header_image: e.target.checked }))}
-                    style={{ width: "auto" }}
-                  />
-                  Use uploaded image in header
-                </label>
-                <label style={{ display: "grid", gap: "8px", color: "var(--muted)" }}>
-                  Logo only
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleQuotationLogoImageChange}
-                  />
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(quotationTemplate.show_logo_only)}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, show_logo_only: e.target.checked }))}
-                    style={{ width: "auto" }}
-                  />
-                  Use uploaded logo in invoice-style header
-                </label>
-                {quotationTemplate.header_image_data && (
-                  <div className="quotation-image-preview">
-                    <img src={quotationTemplate.header_image_data} alt="Quotation header" />
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => setQuotationTemplate((prev) => ({
-                        ...prev,
-                        header_image_data: null,
-                        show_header_image: false
-                      }))}
-                    >
-                      Remove image
-                    </button>
-                  </div>
-                )}
-                {quotationTemplate.logo_image_data && (
-                  <div className="quotation-image-preview">
-                    <img src={quotationTemplate.logo_image_data} alt="Quotation logo" />
-                    <button
-                      type="button"
-                      className="ghost-btn"
-                      onClick={() => setQuotationTemplate((prev) => ({
-                        ...prev,
-                        logo_image_data: null,
-                        show_logo_only: false
-                      }))}
-                    >
-                      Remove logo
-                    </button>
-                  </div>
-                )}
-                <label style={{ display: "grid", gap: "8px", color: "var(--muted)" }}>
-                  Accent color
-                  <input
-                    type="color"
-                    value={quotationTemplate.accent_color || "#2563eb"}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, accent_color: e.target.value }))}
-                  />
-                </label>
-                <textarea
-                  rows={5}
-                  placeholder="Body template. Use placeholders like {{quotation_number}}, {{customer_name}}, {{customer_mobile}}, {{total_amount}}"
-                  value={quotationTemplate.body_template || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, body_template: e.target.value }))}
-                />
-                <input
-                  placeholder="Footer text"
-                  value={quotationTemplate.footer_text || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, footer_text: e.target.value }))}
-                />
-                <textarea
-                  rows={3}
-                  placeholder="Notes"
-                  value={quotationTemplate.notes_text || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, notes_text: e.target.value }))}
-                />
-                <textarea
-                  rows={3}
-                  placeholder="Terms & conditions"
-                  value={quotationTemplate.terms_text || ""}
-                  onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, terms_text: e.target.value }))}
-                />
-                {["industrial_invoice", "html_puppeteer"].includes(quotationTemplate.template_preset || "commercial_offer") ? (
-                  <div className="quotation-preview-card industrial-invoice-preview">
-                    {quotationTemplate.show_header_image && quotationTemplate.header_image_data ? (
-                      <div className="industrial-header-image">
-                        <img src={quotationTemplate.header_image_data} alt="Header preview" />
-                      </div>
-                    ) : (
-                      <div className="industrial-top">
-                        <div>
-                          <h4>{quotationTemplate.header_text || "Sai Laser Pvt. Ltd."}</h4>
-                          <div className="industrial-band">{quotationTemplate.footer_text || "Manufacturing & Supply of Precision Components"}</div>
-                          <div className="industrial-address">
-                            {(quotationTemplate.company_address || "Company address").split(/\n+/).map((line, index) => (
-                              <span key={`addr-${index}`}>{line}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="industrial-contact">
-                          {quotationTemplate.show_logo_only && quotationTemplate.logo_image_data && (
-                            <div className="preview-image-wrap logo-mode">
-                              <img src={quotationTemplate.logo_image_data} alt="Logo preview" />
-                            </div>
-                          )}
-                          <span>Tel : {quotationTemplate.company_phone || "Add company mobile"}</span>
-                          <span>Email : {quotationTemplate.company_email || "Email"}</span>
-                        </div>
-                      </div>
-                    )}
-                    <div className="industrial-title-row">
-                      <span>GSTIN : 24HDE7487RE5RT4</span>
-                      <strong>QUOTATION</strong>
-                      <span>ORIGINAL FOR CUSTOMER</span>
-                    </div>
-                    <div className="industrial-info-grid">
-                      <div className="industrial-customer-block">
-                        <h5>Customer Detail</h5>
-                        <div><strong>M/S</strong><span>{quotationPreview.customer_name}</span></div>
-                        <div><strong>Address</strong><span>{quotationPreview.delivery_address}</span></div>
-                        <div><strong>Phone</strong><span>{quotationPreview.customer_mobile}</span></div>
-                        <div><strong>Place of Supply</strong><span>{quotationPreview.delivery_pincode}</span></div>
-                      </div>
-                      <div className="industrial-meta-block">
-                        <div><span>Quotation No.</span><strong>{quotationPreview.quotation_number}</strong></div>
-                        <div><span>Date</span><strong>{quotationPreview.delivery_date}</strong></div>
-                        <div><span>Version</span><strong>1</strong></div>
-                        <div><span>Delivery Type</span><strong>{quotationPreview.delivery_type}</strong></div>
-                        <div><span>Customer Mobile</span><strong>{quotationPreview.customer_mobile}</strong></div>
-                        <div><span>Pincode</span><strong>{quotationPreview.delivery_pincode}</strong></div>
-                      </div>
-                    </div>
-                    <table className="industrial-preview-table">
-                      <thead>
-                        <tr>
-                          <th>Sr. No.</th>
-                          <th>Name of Product / Service</th>
-                          <th>Qty</th>
-                          <th>Rate</th>
-                          <th>Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td>1</td>
-                          <td>
-                            <strong>Acrylic</strong>
-                            <span>{renderTemplateText(quotationTemplate.body_template || "Width: 100 × Height: 100", { ...quotationPreview, quotation_number: "Width: 100 × Height: 100" })}</span>
-                          </td>
-                          <td>2</td>
-                          <td>Rs 100</td>
-                          <td>Rs 6,944</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                    <div className="industrial-summary">
-                      <div><span>Subtotal</span><strong>Rs 6,944</strong></div>
-                      <div><span>Discount</span><strong>- Rs 100</strong></div>
-                      <div><span>Advance</span><strong>- Rs 1,000</strong></div>
-                      <div className="grand"><span>Balance</span><strong>Rs 5,844</strong></div>
-                    </div>
-                    <div className="industrial-footer-grid">
-                      <div className="industrial-footer-left">
-                        <div className="industrial-footer-cell">
-                          <h5>Total in words</h5>
-                          <p>Rupees Five Thousand Eight Hundred Forty-Four Only</p>
-                        </div>
-                        <div className="industrial-footer-cell">
-                          <h5>Bank Details</h5>
-                          <div className="industrial-kv-list">
-                            <div><strong>Bank Name</strong><span>{bankName || "State Bank of India"}</span></div>
-                            <div><strong>Branch Name</strong><span>{bankBranch || "Main Branch"}</span></div>
-                            <div><strong>Bank Account Number</strong><span>{bankAccountNo || "2000000004512"}</span></div>
-                            <div><strong>Bank Branch IFSC</strong><span>{bankIfsc || "SBIN0000488"}</span></div>
-                          </div>
-                        </div>
-                        <div className="industrial-footer-cell">
-                          <h5>Terms and Conditions</h5>
-                          <p>{quotationTemplate.terms_text || "Add terms and conditions here."}</p>
-                        </div>
-                      </div>
-                      <div className="industrial-footer-right">
-                        <div className="industrial-footer-cell">
-                          <div className="industrial-kv-list summary-mode">
-                            <div><strong>Taxable Amount</strong><span>1,154.00</span></div>
-                            <div><strong>Add : GST</strong><span>103.86</span></div>
-                            <div><strong>Total Tax</strong><span>103.86</span></div>
-                            <div className="grand"><strong>Total Amount After Tax</strong><span>Rs 1,258.00</span></div>
-                          </div>
-                        </div>
-                        <div className="industrial-footer-cell">
-                          <h5>GST Payable on Reverse Charge</h5>
-                          <p className="industrial-right-strong">N.A.</p>
-                          <p>Certified that the particulars given above are true and correct.</p>
-                          <p className="industrial-right-strong">For {quotationTemplate.header_text || "Sai Laser Pvt. Ltd."}</p>
-                        </div>
-                        <div className="industrial-footer-cell industrial-signatory">
-                          <p>This is computer generated quotation. No signature required.</p>
-                          <strong>Authorised Signatory</strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className={`quotation-preview-card preset-${quotationTemplate.template_preset || "commercial_offer"} ${quotationTemplate.show_header_image && quotationTemplate.header_image_data ? "has-header-image" : ""}`}
-                    style={{ "--preview-accent": quotationTemplate.accent_color || "#2563eb" }}
-                  >
-                    <div className={`quotation-preview-hero ${quotationTemplate.show_header_image && quotationTemplate.header_image_data ? "header-image-mode" : ""}`}>
-                      {quotationTemplate.show_logo_only && quotationTemplate.logo_image_data ? (
-                        <>
-                          <div>
-                            <div className="preview-image-wrap logo-mode">
-                              <img src={quotationTemplate.logo_image_data} alt="Logo preview" />
-                            </div>
-                            <div className="preview-kicker">{quotationTemplate.header_text || "Commercial Offer"}</div>
-                            <h4>{quotationTemplate.header_text || "Commercial Offer"}</h4>
-                            <p>{quotationTemplate.footer_text || "We look forward to working with you."}</p>
-                          </div>
-                          <div className="preview-meta">
-                            <strong>{quotationPreview.quotation_number}</strong>
-                            <span>Mobile: {quotationTemplate.company_phone || "Add company mobile"}</span>
-                            <span>Total: Rs {quotationPreview.total_amount}</span>
-                          </div>
-                        </>
-                      ) : quotationTemplate.show_header_image && quotationTemplate.header_image_data ? (
-                        <div className="preview-image-wrap header-mode">
-                          <img src={quotationTemplate.header_image_data} alt="Header preview" />
-                        </div>
-                      ) : (
-                        <>
-                          <div>
-                            <div className="preview-kicker">{quotationTemplate.header_text || "Commercial Offer"}</div>
-                            <h4>{quotationTemplate.header_text || "Commercial Offer"}</h4>
-                            <p>{quotationTemplate.footer_text || "We look forward to working with you."}</p>
-                          </div>
-                          <div className="preview-meta">
-                            <strong>{quotationPreview.quotation_number}</strong>
-                            <span>Mobile: {quotationTemplate.company_phone || "Add company mobile"}</span>
-                            <span>Total: Rs {quotationPreview.total_amount}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    {quotationTemplate.show_header_image && quotationTemplate.header_image_data && (
-                      <div className="preview-meta preview-meta-row">
-                        <strong>{quotationPreview.quotation_number}</strong>
-                        <span>Mobile: {quotationTemplate.company_phone || "Add company mobile"}</span>
-                        <span>Total: Rs {quotationPreview.total_amount}</span>
-                      </div>
-                    )}
-                    <div className="quotation-preview-body">
-                      <div className="preview-pane">
-                        <h5>Customer</h5>
-                        <strong>{quotationPreview.customer_name}</strong>
-                        <span>{quotationPreview.customer_mobile}</span>
-                        <span>{quotationPreview.delivery_address}</span>
-                        <span>{quotationPreview.delivery_pincode}</span>
-                      </div>
-                      <div className="preview-pane">
-                        <h5>Your Contact</h5>
-                        <span>{quotationTemplate.company_phone || "Mobile number"}</span>
-                        <span>{quotationTemplate.company_email || "Email"}</span>
-                        <span>{quotationTemplate.company_address || "Company address"}</span>
-                      </div>
-                    </div>
-                    <p className="preview-copy">
-                      {renderTemplateText(quotationTemplate.body_template, quotationPreview)}
-                    </p>
-                    <div className="preview-grid">
-                      <div>
-                        <h5>Notes</h5>
-                        <p>{quotationTemplate.notes_text || "Add commercial notes here."}</p>
-                      </div>
-                      <div>
-                        <h5>Terms</h5>
-                        <p>{quotationTemplate.terms_text || "Add terms and conditions here."}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(quotationTemplate.email_enabled)}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, email_enabled: e.target.checked }))}
-                    style={{ width: "auto" }}
-                  />
-                  Enable email sending
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
-                  <input
-                    type="checkbox"
-                    checked={Boolean(quotationTemplate.whatsapp_enabled)}
-                    onChange={(e) => setQuotationTemplate((prev) => ({ ...prev, whatsapp_enabled: e.target.checked }))}
-                    style={{ width: "auto" }}
-                  />
-                  Enable WhatsApp sending
-                </label>
-                <button type="submit">Save Quotation Format</button>
-              </form>
-            </div>
-            </>
-            )}
-            {isPlatformAdmin && (
-              <>
-                <div className="settings-card glass-panel">
-                  <h3>Platform Usage</h3>
-                  <div className="kpi-grid kpi-admin">
-                    <article className="kpi-card glass-panel"><p>Sellers</p><h3>{usageOverview?.sellersOnboarded || 0}</h3></article>
-                    <article className="kpi-card glass-panel"><p>Active Users</p><h3>{usageOverview?.activeUsers || 0}</h3></article>
-                    <article className="kpi-card glass-panel"><p>Total Orders</p><h3>{usageOverview?.totalOrders || 0}</h3></article>
-                  </div>
-                </div>
-
-                <div className="settings-card glass-panel">
-                  <h3>Platform Controls</h3>
-                  <p>Seller onboarding, plan administration, and lead progression now live in dedicated modules so the platform journey stays clean.</p>
-                  <div className="quick-action-grid">
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Sellers")}>
-                      Open Seller Section
-                    </button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Subscriptions")}>
-                      Open Subscription Section
-                    </button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Plans")}>
-                      Open Plan Section
-                    </button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Leads")}>
-                      Open Lead Section
-                    </button>
-                  </div>
-                </div>
-
-                <div className="settings-card glass-panel">
-                  <h3>Control Summary</h3>
-                  <table className="data-table">
-                    <thead><tr><th>Area</th><th>What to manage there</th><th>Status</th></tr></thead>
-                    <tbody>
-                      <tr>
-                        <td><strong>Sellers</strong></td>
-                        <td>Create sellers, review lifecycle, open seller detail, and manage subscription actions.</td>
-                        <td><span className="badge success">Ready</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Subscriptions</strong></td>
-                        <td>Review trial windows, active plan state, and open full subscription detail without entering seller profile first.</td>
-                        <td><span className="badge success">Ready</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Plans</strong></td>
-                        <td>Create plans, review feature limits, and update commercial rules in a dedicated modal flow.</td>
-                        <td><span className="badge success">Ready</span></td>
-                      </tr>
-                      <tr>
-                        <td><strong>Leads</strong></td>
-                        <td>Capture public leads, add activity, and convert qualified prospects into demo accounts.</td>
-                        <td><span className="badge success">Ready</span></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </section>
+          <SettingsPage
+            currentModuleMeta={currentModuleMeta}
+            isPlatformAdmin={isPlatformAdmin}
+            THEME_OPTIONS={THEME_OPTIONS}
+            theme={theme}
+            setTheme={setTheme}
+            brandColor={brandColor}
+            setBrandColor={setBrandColor}
+            quotationNumberPrefix={quotationNumberPrefix}
+            setQuotationNumberPrefix={setQuotationNumberPrefix}
+            sellerGstNumber={sellerGstNumber}
+            setSellerGstNumber={setSellerGstNumber}
+            bankName={bankName}
+            setBankName={setBankName}
+            bankBranch={bankBranch}
+            setBankBranch={setBankBranch}
+            bankAccountNo={bankAccountNo}
+            setBankAccountNo={setBankAccountNo}
+            bankIfsc={bankIfsc}
+            setBankIfsc={setBankIfsc}
+            handleSaveThemeSettings={handleSaveThemeSettings}
+            decodeRules={decodeRules}
+            setDecodeRules={setDecodeRules}
+            handleSaveDecodeRules={handleSaveDecodeRules}
+            quotationTemplate={quotationTemplate}
+            setQuotationTemplate={setQuotationTemplate}
+            QUOTATION_TEMPLATE_PRESETS={QUOTATION_TEMPLATE_PRESETS}
+            applyQuotationTemplatePreset={applyQuotationTemplatePreset}
+            handleQuotationHeaderImageChange={handleQuotationHeaderImageChange}
+            handleQuotationLogoImageChange={handleQuotationLogoImageChange}
+            quotationPreview={quotationPreview}
+            renderTemplateText={renderTemplateText}
+            handleSaveQuotationTemplate={handleSaveQuotationTemplate}
+            usageOverview={usageOverview}
+            setActiveModule={setActiveModule}
+            canEditSettings={canEditSettings}
+          />
         ) : activeModule !== "Dashboard" ? (
           <section className="module-placeholder glass-panel">
             <h3>{activeModule}</h3>
             <p>This module keeps the same design system and is ready for functional workflows.</p>
           </section>
-        ) : isPlatformAdmin ? (
-          <main className="dashboard-grid">
-            <section className="main-column">
-              <div className="dashboard-hero-grid">
-                <article className="glass-panel spotlight-card">
-                  <div className="spotlight-copy">
-                    <p className="eyebrow">Platform billing pulse</p>
-                    <h2>{usageOverview?.sellersOnboarded || 0}</h2>
-                    <p>Monitor tenant growth, active usage, and billable order volume without entering seller workflows.</p>
-                  </div>
-                  <div className="spotlight-stack">
-                    <div>
-                      <span>Active users</span>
-                      <strong>{usageOverview?.activeUsers || 0}</strong>
-                    </div>
-                    <div>
-                      <span>Total orders</span>
-                      <strong>{usageOverview?.totalOrders || 0}</strong>
-                    </div>
-                    <div>
-                      <span>Sellers onboarded</span>
-                      <strong>{usageOverview?.sellersOnboarded || 0}</strong>
-                    </div>
-                  </div>
-                </article>
-                <article className="glass-panel quick-actions-panel">
-                  <div className="section-head"><h3>Platform Actions</h3><span>Admin control</span></div>
-                  <div className="quick-action-grid">
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Sellers")}>Onboard Seller</button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Subscriptions")}>Manage Subscriptions</button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Plans")}>Manage Plans</button>
-                    <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Users")}>Manage Users</button>
-                  </div>
-                </article>
-              </div>
-
-              <div className="kpi-grid">
-                <article className="kpi-card glass-panel"><p>Sellers</p><h3>{usageOverview?.sellersOnboarded || 0}</h3></article>
-                <article className="kpi-card glass-panel"><p>Active Users</p><h3>{usageOverview?.activeUsers || 0}</h3></article>
-                <article className="kpi-card glass-panel"><p>Total Orders</p><h3>{usageOverview?.totalOrders || 0}</h3></article>
-                <article className="kpi-card glass-panel"><p>Billing Scope</p><h3>{formatCurrency(quotations.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))}</h3></article>
-              </div>
-
-              <section className="glass-panel table-card">
-                <div className="section-head"><h3>Seller Accounts</h3><span>{sellers.length} sellers</span></div>
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Seller</th><th>Subscription</th><th>Status</th><th>Users</th><th>Orders</th><th>Revenue</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {sellers.map((sellerRow) => (
-                      <tr key={sellerRow.id}>
-                        <td>
-                          <strong>{sellerRow.name}</strong>
-                          <div className="seller-meta-stack">
-                            <span>{sellerRow.seller_code}</span>
-                            <span>{sellerRow.email || sellerRow.mobile || "-"}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div className="seller-meta-stack">
-                            <span>{sellerRow.plan_name || sellerRow.subscription_plan || "-"}</span>
-                            <span>{sellerRow.subscription_status || "-"}</span>
-                            <span>{sellerRow.trial_end_at ? `Trial Ends ${formatDateIST(sellerRow.trial_end_at)}` : ""}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`badge ${sellerRow.is_locked ? "pending" : "success"}`}>
-                            {sellerRow.is_locked ? "Locked" : (sellerRow.status || "active")}
-                          </span>
-                        </td>
-                        <td>{sellerRow.user_count}</td>
-                        <td>{sellerRow.order_count}</td>
-                        <td>{formatCurrency(sellerRow.total_revenue)}</td>
-                        <td>
-                          <button type="button" className="ghost-btn compact-btn" onClick={() => openSellerDetail(sellerRow)}>View Detail</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            </section>
-          </main>
         ) : (
-          <main className="dashboard-grid">
-            <section className="main-column">
-              <div className="dashboard-hero-grid">
-                <article className="glass-panel spotlight-card">
-                  <div className="spotlight-copy">
-                    <p className="eyebrow">Today at a glance</p>
-                    <h2>{formatCurrency(dashboardData?.totals?.total_sales)}</h2>
-                    <p>Live order intake, quotation movement, and pending collection in one place for the seller team.</p>
-                  </div>
-                  <div className="spotlight-stack">
-                    <div>
-                      <span>Orders saved</span>
-                      <strong>{dashboardData?.totals?.invoices_generated || 0}</strong>
-                    </div>
-                    <div>
-                      <span>Pending overall</span>
-                      <strong>{formatCurrency(dashboardData?.pendingOverall)}</strong>
-                    </div>
-                    <div>
-                      <span>Walk-in sales</span>
-                      <strong>{formatCurrency(dashboardData?.totals?.walk_in_sales)}</strong>
-                    </div>
-                  </div>
-                </article>
-                <article className="glass-panel quick-actions-panel">
-                  <div className="section-head"><h3>Quick Actions</h3><span>Fast operations</span></div>
-                  <div className="quick-action-grid">
-                    {QUICK_ACTIONS.map((action) => (
-                      <button
-                        key={action}
-                        type="button"
-                        className="action-btn quick-action-btn"
-                        onClick={() => {
-                          if (action === "Create Order") openQuotationWizard();
-                          if (action === "Add Customer") setShowCustomerModal(true);
-                        }}
-                      >
-                        {action}
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              </div>
-
-              <div className="toolbar-row">
-                <div>
-                  <h2>Business Pulse</h2>
-                  <p>Track cash movement, order momentum, and customer follow-up priority in a focused layout.</p>
-                </div>
-                <div className="toolbar-controls">
-                  <select value={dashboardRange} onChange={(e) => setDashboardRange(e.target.value)}>
-                    <option value="daily">Today</option>
-                    <option value="weekly">Last 7 Days</option>
-                    <option value="monthly">This Month</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="kpi-grid">
-                <article className="kpi-card glass-panel"><p>Today's Sales</p><h3>{formatCurrency(dashboardData?.totals?.total_sales)}</h3></article>
-                <article className="kpi-card glass-panel"><p>Orders Saved</p><h3>{dashboardData?.totals?.invoices_generated || 0}</h3></article>
-                <article className="kpi-card glass-panel"><p>Quotation Value</p><h3>{formatCurrency(dashboardData?.totals?.total_sales)}</h3></article>
-                <article className="kpi-card glass-panel"><p>Pending Payments</p><h3>{formatCurrency(dashboardData?.pendingOverall)}</h3></article>
-              </div>
-
-              <section className="glass-panel chart-card">
-                <div className="section-head"><h3>Sales Analytics</h3><span>Weekly trend</span></div>
-                <div className="bar-chart">
-                  {chartSeries.map((point) => (
-                    <div key={point.label} className="bar-item">
-                      <div className="bar-track"><div className="bar-fill" style={{ height: `${point.height}%` }} /></div>
-                      <span>{point.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="glass-panel table-card">
-                <div className="section-head"><h3>Recent Orders</h3><span>{filteredOrders.length} records</span></div>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>{isPlatformAdmin ? "Seller" : <button type="button" onClick={() => changeSort("quotation_number")}>Order #</button>}</th>
-                      <th><button type="button" onClick={() => changeSort("customer_name")}>Customer</button></th>
-                      <th><button type="button" onClick={() => changeSort("total_amount")}>Amount</button></th>
-                      <th>Payment</th><th>Order</th><th>Quote</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredOrders.slice(0, 8).map((order) => (
-                      <tr key={order.id}>
-                        <td>
-                          {isPlatformAdmin
-                            ? (order.seller_name || seller?.name || "Seller")
-                            : <button type="button" className="link-btn" onClick={() => handleOpenOrderDetails(order.id)}>{formatQuotationLabel(order)}</button>}
-                        </td>
-                        <td>{order.firm_name || order.customer_name}</td>
-                        <td>{formatCurrency(order.total_amount)}</td>
-                        <td><span className={`badge ${order.payment_status === "paid" ? "success" : "pending"}`}>{statusLabel(order.payment_status)}</span></td>
-                        <td><span className="badge pending">{orderStatusLabel(order.order_status)}</span></td>
-                        <td><span className={`badge ${order.quotation_sent ? "success" : "pending"}`}>{order.quotation_sent ? "Sent" : "Not Sent"}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-
-              <section className="dashboard-bottom-grid">
-                <section className="glass-panel">
-                  <div className="section-head"><h3>Low Stock Alerts</h3><span>{lowStockItems.length} items</span></div>
-                  {lowStockItems.length === 0 ? (
-                    <p className="muted">No critical low stock right now.</p>
-                  ) : (
-                    lowStockItems.map((item) => (
-                      <div key={item.id} className="stock-item">
-                        <p>{item.name}</p>
-                        <div className="progress-wrap"><div className="progress-bar" style={{ width: `${Math.max(8, item.stock * 3)}%` }} /></div>
-                        <small>{item.stock} units left</small>
-                      </div>
-                    ))
-                  )}
-                </section>
-
-                <section className="glass-panel">
-                  <div className="section-head"><h3>Top Selling</h3><span>By category</span></div>
-                  {topSelling.map((item) => (
-                    <div className="top-item" key={item.category}><span>{item.category}</span><strong>{formatCurrency(item.total)}</strong></div>
-                  ))}
-                </section>
-
-                <section className="glass-panel ai-panel">
-                  <div className="section-head"><h3>AI Suggestions</h3><span>Smart assistant</span></div>
-                  {aiSuggestions.map((tip, idx) => <div className="ai-tip" key={idx}>{tip}</div>)}
-                </section>
-              </section>
-            </section>
-          </main>
+          <DashboardPage
+            activeModule={activeModule}
+            isPlatformAdmin={isPlatformAdmin}
+            isSubUser={isSubUser}
+            usageOverview={usageOverview}
+            setActiveModule={setActiveModule}
+            sellers={sellers}
+            openSellerDetail={openSellerDetail}
+            formatCurrency={formatCurrency}
+            formatDateIST={formatDateIST}
+            quotations={quotations}
+            dashboardData={dashboardData}
+            QUICK_ACTIONS={QUICK_ACTIONS}
+            openQuotationWizard={openQuotationWizard}
+            setShowCustomerModal={setShowCustomerModal}
+            dashboardRange={dashboardRange}
+            setDashboardRange={setDashboardRange}
+            chartSeries={chartSeries}
+            filteredOrders={filteredOrders}
+            changeSort={changeSort}
+            seller={seller}
+            handleOpenOrderDetails={handleOpenOrderDetails}
+            handleDownloadQuotation={handleDownloadQuotation}
+            formatQuotationLabel={formatQuotationLabel}
+            statusLabel={statusLabel}
+            orderStatusLabel={orderStatusLabel}
+            lowStockItems={lowStockItems}
+            topSelling={topSelling}
+            aiSuggestions={aiSuggestions}
+            subUserAction={subUserAction}
+            setSubUserAction={setSubUserAction}
+            subUserSearchInput={subUserSearchInput}
+            setSubUserSearchInput={setSubUserSearchInput}
+            handleSubUserQuotationSearch={handleSubUserQuotationSearch}
+            subUserQuotationResults={subUserQuotationResults}
+            canCreateQuotation={canCreateQuotation}
+            canSearchQuotation={canSearchQuotation}
+            canDownloadQuotationPdf={canDownloadQuotationPdf}
+            canCreateCustomer={canCreateCustomer}
+          />
         )}
 
-        {showMessageSimulatorModal && (
-          <div className="modal-overlay" onClick={closeQuotationWizard}>
-            <div className="modal-card modal-wide glass-panel quotation-wizard-modal" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <div>
-                  <h3>Create Order</h3>
-                  <span className="muted">Build a quotation without leaving the seller dashboard.</span>
-                </div>
-                <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
-              </div>
-              <div className="quotation-wizard-steps">
-                {["customer", "items", "amounts", "preview"].map((step) => (
-                  <div key={step} className={`quotation-wizard-step ${quotationWizard.step === step ? "active" : ""}`}>
-                    {step === "customer" ? "Customer" : step === "items" ? "Add Items" : step === "amounts" ? "Discount & Advance" : "Quotation Preview"}
-                  </div>
-                ))}
-              </div>
-
-              {error && <div className="notice error">{error}</div>}
-
-              {quotationWizard.step === "customer" && (
-                <div className="quotation-wizard-body">
-                  <div className="quotation-wizard-mode-row">
-                    <button
-                      type="button"
-                      className={`ghost-btn ${quotationWizard.customerMode === "existing" ? "active-chip" : ""}`}
-                      onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "existing" }))}
-                    >
-                      Existing Customer
-                    </button>
-                    <button
-                      type="button"
-                      className={`ghost-btn ${quotationWizard.customerMode === "new" ? "active-chip" : ""}`}
-                      onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "new", selectedCustomerId: "" }))}
-                    >
-                      Create New Customer
-                    </button>
-                  </div>
-
-                  {quotationWizard.customerMode === "existing" ? (
-                    <div className="quotation-wizard-section">
-                      <input
-                        placeholder="Type at least 2 characters to search customer..."
-                        value={quotationWizard.customerSearch}
-                        onChange={(e) => setQuotationWizard((prev) => ({ ...prev, customerSearch: e.target.value }))}
-                      />
-                      <div className="quotation-customer-suggest">
-                        {quotationWizard.customerSearch.trim().length < 2 ? (
-                          <p className="muted">Start typing customer name, firm, or mobile to see suggestions.</p>
-                        ) : quotationWizardCustomerMatches.length === 0 ? (
-                          <p className="muted">No matching customer found. Switch to create new customer if needed.</p>
-                        ) : (
-                          quotationWizardCustomerMatches.map((customer) => (
-                            <button
-                              key={customer.id}
-                              type="button"
-                              className={`quotation-customer-card ${String(quotationWizard.selectedCustomerId) === String(customer.id) ? "selected" : ""}`}
-                              onClick={() => setQuotationWizard((prev) => ({ ...prev, selectedCustomerId: String(customer.id) }))}
-                            >
-                              <strong>{customer.firm_name || customer.name}</strong>
-                              <span>{customer.name || "-"} {customer.mobile ? `• ${customer.mobile}` : ""}</span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="quotation-wizard-grid two">
-                      <input placeholder="Customer name" value={quotationWizard.customer.name} onChange={(e) => updateQuotationWizardCustomerField("name", e.target.value)} />
-                      <input placeholder="Firm name" value={quotationWizard.customer.firmName} onChange={(e) => updateQuotationWizardCustomerField("firmName", e.target.value)} />
-                      <input placeholder="Mobile" value={quotationWizard.customer.mobile} onChange={(e) => updateQuotationWizardCustomerField("mobile", e.target.value)} />
-                      <input placeholder="Email" type="email" value={quotationWizard.customer.email} onChange={(e) => updateQuotationWizardCustomerField("email", e.target.value)} />
-                      <textarea className="wizard-full" rows={3} placeholder="Address" value={quotationWizard.customer.address} onChange={(e) => updateQuotationWizardCustomerField("address", e.target.value)} />
-                      <input placeholder="GST Number" value={quotationWizard.customer.gstNumber} onChange={(e) => updateQuotationWizardCustomerField("gstNumber", e.target.value)} />
-                      <label className="seller-toggle wizard-full">
-                        <input type="checkbox" checked={quotationWizard.customer.monthlyBilling} onChange={(e) => updateQuotationWizardCustomerField("monthlyBilling", e.target.checked)} style={{ width: "auto" }} />
-                        Monthly Billing
-                      </label>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {quotationWizard.step === "items" && (
-                <div className="quotation-wizard-body">
-                  <div className="quotation-wizard-grid three">
-                    {runtimeSellerConfiguration?.modules?.quotationProductSelector !== false && (
-                      <select value={quotationWizard.itemForm.productId} onChange={(e) => handleQuotationWizardProductChange(e.target.value)}>
-                        <option value="">Select product</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.material_name} {product.category ? `| ${product.category}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                    {runtimeQuotationColumns
-                      .filter((column) => column.visibleInForm)
-                      .map((column) => {
-                        const normalizedKey = column.normalizedKey;
-                        const meta = column.meta;
-
-                        if (["width", "height", "unit", "thickness", "color_name", "other_info", "ps"].includes(normalizedKey) && !quotationWizardItemRules.isSheet) {
-                          return null;
-                        }
-
-                        if (meta.inputType === "checkbox") {
-                          return (
-                            <label key={column.id} className="seller-toggle wizard-full">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(quotationWizard.itemForm[meta.formKey])}
-                                onChange={(e) => updateQuotationWizardItemForm(meta.formKey, e.target.checked)}
-                                style={{ width: "auto" }}
-                              />
-                              {column.label}
-                            </label>
-                          );
-                        }
-
-                        if (meta.inputType === "category-select") {
-                          return (
-                            <select key={column.id} value={quotationWizard.itemForm.category} onChange={(e) => updateQuotationWizardItemForm("category", e.target.value)}>
-                              {sellerCatalogueCategories.map((category) => (
-                                <option key={category} value={category}>{category}</option>
-                              ))}
-                            </select>
-                          );
-                        }
-
-                        if (meta.inputType === "unit-select") {
-                          return (
-                            <select key={column.id} value={quotationWizard.itemForm.unit} onChange={(e) => updateQuotationWizardItemForm("unit", e.target.value)}>
-                              <option value="ft">ft</option>
-                              <option value="in">in</option>
-                              <option value="mm">mm</option>
-                            </select>
-                          );
-                        }
-
-                        return (
-                          <input
-                            key={column.id}
-                            className={meta.fullWidth ? "wizard-full" : ""}
-                            placeholder={column.label}
-                            type={meta.inputType === "number" ? "number" : "text"}
-                            min={meta.inputType === "number" ? "0" : undefined}
-                            value={quotationWizard.itemForm[meta.formKey]}
-                            onChange={(e) => updateQuotationWizardItemForm(meta.formKey, e.target.value)}
-                          />
-                        );
-                      })}
-                    {unsupportedRuntimeQuotationColumns
-                      .filter((column) => column.visibleInForm && column.type !== "formula")
-                      .map((column) => {
-                        const boundValue = getProductConfigurationFieldValue(quotationWizardSelectedProduct, column.key);
-                        const isBoundToCatalogue = boundValue !== "" && boundValue !== null && boundValue !== undefined;
-                        const value = isBoundToCatalogue ? boundValue : quotationWizard.itemForm.customFields?.[column.key];
-                        if (column.type === "checkbox") {
-                          return (
-                            <label key={column.id} className="seller-toggle wizard-full">
-                              <input
-                                type="checkbox"
-                                checked={Boolean(value)}
-                                onChange={(e) => updateQuotationWizardCustomField(column.key, e.target.checked)}
-                                style={{ width: "auto" }}
-                                disabled={isBoundToCatalogue}
-                              />
-                              {column.label}
-                            </label>
-                          );
-                        }
-
-                        if (column.type === "dropdown") {
-                          const dropdownOptions = isBoundToCatalogue ? [String(boundValue)] : (column.options || []);
-                          return (
-                            <select
-                              key={column.id}
-                              className="wizard-full"
-                              value={value ?? ""}
-                              onChange={(e) => updateQuotationWizardCustomField(column.key, e.target.value)}
-                              disabled={isBoundToCatalogue}
-                            >
-                              <option value="">Select {column.label}</option>
-                              {dropdownOptions.map((option) => (
-                                <option key={`${column.id}-${option}`} value={option}>{option}</option>
-                              ))}
-                            </select>
-                          );
-                        }
-
-                        return (
-                          <input
-                            key={column.id}
-                            className="wizard-full"
-                            type={column.type === "number" ? "number" : "text"}
-                            min={column.type === "number" ? "0" : undefined}
-                            placeholder={column.label}
-                            value={value ?? ""}
-                            onChange={(e) => updateQuotationWizardCustomField(column.key, e.target.value)}
-                            disabled={isBoundToCatalogue}
-                          />
-                        );
-                      })}
-                  </div>
-
-                  <div className="quotation-wizard-inline-actions">
-                    <button type="button" onClick={handleAddQuotationWizardItem} disabled={!quotationWizardItemReady}>Add Item</button>
-                    <span className="muted">Current item total: {formatCurrency(calculateQuotationWizardItemTotal(quotationWizard.itemForm))}</span>
-                  </div>
-
-                  <div className="quotation-wizard-items-table">
-                    {quotationWizard.items.length === 0 ? (
-                      <p className="muted">No items added yet.</p>
-                    ) : (
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>Item</th>
-                            <th>Category</th>
-                            <th>Qty</th>
-                            <th>Rate</th>
-                            <th>Amount</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {quotationWizard.items.map((item) => (
-                            <tr key={item.id}>
-                              <td>{getQuotationItemTitle(item)}</td>
-                              <td>{item.category}</td>
-                              <td>{getQuotationItemQuantityValue(item)}</td>
-                              <td>{formatCurrency(getQuotationItemRateValue(item))}</td>
-                              <td>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</td>
-                              <td>
-                                <button type="button" className="ghost-btn" onClick={() => handleRemoveQuotationWizardItem(item.id)}>Remove</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {quotationWizard.step === "amounts" && (
-                <div className="quotation-wizard-body">
-                  <div className="quotation-wizard-grid two">
-                    <input placeholder="Discount Amount" type="number" min="0" value={quotationWizard.amounts.discountAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }))} />
-                    <input placeholder="Advance Amount" type="number" min="0" value={quotationWizard.amounts.advanceAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, advanceAmount: e.target.value } }))} />
-                    <label className="wizard-full">
-                      <span className="muted">Delivery Date</span>
-                      <input type="date" value={quotationWizard.amounts.deliveryDate || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryDate: e.target.value } }))} />
-                    </label>
-                  </div>
-                  <div className="quotation-wizard-summary-grid">
-                    <div className="preview-pane">
-                      <h5>Summary</h5>
-                      <span>Items: {quotationWizard.items.length}</span>
-                      <span>Gross Total: {formatCurrency(quotationWizardGrossTotal)}</span>
-                      <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>
-                      <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
-                      <span>Delivery Date: {formatDateIST(quotationWizard.amounts.deliveryDate)}</span>
-                      <span>Balance: {formatCurrency(quotationWizardBalanceAmount)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {quotationWizard.step === "preview" && (
-                <div className="quotation-wizard-body quotation-preview-screen">
-                  <div className="quotation-preview-header">
-                    <div>
-                      <h4>{formatQuotationLabel(quotationWizard.submittedQuotation)}</h4>
-                      <p className="muted">Quotation created successfully. Full document preview is shown below.</p>
-                    </div>
-                    <div className="quotation-wizard-inline-actions">
-                      <button type="button" className="ghost-btn" onClick={() => quotationWizard.submittedQuotation?.id && handleOpenOrderDetails(quotationWizard.submittedQuotation.id)}>Open Order Details</button>
-                      <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
-                    </div>
-                  </div>
-                  {quotationPreviewUrl ? (
-                    <iframe title="Quotation Preview" src={quotationPreviewUrl} className="quotation-preview-frame" />
-                  ) : (
-                    <p className="muted">Loading quotation preview...</p>
-                  )}
-                </div>
-              )}
-
-              {quotationWizard.step !== "preview" && (
-                <div className="quotation-wizard-footer">
-                  <button type="button" className="ghost-btn" onClick={quotationWizard.step === "customer" ? closeQuotationWizard : handleQuotationWizardBack}>
-                    {quotationWizard.step === "customer" ? "Cancel" : "Back"}
-                  </button>
-                  {quotationWizard.step === "amounts" ? (
-                    <button type="button" onClick={handleSubmitQuotationWizard} disabled={quotationWizardSubmitting || !quotationWizard.items.length}>
-                      {quotationWizardSubmitting ? "Submitting..." : "Submit Quotation"}
-                    </button>
-                  ) : (
-                    <button type="button" onClick={handleQuotationWizardNext}>
-                      Next
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <QuotationWizardModal
+          showMessageSimulatorModal={showMessageSimulatorModal}
+          closeQuotationWizard={closeQuotationWizard}
+          quotationWizard={quotationWizard}
+          setQuotationWizard={setQuotationWizard}
+          quotationWizardCustomerMatches={quotationWizardCustomerMatches}
+          updateQuotationWizardCustomerField={updateQuotationWizardCustomerField}
+          updateQuotationWizardShippingAddress={updateQuotationWizardShippingAddress}
+          addQuotationWizardShippingAddress={addQuotationWizardShippingAddress}
+          removeQuotationWizardShippingAddress={removeQuotationWizardShippingAddress}
+          runtimeSellerConfiguration={runtimeSellerConfiguration}
+          runtimeQuotationColumns={runtimeQuotationColumns}
+          quotationWizardItemRules={quotationWizardItemRules}
+          updateQuotationWizardItemForm={updateQuotationWizardItemForm}
+          unsupportedRuntimeQuotationColumns={unsupportedRuntimeQuotationColumns}
+          getProductConfigurationFieldValue={getProductConfigurationFieldValue}
+          quotationWizardSelectedProduct={quotationWizardSelectedProduct}
+          updateQuotationWizardCustomField={updateQuotationWizardCustomField}
+          handleAddQuotationWizardItem={handleAddQuotationWizardItem}
+          quotationWizardItemReady={quotationWizardItemReady}
+          formatCurrency={formatCurrency}
+          calculateQuotationWizardItemTotal={calculateQuotationWizardItemTotal}
+          handleRemoveQuotationWizardItem={handleRemoveQuotationWizardItem}
+          getQuotationItemTitle={getQuotationItemTitle}
+          getQuotationItemQuantityValue={getQuotationItemQuantityValue}
+          getQuotationItemRateValue={getQuotationItemRateValue}
+          getQuotationItemTotalValue={getQuotationItemTotalValue}
+          quotationWizardGrossTotal={quotationWizardGrossTotal}
+          quotationWizardDiscountAmount={quotationWizardDiscountAmount}
+          quotationWizardAdvanceAmount={quotationWizardAdvanceAmount}
+          quotationWizardBalanceAmount={quotationWizardBalanceAmount}
+          formatDateIST={formatDateIST}
+          quotationWizardSubmitting={quotationWizardSubmitting}
+          error={error}
+          quotationWizardNotice={quotationWizardNotice}
+          quotationWizardMaterialSuggestions={quotationWizardMaterialSuggestions}
+          quotationWizardVisibleVariantFields={quotationWizardVisibleVariantFields}
+          handleQuotationWizardMaterialInput={handleQuotationWizardMaterialInput}
+          handleQuotationWizardMaterialSelect={handleQuotationWizardMaterialSelect}
+          handleQuotationWizardVariantSelection={handleQuotationWizardVariantSelection}
+          handleSaveQuotationWizardSecondaryProduct={handleSaveQuotationWizardSecondaryProduct}
+          handleSubmitQuotationWizard={handleSubmitQuotationWizard}
+          handleQuotationWizardNext={handleQuotationWizardNext}
+          handleQuotationWizardBack={handleQuotationWizardBack}
+          quotationPreviewUrl={quotationPreviewUrl}
+          formatQuotationLabel={formatQuotationLabel}
+          handleOpenOrderDetails={handleOpenOrderDetails}
+        />
 
         {showCustomerModal && (
           <div className="modal-overlay" onClick={() => setShowCustomerModal(false)}>
@@ -6714,13 +5518,44 @@ function App() {
                 <h3>Create Customer</h3>
                 <button type="button" className="ghost-btn" onClick={() => setShowCustomerModal(false)}>Close</button>
               </div>
-              <form className="auth-card" onSubmit={handleCreateCustomer}>
-                <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required />
-                <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} />
-                <input placeholder="Mobile" value={customerForm.mobile} onChange={(e) => setCustomerForm((prev) => ({ ...prev, mobile: e.target.value }))} />
-                <input placeholder="Email" type="email" value={customerForm.email} onChange={(e) => setCustomerForm((prev) => ({ ...prev, email: e.target.value }))} />
-                <textarea rows={3} placeholder="Address" value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} />
-                <input placeholder="GST Number" value={customerForm.gstNumber} onChange={(e) => setCustomerForm((prev) => ({ ...prev, gstNumber: e.target.value }))} />
+              {error && <div className="notice error">{error}</div>}
+              <form className="auth-card customer-form-card" onSubmit={handleCreateCustomer}>
+                <div className="customer-form-grid">
+                  <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required />
+                  <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} />
+                  <input placeholder="Mobile" value={customerForm.mobile} onChange={(e) => setCustomerForm((prev) => ({ ...prev, mobile: e.target.value }))} />
+                  <input placeholder="Email" type="email" value={customerForm.email} onChange={(e) => setCustomerForm((prev) => ({ ...prev, email: e.target.value }))} />
+                  <textarea className="customer-form-wide" rows={3} placeholder="Billing / primary address" value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} />
+                  <input placeholder="Customer GST Number (optional)" value={customerForm.gstNumber} onChange={(e) => setCustomerForm((prev) => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))} />
+                </div>
+                <div className="customer-shipping-section">
+                  <div className="customer-shipping-head">
+                    <div>
+                      <h4>Shipping Addresses</h4>
+                      <p>Capture multiple warehouses. GST is optional, and same-state GST is reused automatically.</p>
+                    </div>
+                    <button type="button" className="secondary-button" onClick={handleAddCustomerShippingAddress}>Add Shipping Address</button>
+                  </div>
+                  <div className="customer-shipping-list">
+                    {(customerForm.shippingAddresses || []).map((entry, index) => (
+                      <div key={`shipping-${index}`} className="customer-shipping-card">
+                        <div className="customer-shipping-card-head">
+                          <strong>Address {index + 1}</strong>
+                          {(customerForm.shippingAddresses || []).length > 1 ? (
+                            <button type="button" className="text-button" onClick={() => handleRemoveCustomerShippingAddress(index)}>Remove</button>
+                          ) : null}
+                        </div>
+                        <div className="customer-form-grid">
+                          <input placeholder="Warehouse / label" value={entry.label || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "label", e.target.value)} />
+                          <input placeholder="State" value={entry.state || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "state", e.target.value)} />
+                          <input placeholder="Pincode" value={entry.pincode || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "pincode", e.target.value)} />
+                          <input placeholder="Warehouse GST Number (optional)" value={entry.gstNumber || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "gstNumber", e.target.value.toUpperCase())} />
+                          <textarea className="customer-form-wide" rows={2} placeholder="Shipping address" value={entry.address || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "address", e.target.value)} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
                   <input type="checkbox" checked={customerForm.monthlyBilling} onChange={(e) => setCustomerForm((prev) => ({ ...prev, monthlyBilling: e.target.checked }))} style={{ width: "auto" }} />
                   Monthly Billing
@@ -6731,997 +5566,109 @@ function App() {
           </div>
         )}
 
-        {showOrderDetailsModal && selectedOrderDetails && (
-          <div className="modal-overlay" onClick={closeOrderDetailsModal}>
-            <div className="modal-card modal-wide glass-panel" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Order Details</h3>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => handleDownloadQuotationSheet(selectedOrderDetails.quotation.id)}
-                  >
-                    XLSX
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => handleDownloadRichPdfDebug(selectedOrderDetails.quotation.id)}
-                  >
-                    Rich PDF Debug
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-btn"
-                    onClick={() => setIsEditingQuotation((prev) => !prev)}
-                    disabled={Boolean(selectedVersionRecord && selectedVersionIndex > 0)}
-                  >
-                    {isEditingQuotation ? "Cancel Edit" : "Edit Quotation"}
-                  </button>
-                  {isEditingQuotation && (
-                    <button type="button" onClick={handleSaveQuotationRevision}>Save New Version</button>
-                  )}
-                  <button type="button" className="ghost-btn" onClick={closeOrderDetailsModal}>Close</button>
-                </div>
-              </div>
+        <OrderDetailModal
+          showOrderDetailsModal={showOrderDetailsModal}
+          selectedOrderDetails={selectedOrderDetails}
+          closeOrderDetailsModal={closeOrderDetailsModal}
+          handleDownloadQuotationSheet={handleDownloadQuotationSheet}
+          handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
+          selectedVersionRecord={selectedVersionRecord}
+          selectedVersionIndex={selectedVersionIndex}
+          isEditingQuotation={isEditingQuotation}
+          setIsEditingQuotation={setIsEditingQuotation}
+          handleSaveQuotationRevision={handleSaveQuotationRevision}
+          shouldShowVersionSelector={shouldShowVersionSelector}
+          selectedVersionId={selectedVersionId}
+          setSelectedVersionId={setSelectedVersionId}
+          orderVersions={orderVersions}
+          getVersionLabel={getVersionLabel}
+          formatDateIST={formatDateIST}
+          displayedQuotation={displayedQuotation}
+          previousVersionRecord={previousVersionRecord}
+          quotationFieldChanged={quotationFieldChanged}
+          formatQuotationLabel={formatQuotationLabel}
+          formatCurrency={formatCurrency}
+          statusLabel={statusLabel}
+          error={error}
+          quotationEditForm={quotationEditForm}
+          setQuotationEditForm={setQuotationEditForm}
+          displayedItems={displayedItems}
+          quotationItemFieldChanged={quotationItemFieldChanged}
+          handleQuotationItemChange={handleQuotationItemChange}
+          getQuotationItemTitle={getQuotationItemTitle}
+          getQuotationCustomFieldEntries={getQuotationCustomFieldEntries}
+          getQuotationItemDimensionText={getQuotationItemDimensionText}
+          getQuotationItemQuantityValue={getQuotationItemQuantityValue}
+          getQuotationItemRateValue={getQuotationItemRateValue}
+          getQuotationItemTotalValue={getQuotationItemTotalValue}
+          canReviseQuotation={canReviseQuotation}
+        />
 
-              {shouldShowVersionSelector && (
-                <div className="version-selector-bar">
-                  <label>
-                    Quotation Version
-                    <select
-                      value={selectedVersionId || "current"}
-                      onChange={(e) => {
-                        setSelectedVersionId(e.target.value === "current" ? "" : e.target.value);
-                        setIsEditingQuotation(false);
-                      }}
-                    >
-                      {!selectedVersionRecord && (
-                        <option value="current">
-                          Ver.{selectedOrderDetails?.quotation?.version_no || 1} | Current quotation
-                        </option>
-                      )}
-                      {orderVersions.map((version) => (
-                        <option key={version.id} value={version.id}>
-                          {getVersionLabel(version)} | {formatDateIST(version.created_at)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {((selectedVersionRecord && selectedVersionIndex > 0) || (!selectedVersionRecord && Number(selectedOrderDetails?.quotation?.version_no || 1) > 1)) && (
-                    <span className="version-note">Historical version selected. Edit is available only on the latest version.</span>
-                  )}
-                </div>
-              )}
+        <SellerDetailModal
+          showSellerDetailModal={showSellerDetailModal}
+          closeSellerDetailModal={closeSellerDetailModal}
+          sellerDetailLoading={sellerDetailLoading}
+          selectedSellerDetail={selectedSellerDetail}
+          getSellerLifecycleDraft={getSellerLifecycleDraft}
+          updateSellerLifecycleDraft={updateSellerLifecycleDraft}
+          SELLER_STATUS_OPTIONS={SELLER_STATUS_OPTIONS}
+          plans={plans}
+          SUBSCRIPTION_STATUS_OPTIONS={SUBSCRIPTION_STATUS_OPTIONS}
+          formatCurrency={formatCurrency}
+          formatDateTime={formatDateTime}
+          formatAuditActionLabel={formatAuditActionLabel}
+          openSellerConfigurationStudio={openSellerConfigurationStudio}
+          openSubscriptionDetail={openSubscriptionDetail}
+          handleSellerDetailSave={handleSellerDetailSave}
+        />
 
-              <div className="preview-grid">
-                <div className="preview-pane">
-                  <h5>Order Summary</h5>
-                  <span className={quotationFieldChanged("quotation_number") || quotationFieldChanged("version_no") ? "change-highlight" : ""}>Order No: {formatQuotationLabel(displayedQuotation)}</span>
-                  <span>Customer: {displayedQuotation?.firm_name || displayedQuotation?.customer_name}</span>
-                  <span>Mobile: {displayedQuotation?.mobile || "-"}</span>
-                  <span className={quotationFieldChanged("total_amount") ? "change-highlight" : ""}>Total: {formatCurrency(displayedQuotation?.total_amount)}</span>
-                  <span className={quotationFieldChanged("payment_status") ? "change-highlight" : ""}>Payment: {statusLabel(displayedQuotation?.payment_status)}</span>
-                </div>
-                <div className="preview-pane">
-                  <h5>Delivery</h5>
-                  <span className={quotationFieldChanged("delivery_type") ? "change-highlight" : ""}>Type: {displayedQuotation?.delivery_type || "-"}</span>
-                  <span className={quotationFieldChanged("delivery_date") ? "change-highlight" : ""}>Date: {formatDateIST(displayedQuotation?.delivery_date)}</span>
-                  <span className={quotationFieldChanged("delivery_address") ? "change-highlight" : ""}>Address: {displayedQuotation?.delivery_address || "-"}</span>
-                  <span className={quotationFieldChanged("delivery_pincode") ? "change-highlight" : ""}>Pincode: {displayedQuotation?.delivery_pincode || "-"}</span>
-                </div>
-              </div>
+        <ConfigurationStudio
+          activeModule={activeModule}
+          isPlatformAdmin={isPlatformAdmin}
+          configurationStudioSeller={configurationStudioSeller}
+          activeSellerConfiguration={activeSellerConfiguration}
+          sellerConfigLoading={sellerConfigLoading}
+          currentModuleMeta={currentModuleMeta}
+          sellers={sellers}
+          openSellerConfigurationStudio={openSellerConfigurationStudio}
+          closeSellerConfigurationStudio={closeSellerConfigurationStudio}
+          sellerConfigTab={sellerConfigTab}
+          setSellerConfigTab={setSellerConfigTab}
+          updateSellerConfigurationModule={updateSellerConfigurationModule}
+          formatDateTime={formatDateTime}
+          addCatalogueField={addCatalogueField}
+          sortConfigEntries={sortConfigEntries}
+          updateCatalogueField={updateCatalogueField}
+          getOptionsInputValue={getOptionsInputValue}
+          commitCatalogueFieldOptions={commitCatalogueFieldOptions}
+          removeCatalogueField={removeCatalogueField}
+          MANDATORY_SYSTEM_CATALOGUE_KEYS={MANDATORY_SYSTEM_CATALOGUE_KEYS}
+          normalizeConfigKey={normalizeConfigKey}
+          addQuotationColumn={addQuotationColumn}
+          updateQuotationColumn={updateQuotationColumn}
+          commitQuotationColumnOptions={commitQuotationColumnOptions}
+          removeQuotationColumn={removeQuotationColumn}
+          sellerConfigPreviewTab={sellerConfigPreviewTab}
+          setSellerConfigPreviewTab={setSellerConfigPreviewTab}
+          renderConfigurationPreviewControl={renderConfigurationPreviewControl}
+          publishSellerConfiguration={publishSellerConfiguration}
+          saveSellerConfigurationDraft={saveSellerConfigurationDraft}
+          canEditConfiguration={canEditConfiguration}
+          canSaveConfigurationDraft={canSaveConfigurationDraft}
+          canPublishConfiguration={canPublishConfiguration}
+          sellerConfigSaving={sellerConfigSaving}
+          sellerConfigPublishing={sellerConfigPublishing}
+        />
 
-              <div className="preview-grid" style={{ marginTop: "14px" }}>
-                <div className="preview-pane">
-                  <h5>Charges</h5>
-                  <span className={quotationFieldChanged("subtotal") ? "change-highlight" : ""}>Subtotal: {formatCurrency(displayedQuotation?.subtotal)}</span>
-                  <span className={quotationFieldChanged("transport_charges") || quotationFieldChanged("transportation_cost") ? "change-highlight" : ""}>Transport: {formatCurrency(displayedQuotation?.transport_charges || displayedQuotation?.transportation_cost)}</span>
-                  <span className={quotationFieldChanged("design_charges") ? "change-highlight" : ""}>Design: {formatCurrency(displayedQuotation?.design_charges)}</span>
-                  <span>Outstanding: {formatCurrency(selectedOrderDetails.customerOutstanding)}</span>
-                </div>
-                <div className="preview-pane">
-                  <h5>Version Info</h5>
-                  <span>Selected: {selectedVersionRecord ? getVersionLabel(selectedVersionRecord) : `Ver.${displayedQuotation?.version_no || 1}`}</span>
-                  <span>Saved At: {selectedVersionRecord ? formatDateIST(selectedVersionRecord.created_at) : "-"}</span>
-                  <span>Updated By: {selectedVersionRecord?.actor_name || "System"}</span>
-                  <span>{previousVersionRecord ? "Highlighted fields changed from previous version." : "This is the first saved version."}</span>
-                </div>
-              </div>
-
-              {isEditingQuotation && (
-                <div className="preview-grid" style={{ marginTop: "14px" }}>
-                  <div className="preview-pane">
-                    <h5>Edit Delivery</h5>
-                    <input
-                      placeholder="Custom quotation number"
-                      value={quotationEditForm.customQuotationNumber}
-                      onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, customQuotationNumber: e.target.value }))}
-                    />
-                    <select value={quotationEditForm.deliveryType} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryType: e.target.value }))}>
-                      <option value="PICKUP">Pickup</option>
-                      <option value="DOORSTEP">Doorstep</option>
-                    </select>
-                    <input type="date" value={quotationEditForm.deliveryDate || ""} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryDate: e.target.value }))} />
-                    <input placeholder="Delivery address" value={quotationEditForm.deliveryAddress} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))} />
-                    <input placeholder="Delivery pincode" value={quotationEditForm.deliveryPincode} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryPincode: e.target.value }))} />
-                  </div>
-                  <div className="preview-pane">
-                    <h5>Edit Charges</h5>
-                    <input placeholder="Transport charges" type="number" value={quotationEditForm.transportCharges} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, transportCharges: e.target.value }))} />
-                    <input placeholder="Design charges" type="number" value={quotationEditForm.designCharges} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, designCharges: e.target.value }))} />
-                  </div>
-                </div>
-              )}
-
-              <table className="data-table" style={{ marginTop: "14px" }}>
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Material Thickness</th>
-                    <th>Size</th>
-                    <th>Qty</th>
-                    <th>Rate</th>
-                    <th>Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(isEditingQuotation
-                    ? quotationEditForm.items
-                    : displayedItems || []).map((item, index) => (
-                    <tr key={item.id}>
-                      <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "material_name") || quotationItemFieldChanged(item, index, "material_type") || quotationItemFieldChanged(item, index, "design_name") || quotationItemFieldChanged(item, index, "sku")) ? "change-highlight-cell" : ""}>
-                          {isEditingQuotation ? (
-                            <input value={item.materialName || ""} onChange={(e) => handleQuotationItemChange(index, "materialName", e.target.value)} />
-                          ) : (
-                            <div className="quotation-item-cell">
-                              <strong>{getQuotationItemTitle(item) || "-"}</strong>
-                              {getQuotationCustomFieldEntries(item.custom_fields).length > 0 && (
-                                <div className="quotation-item-meta">
-                                  {getQuotationCustomFieldEntries(item.custom_fields).map((entry) => `${entry.label}: ${entry.value}`).join(" | ")}
-                                </div>
-                              )}
-                            </div>
-                        )}
-                      </td>
-                      <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "thickness") ? "change-highlight-cell" : ""}>
-                        {isEditingQuotation ? (
-                          <input value={item.thickness || ""} onChange={(e) => handleQuotationItemChange(index, "thickness", e.target.value)} />
-                        ) : (
-                          item.thickness || "-"
-                        )}
-                      </td>
-                      <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "size") ? "change-highlight-cell" : ""}>
-                          {isEditingQuotation ? (
-                            <input value={item.size || ""} onChange={(e) => handleQuotationItemChange(index, "size", e.target.value)} />
-                          ) : (
-                            getQuotationItemDimensionText(item)
-                          )}
-                        </td>
-                      <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "quantity") ? "change-highlight-cell" : ""}>
-                          {isEditingQuotation ? (
-                            <input type="number" value={item.quantity || ""} onChange={(e) => handleQuotationItemChange(index, "quantity", e.target.value)} />
-                          ) : (
-                            getQuotationItemQuantityValue(item)
-                          )}
-                        </td>
-                      <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "unit_price") || quotationItemFieldChanged(item, index, "unitPrice")) ? "change-highlight-cell" : ""}>
-                          {isEditingQuotation ? (
-                            <input type="number" value={item.unitPrice || ""} onChange={(e) => handleQuotationItemChange(index, "unitPrice", e.target.value)} />
-                          ) : (
-                            formatCurrency(getQuotationItemRateValue(item))
-                          )}
-                        </td>
-                        <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "total_price") || quotationItemFieldChanged(item, index, "totalPrice")) ? "change-highlight-cell" : ""}>
-                          {isEditingQuotation
-                            ? formatCurrency(Number(item.quantity || 0) * Number(item.unitPrice || 0))
-                            : formatCurrency(getQuotationItemTotalValue(item))}
-                        </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {showSellerDetailModal && (
-          <div className="modal-overlay" onClick={closeSellerDetailModal}>
-            <div className="modal-card modal-wide glass-panel seller-detail-modal" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Seller Detail</h3>
-                <button type="button" className="ghost-btn" onClick={closeSellerDetailModal}>Close</button>
-              </div>
-
-              {sellerDetailLoading && !selectedSellerDetail ? (
-                <p className="muted">Loading seller detail...</p>
-              ) : selectedSellerDetail ? (
-                <>
-                  <section className="seller-detail-hero">
-                    <div>
-                      <p className="eyebrow">Tenant profile</p>
-                      <h3>{selectedSellerDetail.seller.name}</h3>
-                      <p>{selectedSellerDetail.seller.business_name || "Business name not set"}</p>
-                    </div>
-                    <div className="seller-detail-badges">
-                      <span className={`badge ${selectedSellerDetail.seller.is_locked ? "pending" : "success"}`}>
-                        {selectedSellerDetail.seller.is_locked ? "Locked" : (selectedSellerDetail.seller.status || "active")}
-                      </span>
-                      <span className="badge pending">{selectedSellerDetail.seller.subscription_status || "no subscription"}</span>
-                    </div>
-                  </section>
-
-                  <div className="seller-detail-grid">
-                    <article className="seller-detail-card">
-                      <h4>Profile</h4>
-                      <div className="seller-detail-list">
-                        <div><span>Seller code</span><strong>{selectedSellerDetail.seller.seller_code}</strong></div>
-                        <div><span>Business name</span><strong>{selectedSellerDetail.seller.business_name || "-"}</strong></div>
-                        <div><span>Mobile</span><strong>{selectedSellerDetail.seller.mobile || "-"}</strong></div>
-                        <div><span>Email</span><strong>{selectedSellerDetail.seller.email || "-"}</strong></div>
-                        <div><span>City / State</span><strong>{[selectedSellerDetail.seller.city, selectedSellerDetail.seller.state].filter(Boolean).join(", ") || "-"}</strong></div>
-                        <div><span>GST</span><strong>{selectedSellerDetail.seller.gst_number || "-"}</strong></div>
-                      </div>
-                    </article>
-
-                    <article className="seller-detail-card">
-                      <h4>Lifecycle Controls</h4>
-                      <div className="seller-lifecycle-grid">
-                        <label>
-                          <span>Seller Status</span>
-                          <select
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).status}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "status", e.target.value)}
-                          >
-                            {SELLER_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                          </select>
-                        </label>
-                        <label>
-                          <span>Subscription Plan</span>
-                          <select
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).subscriptionPlan}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "subscriptionPlan", e.target.value)}
-                          >
-                            <option value="">Select Plan</option>
-                            {plans.map((plan) => <option key={plan.id} value={plan.plan_code}>{plan.plan_name} ({plan.plan_code})</option>)}
-                          </select>
-                        </label>
-                        <label>
-                          <span>Subscription Status</span>
-                          <select
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).subscriptionStatus}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "subscriptionStatus", e.target.value)}
-                          >
-                            {SUBSCRIPTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                          </select>
-                        </label>
-                        <label>
-                          <span>Trial End</span>
-                          <input
-                            type="date"
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).trialEndsAt}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "trialEndsAt", e.target.value)}
-                          />
-                        </label>
-                        <label>
-                          <span>Max Users</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).maxUsers}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "maxUsers", e.target.value)}
-                          />
-                        </label>
-                        <label>
-                          <span>Max Orders / Month</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).maxOrdersPerMonth}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "maxOrdersPerMonth", e.target.value)}
-                          />
-                        </label>
-                        <label>
-                          <span>Onboarding</span>
-                          <select
-                            value={getSellerLifecycleDraft(selectedSellerDetail.seller).onboardingStatus}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "onboardingStatus", e.target.value)}
-                          >
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
-                            <option value="setup">Setup</option>
-                            <option value="complete">Complete</option>
-                          </select>
-                        </label>
-                        <label className="seller-toggle seller-toggle-inline">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(getSellerLifecycleDraft(selectedSellerDetail.seller).isLocked)}
-                            onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "isLocked", e.target.checked)}
-                            style={{ width: "auto" }}
-                          />
-                          Locked
-                        </label>
-                      </div>
-                    </article>
-
-                    <article className="seller-detail-card">
-                      <h4>Usage Snapshot</h4>
-                      <div className="seller-detail-list">
-                        <div><span>Users</span><strong>{selectedSellerDetail.usage?.userCount || 0}</strong></div>
-                        <div><span>Customers</span><strong>{selectedSellerDetail.usage?.customerCount || 0}</strong></div>
-                        <div><span>Quotations</span><strong>{selectedSellerDetail.usage?.quotationCount || 0}</strong></div>
-                        <div><span>Revenue</span><strong>{formatCurrency(selectedSellerDetail.usage?.totalRevenue || 0)}</strong></div>
-                        <div><span>Last login</span><strong>{formatDateTime(selectedSellerDetail.usage?.lastLoginAt)}</strong></div>
-                        <div><span>Onboarding</span><strong>{selectedSellerDetail.seller.onboarding_status || "-"}</strong></div>
-                      </div>
-                    </article>
-                  </div>
-
-                  <section className="seller-detail-section">
-                    <div className="section-head compact">
-                      <h3>Seller Users</h3>
-                      <span>{selectedSellerDetail.users?.length || 0} user(s)</span>
-                    </div>
-                    <table className="data-table">
-                      <thead>
-                        <tr><th>Name</th><th>Mobile</th><th>Status</th><th>Created</th></tr>
-                      </thead>
-                      <tbody>
-                        {(selectedSellerDetail.users || []).length === 0 ? (
-                          <tr><td colSpan="4">No seller users created yet.</td></tr>
-                        ) : (
-                          (selectedSellerDetail.users || []).map((user) => (
-                            <tr key={user.id}>
-                              <td>{user.name}</td>
-                              <td>{user.mobile || "-"}</td>
-                              <td>{user.locked ? "Locked" : (user.status ? "Active" : "Inactive")}</td>
-                              <td>{formatDateTime(user.created_at)}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </section>
-
-                  <section className="seller-detail-section">
-                    <div className="section-head compact">
-                      <h3>Activity History</h3>
-                      <span>{selectedSellerDetail.auditLogs?.length || 0} entries</span>
-                    </div>
-                    <table className="data-table">
-                      <thead>
-                        <tr><th>When</th><th>Action</th><th>Actor</th><th>Details</th></tr>
-                      </thead>
-                      <tbody>
-                        {(selectedSellerDetail.auditLogs || []).length === 0 ? (
-                          <tr><td colSpan="4">No platform activity recorded yet.</td></tr>
-                        ) : (
-                          (selectedSellerDetail.auditLogs || []).map((entry) => (
-                            <tr key={entry.id}>
-                              <td>{formatDateTime(entry.created_at)}</td>
-                              <td>{formatAuditActionLabel(entry.action_key)}</td>
-                              <td>{entry.actor_name || entry.actor_mobile || "System"}</td>
-                              <td><pre className="audit-detail">{JSON.stringify(entry.detail || {}, null, 2)}</pre></td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </section>
-
-                  <div className="modal-fixed-actions">
-                    <button type="button" className="ghost-btn" onClick={closeSellerDetailModal}>Close</button>
-                    <button type="button" className="ghost-btn" onClick={() => openSellerConfigurationStudio(selectedSellerDetail.seller)}>Open Config Studio</button>
-                    <button type="button" className="ghost-btn" onClick={() => openSubscriptionDetail(selectedSellerDetail.seller)}>Open Subscription</button>
-                    <button type="button" onClick={handleSellerDetailSave}>Save Seller</button>
-                  </div>
-                </>
-              ) : (
-                <p className="muted">Seller detail is unavailable right now.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeModule === "Configuration Studio" && isPlatformAdmin && !configurationStudioSeller && (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta["Configuration Studio"].eyebrow}</p>
-                <h2>{currentModuleMeta["Configuration Studio"].title}</h2>
-                <p>Select a seller to open and edit their configuration in a full workspace view.</p>
-              </div>
-              <div className="banner-stat">
-                <span>Available Sellers</span>
-                <strong>{sellers.length}</strong>
-              </div>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr><th>Seller</th><th>Code</th><th>Status</th><th /></tr>
-              </thead>
-              <tbody>
-                {sellers.length === 0 ? (
-                  <tr><td colSpan="4">No sellers available.</td></tr>
-                ) : (
-                  sellers.map((sellerRow) => (
-                    <tr key={sellerRow.id}>
-                      <td>{sellerRow.name}</td>
-                      <td>{sellerRow.seller_code}</td>
-                      <td>{sellerRow.status || "-"}</td>
-                      <td><button type="button" className="ghost-btn" onClick={() => openSellerConfigurationStudio(sellerRow)}>Open Studio</button></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        {activeModule === "Configuration Studio" && configurationStudioSeller && !activeSellerConfiguration && (
-          <section className="module-placeholder glass-panel">
-            <div className="page-banner">
-              <div>
-                <p className="eyebrow">{currentModuleMeta["Configuration Studio"].eyebrow}</p>
-                <h2>{currentModuleMeta["Configuration Studio"].title}</h2>
-                <p>We could not load the seller configuration yet. Please retry once.</p>
-              </div>
-              <div className="banner-stat">
-                <span>Editing Seller</span>
-                <strong>{configurationStudioSeller.name}</strong>
-              </div>
-            </div>
-            <div className="seller-config-body">
-              <p className="muted">{sellerConfigLoading ? "Loading seller configuration..." : "Configuration data is not available right now."}</p>
-            </div>
-            <div className="modal-fixed-actions">
-              <button type="button" className="ghost-btn" onClick={closeSellerConfigurationStudio}>
-                {isPlatformAdmin ? "Back to Sellers" : "Back to Dashboard"}
-              </button>
-              <button type="button" onClick={() => openSellerConfigurationStudio(configurationStudioSeller)}>
-                Retry
-              </button>
-            </div>
-          </section>
-        )}
-
-        {activeModule === "Configuration Studio" && configurationStudioSeller && activeSellerConfiguration && (
-          <section className="module-placeholder glass-panel seller-config-workspace">
-              <div className="page-banner">
-                <div>
-                  <p className="eyebrow">{currentModuleMeta["Configuration Studio"].eyebrow}</p>
-                  <h2>{currentModuleMeta["Configuration Studio"].title}</h2>
-                  <p>{isPlatformAdmin ? "Platform admin can manage any seller configuration here. Sellers can maintain only their own configuration." : "Configure your own product schema, quotation columns, preview, and publish flow from this workspace."}</p>
-                </div>
-                <div className="banner-stat">
-                  <span>Editing Seller</span>
-                  <strong>{configurationStudioSeller.name}</strong>
-                </div>
-              </div>
-
-              <div className="section-head">
-                <div>
-                  <h3>Seller Configuration Studio</h3>
-                  <span>{configurationStudioSeller.name} • {activeSellerConfiguration.profileName}</span>
-                </div>
-                <button type="button" className="ghost-btn" onClick={closeSellerConfigurationStudio}>{isPlatformAdmin ? "Back to Sellers" : "Back to Dashboard"}</button>
-              </div>
-
-              {sellerConfigLoading ? (
-                <div className="seller-config-body">
-                  <p className="muted">Loading seller configuration...</p>
-                </div>
-              ) : (
-                <>
-              <div className="seller-config-tabs">
-                {[
-                  { key: "dashboard", label: "Dashboard" },
-                  { key: "catalogue", label: "Catalogue Fields" },
-                  { key: "quotation", label: "Quotation Columns" },
-                  { key: "preview", label: "Preview" },
-                  { key: "guide", label: "Guide" }
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    className={`ghost-btn ${sellerConfigTab === tab.key ? "active-chip" : ""}`}
-                    onClick={() => setSellerConfigTab(tab.key)}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {sellerConfigTab === "dashboard" && (
-                <div className="seller-config-body">
-                  <div className="seller-config-summary-grid">
-                    <article className="seller-detail-card">
-                      <h4>Configuration Overview</h4>
-                      <div className="seller-detail-list">
-                        <div><span>Profile</span><strong>{activeSellerConfiguration.profileName}</strong></div>
-                        <div><span>Status</span><strong>{activeSellerConfiguration.status}</strong></div>
-                        <div><span>Catalogue Fields</span><strong>{activeSellerConfiguration.catalogueFields.length}</strong></div>
-                        <div><span>Quotation Columns</span><strong>{activeSellerConfiguration.quotationColumns.length}</strong></div>
-                        <div><span>Saved Versions</span><strong>{activeSellerConfiguration.versions?.length || 0}</strong></div>
-                      </div>
-                    </article>
-                    <article className="seller-detail-card">
-                      <h4>Enabled Modules</h4>
-                      <div className="seller-config-chip-grid">
-                        {Object.entries(activeSellerConfiguration.modules).map(([key, enabled]) => (
-                          <span key={key} className={`badge ${enabled ? "success" : "pending"}`}>
-                            {key} {enabled ? "on" : "off"}
-                          </span>
-                        ))}
-                      </div>
-                    </article>
-                    <article className="seller-detail-card">
-                      <h4>Quotation Behavior</h4>
-                      <label className="seller-toggle" style={{ marginTop: "8px" }}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(activeSellerConfiguration.modules?.quotationProductSelector)}
-                          onChange={(e) => updateSellerConfigurationModule("quotationProductSelector", e.target.checked)}
-                        />
-                        <span>Show product selector in Create Order</span>
-                      </label>
-                      <p className="muted" style={{ marginTop: "12px" }}>
-                        Turn this off if the seller should create quotation items only from configured quotation fields and not from the product catalogue dropdown.
-                      </p>
-                      <label className="seller-toggle" style={{ marginTop: "16px" }}>
-                        <input
-                          type="checkbox"
-                          checked={Boolean(activeSellerConfiguration.modules?.combineHelpingTextInItemColumn)}
-                          onChange={(e) => updateSellerConfigurationModule("combineHelpingTextInItemColumn", e.target.checked)}
-                        />
-                        <span>Combine helping text into item title column</span>
-                      </label>
-                      <p className="muted" style={{ marginTop: "12px" }}>
-                        Turn this on if supporting fields like colour or thickness should merge into the item title text instead of staying separate below the item name.
-                      </p>
-                    </article>
-                    <article className="seller-detail-card">
-                      <h4>Persistence Status</h4>
-                      <p className="muted">This configuration now saves per seller in the backend. Use Save Draft while tuning the schema, then Publish when the seller setup is ready to go live.</p>
-                      {activeSellerConfiguration.updatedAt && (
-                        <p className="muted">Last saved: {formatDateTime(activeSellerConfiguration.updatedAt)}</p>
-                      )}
-                    </article>
-                  </div>
-                </div>
-              )}
-
-              {sellerConfigTab === "catalogue" && (
-                <div className="seller-config-body">
-                  <div className="section-head compact">
-                    <h3>Catalogue Fields Configuration</h3>
-                    <button type="button" onClick={addCatalogueField}>Add Field</button>
-                  </div>
-                  <table className="data-table">
-                    <thead>
-                      <tr><th>Seq</th><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th>Required</th><th>List</th><th>Upload</th><th /></tr>
-                    </thead>
-                    <tbody>
-                      {sortConfigEntries(activeSellerConfiguration.catalogueFields).map((field) => (
-                        <tr key={field.id}>
-                          <td><input type="number" min="1" value={field.displayOrder ?? ""} onChange={(e) => updateCatalogueField(field.id, "displayOrder", Number(e.target.value || 0))} /></td>
-                          <td><input value={field.label} onChange={(e) => updateCatalogueField(field.id, "label", e.target.value)} /></td>
-                          <td><input value={field.key} onChange={(e) => updateCatalogueField(field.id, "key", e.target.value)} /></td>
-                          <td>
-                            <select value={field.type} onChange={(e) => updateCatalogueField(field.id, "type", e.target.value)}>
-                              <option value="text">text</option>
-                              <option value="number">number</option>
-                              <option value="dropdown">dropdown</option>
-                              <option value="checkbox">checkbox</option>
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              value={getOptionsInputValue(field)}
-                              onChange={(e) => updateCatalogueField(field.id, "optionsText", e.target.value)}
-                              onBlur={(e) => commitCatalogueFieldOptions(field.id, e.target.value)}
-                              placeholder={field.type === "dropdown" ? "Option 1, Option 2 or Option 1 | Option 2" : "Not used"}
-                              disabled={field.type !== "dropdown"}
-                            />
-                          </td>
-                          <td><input type="checkbox" checked={Boolean(field.required)} onChange={(e) => updateCatalogueField(field.id, "required", e.target.checked)} style={{ width: "auto" }} /></td>
-                          <td><input type="checkbox" checked={Boolean(field.visibleInList)} onChange={(e) => updateCatalogueField(field.id, "visibleInList", e.target.checked)} style={{ width: "auto" }} /></td>
-                          <td><input type="checkbox" checked={Boolean(field.uploadEnabled)} onChange={(e) => updateCatalogueField(field.id, "uploadEnabled", e.target.checked)} style={{ width: "auto" }} /></td>
-                          <td>
-                            {MANDATORY_SYSTEM_CATALOGUE_KEYS.includes(normalizeConfigKey(field.key)) ? (
-                              <span className="badge pending">System Field</span>
-                            ) : (
-                              <button type="button" className="ghost-btn" onClick={() => removeCatalogueField(field.id)}>Remove</button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {sellerConfigTab === "quotation" && (
-                <div className="seller-config-body">
-                  <div className="section-head compact">
-                    <h3>Quotation Columns Configuration</h3>
-                    <button type="button" onClick={addQuotationColumn}>Add Column</button>
-                  </div>
-                  <div className="seller-config-help-card">
-                    <h4>Formula Help</h4>
-                    <p className="muted">Use `formula` type when the seller should not enter the value manually. The system will calculate it at quotation save time and store it with the item.</p>
-                    <div className="seller-config-help-grid">
-                      <div>
-                        <strong>Supported variables</strong>
-                        <div className="seller-config-option-chips">
-                          {["width", "height", "quantity", "rate", "unit_price", "amount", "total_price"].map((token) => (
-                            <span key={token} className="badge pending">{token}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <strong>Example formulas</strong>
-                        <div className="seller-config-option-chips">
-                          <span className="badge success">width * height * quantity * rate</span>
-                          <span className="badge success">quantity * rate</span>
-                          <span className="badge success">amount * 0.18</span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="muted">Dropdown columns use the `Options` field. Enter values separated by commas, for example `Matte, Glossy, Frosted`.</p>
-                  </div>
-                  <table className="data-table">
-                    <thead>
-                      <tr><th>Seq</th><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th>Definition</th><th>Formula</th><th>Required</th><th>Form</th><th>PDF</th><th>Helping</th><th>Calc</th><th /></tr>
-                    </thead>
-                    <tbody>
-                      {sortConfigEntries(activeSellerConfiguration.quotationColumns).map((column) => (
-                        <tr key={column.id}>
-                          <td><input type="number" min="1" value={column.displayOrder ?? ""} onChange={(e) => updateQuotationColumn(column.id, "displayOrder", Number(e.target.value || 0))} /></td>
-                          <td><input value={column.label} onChange={(e) => updateQuotationColumn(column.id, "label", e.target.value)} /></td>
-                          <td><input value={column.key} onChange={(e) => updateQuotationColumn(column.id, "key", e.target.value)} /></td>
-                          <td>
-                            <select value={column.type} onChange={(e) => updateQuotationColumn(column.id, "type", e.target.value)}>
-                              <option value="text">text</option>
-                              <option value="number">number</option>
-                              <option value="formula">formula</option>
-                              <option value="dropdown">dropdown</option>
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              value={getOptionsInputValue(column)}
-                              onChange={(e) => updateQuotationColumn(column.id, "optionsText", e.target.value)}
-                              onBlur={(e) => commitQuotationColumnOptions(column.id, e.target.value)}
-                              placeholder={column.type === "dropdown" ? "Option 1, Option 2 or Option 1 | Option 2" : "Not used"}
-                              disabled={column.type !== "dropdown"}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              value={column.definition || ""}
-                              onChange={(e) => updateQuotationColumn(column.id, "definition", e.target.value)}
-                              placeholder="What this column means"
-                            />
-                          </td>
-                          <td>
-                            <input
-                              value={column.formulaExpression || ""}
-                              onChange={(e) => updateQuotationColumn(column.id, "formulaExpression", e.target.value)}
-                              placeholder={column.type === "formula" ? "width * height * quantity * rate" : "Only for formula type"}
-                              disabled={column.type !== "formula"}
-                            />
-                          </td>
-                            <td><input type="checkbox" checked={Boolean(column.required)} onChange={(e) => updateQuotationColumn(column.id, "required", e.target.checked)} style={{ width: "auto" }} /></td>
-                            <td><input type="checkbox" checked={Boolean(column.visibleInForm)} onChange={(e) => updateQuotationColumn(column.id, "visibleInForm", e.target.checked)} style={{ width: "auto" }} /></td>
-                            <td><input type="checkbox" checked={Boolean(column.visibleInPdf)} onChange={(e) => updateQuotationColumn(column.id, "visibleInPdf", e.target.checked)} style={{ width: "auto" }} /></td>
-                            <td><input type="checkbox" checked={Boolean(column.helpTextInPdf)} onChange={(e) => updateQuotationColumn(column.id, "helpTextInPdf", e.target.checked)} style={{ width: "auto" }} /></td>
-                            <td><input type="checkbox" checked={Boolean(column.includedInCalculation)} onChange={(e) => updateQuotationColumn(column.id, "includedInCalculation", e.target.checked)} style={{ width: "auto" }} /></td>
-                            <td><button type="button" className="ghost-btn" onClick={() => removeQuotationColumn(column.id)}>Remove</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {sellerConfigTab === "preview" && (
-                <div className="seller-config-body">
-                  <div className="seller-config-tabs seller-config-subtabs">
-                    {[
-                      { key: "product-form", label: "Product Form" },
-                      { key: "product-list", label: "Product List" },
-                      { key: "quotation-form", label: "Quotation Form" },
-                      { key: "quotation-pdf", label: "Quotation PDF" }
-                    ].map((tab) => (
-                      <button
-                        key={tab.key}
-                        type="button"
-                        className={`ghost-btn ${sellerConfigPreviewTab === tab.key ? "active-chip" : ""}`}
-                        onClick={() => setSellerConfigPreviewTab(tab.key)}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {sellerConfigPreviewTab === "product-form" && (
-                    <div className="seller-config-preview-card">
-                      <h4>Product Form Preview</h4>
-                      <div className="quotation-wizard-grid two">
-                        {sortConfigEntries(activeSellerConfiguration.catalogueFields).map((field) => (
-                          <label key={field.id}>
-                            <span>{field.label || "Untitled field"}</span>
-                            {renderConfigurationPreviewControl(field, "product-form")}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {sellerConfigPreviewTab === "product-list" && (
-                    <div className="seller-config-preview-card">
-                      <h4>Product List Preview</h4>
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            {sortConfigEntries(activeSellerConfiguration.catalogueFields).filter((field) => field.visibleInList).map((field) => (
-                              <th key={field.id}>{field.label || field.key || "Column"}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            {sortConfigEntries(activeSellerConfiguration.catalogueFields).filter((field) => field.visibleInList).map((field) => (
-                              <td key={field.id}>Sample {field.label || field.key || "value"}</td>
-                            ))}
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {sellerConfigPreviewTab === "quotation-form" && (
-                    <div className="seller-config-preview-card">
-                      <h4>Quotation Create Preview</h4>
-                      <div className="quotation-wizard-grid two">
-                        {sortConfigEntries(activeSellerConfiguration.quotationColumns).filter((column) => column.visibleInForm || column.type === "formula").map((column) => (
-                          <label key={column.id}>
-                            <span>{column.label || "Untitled column"}</span>
-                            {renderConfigurationPreviewControl(column, "quotation-form")}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {sellerConfigPreviewTab === "quotation-pdf" && (
-                    <div className="seller-config-preview-card">
-                      <h4>Quotation PDF Preview</h4>
-                      <div className="seller-config-pdf-preview">
-                        <div className="seller-config-pdf-header">
-                          <strong>{configurationStudioSeller.name}</strong>
-                          <span>Commercial Offer Preview</span>
-                        </div>
-                        <table className="data-table">
-                          <thead>
-                            <tr>
-                              {sortConfigEntries(activeSellerConfiguration.quotationColumns).filter((column) => column.visibleInPdf).map((column) => (
-                                <th key={column.id}>{column.label || column.key || "Column"}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              {sortConfigEntries(activeSellerConfiguration.quotationColumns).filter((column) => column.visibleInPdf).map((column) => (
-                                <td key={column.id}>Sample</td>
-                              ))}
-                            </tr>
-                          </tbody>
-                        </table>
-                        <div className="seller-config-pdf-footer">
-                          <span>Notes, terms, and seller branding will render here.</span>
-                          {sortConfigEntries(activeSellerConfiguration.quotationColumns).some((column) => column.type === "formula" && (column.definition || column.formulaExpression)) && (
-                            <div className="seller-config-option-chips">
-                              {sortConfigEntries(activeSellerConfiguration.quotationColumns)
-                                .filter((column) => column.type === "formula" && (column.definition || column.formulaExpression))
-                                .map((column) => (
-                                  <span key={`${column.id}-pdf-formula`} className="badge success">
-                                    {column.label}: {column.formulaExpression || column.definition}
-                                  </span>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {sellerConfigTab === "guide" && (
-                <div className="seller-config-body">
-                  <div className="seller-config-guide-grid">
-                    <article className="seller-config-preview-card">
-                      <h4>How To Configure</h4>
-                      <ol className="seller-config-guide-list">
-                        <li>Create or edit `Catalogue Fields` for seller-specific product structure.</li>
-                        <li>Create or edit `Quotation Columns` for seller-specific item schema.</li>
-                        <li>Use `dropdown` type when values should come from a fixed list.</li>
-                        <li>Use `formula` type when the value should be computed automatically.</li>
-                        <li>Open `Preview` to verify forms, list columns, and PDF layout before publishing.</li>
-                        <li>`Save Draft` while iterating, then `Publish` when the seller setup is ready.</li>
-                      </ol>
-                    </article>
-
-                    <article className="seller-config-preview-card">
-                      <h4>Formula Guide</h4>
-                      <p className="muted">Formula columns are stored per item and calculated on the backend. Sellers do not type them manually in create quotation flow.</p>
-                      <div className="seller-config-guide-examples">
-                        <div>
-                          <strong>Line Amount</strong>
-                          <code>width * height * quantity * rate</code>
-                        </div>
-                        <div>
-                          <strong>Service Total</strong>
-                          <code>quantity * rate</code>
-                        </div>
-                        <div>
-                          <strong>Taxable Amount</strong>
-                          <code>amount - 100</code>
-                        </div>
-                        <div>
-                          <strong>Width In Feet</strong>
-                          <code>width_ft</code>
-                        </div>
-                        <div>
-                          <strong>Area In Square Feet</strong>
-                          <code>area_sqft * quantity * rate</code>
-                        </div>
-                        <div>
-                          <strong>Converted Width</strong>
-                          <code>width * unit_factor</code>
-                        </div>
-                      </div>
-                      <p className="muted">Allowed tokens today: width, height, quantity, rate, unit_price, amount, total_price, width_ft, height_ft, area_sqft, unit_factor, and numeric custom field keys.</p>
-                    </article>
-
-                    <article className="seller-config-preview-card">
-                      <h4>Dropdown Guide</h4>
-                      <p className="muted">Dropdown columns and fields help standardize seller data entry and reduce messy free text.</p>
-                      <div className="seller-config-option-chips">
-                        {["Matte", "Glossy", "Frosted", "Indoor", "Outdoor"].map((option) => (
-                          <span key={option} className="badge pending">{option}</span>
-                        ))}
-                      </div>
-                      <p className="muted">Enter options as comma-separated values in the `Options` box. Uploaded product rows and seller forms are validated against these values.</p>
-                    </article>
-
-                    <article className="seller-config-preview-card">
-                      <h4>What Preview Checks</h4>
-                      <ul className="seller-config-guide-list">
-                        <li>`Product Form`: field order, input type, dropdown choices.</li>
-                        <li>`Product List`: list visibility and labels.</li>
-                        <li>`Quotation Form`: seller-facing item inputs and computed fields.</li>
-                        <li>`Quotation PDF`: visible columns plus formula references.</li>
-                      </ul>
-                    </article>
-                  </div>
-                </div>
-              )}
-                </>
-              )}
-
-              <div className="modal-fixed-actions">
-                <button type="button" className="ghost-btn" onClick={closeSellerConfigurationStudio}>{isPlatformAdmin ? "Back to Sellers" : "Back to Dashboard"}</button>
-                <button type="button" className="ghost-btn" onClick={publishSellerConfiguration} disabled={sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
-                  {sellerConfigPublishing ? "Publishing..." : "Publish"}
-                </button>
-                <button type="button" onClick={saveSellerConfigurationDraft} disabled={sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
-                  {sellerConfigSaving ? "Saving..." : "Save Draft"}
-                </button>
-              </div>
-          </section>
-        )}
-
-        {showPlanDetailModal && selectedPlanDetail && (
-          <div className="modal-overlay" onClick={closePlanDetailModal}>
-            <div className="modal-card modal-wide glass-panel seller-detail-modal" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Plan Detail</h3>
-                <button type="button" className="ghost-btn" onClick={closePlanDetailModal}>Close</button>
-              </div>
-
-              <section className="seller-detail-hero">
-                <div>
-                  <p className="eyebrow">Commercial definition</p>
-                  <h3>{selectedPlanDetail.plan_name}</h3>
-                  <p>{selectedPlanDetail.plan_code}</p>
-                </div>
-                <div className="seller-detail-badges">
-                  <span className={`badge ${selectedPlanDetail.is_active ? "success" : "pending"}`}>
-                    {selectedPlanDetail.is_active ? "Active" : "Inactive"}
-                  </span>
-                  <span className="badge pending">{selectedPlanDetail.is_demo_plan ? "Demo plan" : "Standard plan"}</span>
-                </div>
-              </section>
-
-              <div className="seller-detail-grid">
-                <article className="seller-detail-card">
-                  <h4>Commercials</h4>
-                  <div className="seller-lifecycle-grid">
-                    <label>
-                      <span>Plan Code</span>
-                      <input value={getPlanDraft(selectedPlanDetail).planCode} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planCode", e.target.value.toUpperCase())} />
-                    </label>
-                    <label>
-                      <span>Plan Name</span>
-                      <input value={getPlanDraft(selectedPlanDetail).planName} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planName", e.target.value)} />
-                    </label>
-                    <label>
-                      <span>Price</span>
-                      <input type="number" min="0" step="0.01" value={getPlanDraft(selectedPlanDetail).price} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "price", e.target.value)} />
-                    </label>
-                    <label>
-                      <span>Billing Cycle</span>
-                      <select value={getPlanDraft(selectedPlanDetail).billingCycle} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "billingCycle", e.target.value)}>
-                        {BILLING_CYCLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                      </select>
-                    </label>
-                    <label>
-                      <span>Trial Days</span>
-                      <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).trialDurationDays} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "trialDurationDays", e.target.value)} />
-                    </label>
-                    <label>
-                      <span>Watermark Text</span>
-                      <input value={getPlanDraft(selectedPlanDetail).watermarkText} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "watermarkText", e.target.value)} />
-                    </label>
-                  </div>
-                </article>
-
-                <article className="seller-detail-card">
-                  <h4>Limits</h4>
-                  <div className="seller-lifecycle-grid">
-                    <label>
-                      <span>Max Users</span>
-                      <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxUsers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxUsers", e.target.value)} />
-                    </label>
-                    <label>
-                      <span>Max Quotations</span>
-                      <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxQuotations} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxQuotations", e.target.value)} />
-                    </label>
-                    <label>
-                      <span>Max Customers</span>
-                      <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxCustomers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxCustomers", e.target.value)} />
-                    </label>
-                  </div>
-                </article>
-
-                <article className="seller-detail-card">
-                  <h4>Feature Access</h4>
-                  <div className="seller-lifecycle-grid">
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).isActive} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "isActive", e.target.checked)} style={{ width: "auto" }} />Active</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).isDemoPlan} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "isDemoPlan", e.target.checked)} style={{ width: "auto" }} />Demo Plan</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).trialEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "trialEnabled", e.target.checked)} style={{ width: "auto" }} />Trial Enabled</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).inventoryEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "inventoryEnabled", e.target.checked)} style={{ width: "auto" }} />Inventory</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).reportsEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "reportsEnabled", e.target.checked)} style={{ width: "auto" }} />Reports</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).gstEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "gstEnabled", e.target.checked)} style={{ width: "auto" }} />GST</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).exportsEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "exportsEnabled", e.target.checked)} style={{ width: "auto" }} />Exports</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationWatermarkEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationWatermarkEnabled", e.target.checked)} style={{ width: "auto" }} />Watermark</label>
-                    <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationCreationLockedAfterExpiry} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationCreationLockedAfterExpiry", e.target.checked)} style={{ width: "auto" }} />Lock After Expiry</label>
-                  </div>
-                </article>
-              </div>
-
-              <div className="modal-fixed-actions">
-                <button type="button" className="ghost-btn" onClick={closePlanDetailModal}>Close</button>
-                <button type="button" onClick={handlePlanDetailSave}>Save Plan</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PlanDetailModal
+          showPlanDetailModal={showPlanDetailModal}
+          selectedPlanDetail={selectedPlanDetail}
+          closePlanDetailModal={closePlanDetailModal}
+          getPlanDraft={getPlanDraft}
+          updatePlanDraft={updatePlanDraft}
+          BILLING_CYCLE_OPTIONS={BILLING_CYCLE_OPTIONS}
+          handlePlanDetailSave={handlePlanDetailSave}
+        />
 
         {showNotificationCreateModal && (
           <div className="modal-overlay" onClick={() => setShowNotificationCreateModal(false)}>
@@ -7787,223 +5734,38 @@ function App() {
           </div>
         )}
 
-        {showNotificationDetailModal && (
-          <div className="modal-overlay" onClick={closeNotificationDetailModal}>
-            <div className="modal-card modal-wide glass-panel seller-detail-modal" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Notification Detail</h3>
-                <button type="button" className="ghost-btn" onClick={closeNotificationDetailModal}>Close</button>
-              </div>
-              {notificationDetailLoading && !selectedNotificationDetail ? (
-                <p className="muted">Loading notification detail...</p>
-              ) : !selectedNotificationDetail ? (
-                <p className="muted">Notification detail is unavailable right now.</p>
-              ) : (
-                <>
-                  <section className="seller-detail-hero">
-                    <div>
-                      <p className="eyebrow">Notification performance</p>
-                      <h3>{selectedNotificationDetail.notification.title}</h3>
-                      <p>{selectedNotificationDetail.notification.message}</p>
-                    </div>
-                    <div className="seller-detail-badges">
-                      <span className={`badge ${selectedNotificationDetail.notification.sent_at ? "success" : "pending"}`}>
-                        {selectedNotificationDetail.notification.sent_at ? "Sent" : "Scheduled"}
-                      </span>
-                      <span className="badge pending">{selectedNotificationDetail.notification.channel}</span>
-                    </div>
-                  </section>
+        <NotificationDetailModal
+          showNotificationDetailModal={showNotificationDetailModal}
+          closeNotificationDetailModal={closeNotificationDetailModal}
+          notificationDetailLoading={notificationDetailLoading}
+          selectedNotificationDetail={selectedNotificationDetail}
+          formatDateTime={formatDateTime}
+        />
 
-                  <div className="seller-detail-grid">
-                    <article className="seller-detail-card">
-                      <h4>Audience Summary</h4>
-                      <div className="seller-detail-list">
-                        <div><span>Audience</span><strong>{selectedNotificationDetail.notification.audience_type}</strong></div>
-                        <div><span>Created By</span><strong>{selectedNotificationDetail.notification.creator_name || "System"}</strong></div>
-                        <div><span>Created</span><strong>{formatDateTime(selectedNotificationDetail.notification.created_at)}</strong></div>
-                        <div><span>Sent</span><strong>{formatDateTime(selectedNotificationDetail.notification.sent_at)}</strong></div>
-                      </div>
-                    </article>
+        <SellerNotificationsModal
+          showSellerNotificationsModal={showSellerNotificationsModal}
+          setShowSellerNotificationsModal={setShowSellerNotificationsModal}
+          isPlatformAdmin={isPlatformAdmin}
+          notifications={notifications}
+          handleOpenSellerNotification={handleOpenSellerNotification}
+          formatDateTime={formatDateTime}
+        />
 
-                    <article className="seller-detail-card">
-                      <h4>Performance</h4>
-                      <div className="seller-detail-list">
-                        <div><span>Total recipients</span><strong>{selectedNotificationDetail.notification.recipient_count || 0}</strong></div>
-                        <div><span>Sent</span><strong>{selectedNotificationDetail.notification.sent_count || 0}</strong></div>
-                        <div><span>Read</span><strong>{selectedNotificationDetail.notification.read_count || 0}</strong></div>
-                        <div><span>Unread</span><strong>{selectedNotificationDetail.notification.unread_count || 0}</strong></div>
-                        <div><span>Scheduled</span><strong>{selectedNotificationDetail.notification.scheduled_count || 0}</strong></div>
-                      </div>
-                    </article>
-                  </div>
-
-                  <section className="seller-detail-section">
-                    <div className="section-head compact">
-                      <h3>Delivery Logs</h3>
-                      <span>{selectedNotificationDetail.logs?.length || 0} entries</span>
-                    </div>
-                    <table className="data-table">
-                      <thead>
-                        <tr><th>Seller</th><th>Status</th><th>Delivered</th><th>Read</th><th>Message</th></tr>
-                      </thead>
-                      <tbody>
-                        {(selectedNotificationDetail.logs || []).length === 0 ? (
-                          <tr><td colSpan="5">No delivery logs found.</td></tr>
-                        ) : (
-                          (selectedNotificationDetail.logs || []).map((entry) => (
-                            <tr key={entry.id}>
-                              <td>
-                                <strong>{entry.seller_name || "-"}</strong>
-                                <div className="seller-meta-stack">
-                                  <span>{entry.seller_code || "-"}</span>
-                                </div>
-                              </td>
-                              <td><span className={`badge ${entry.delivery_status === "read" ? "success" : "pending"}`}>{entry.delivery_status || "-"}</span></td>
-                              <td>{formatDateTime(entry.delivered_at)}</td>
-                              <td>{formatDateTime(entry.read_at)}</td>
-                              <td>{entry.delivery_message || "-"}</td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </section>
-
-                  <div className="modal-fixed-actions">
-                    <button type="button" className="ghost-btn" onClick={closeNotificationDetailModal}>Close</button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-
-        {showSellerNotificationsModal && !isPlatformAdmin && (
-          <div className="modal-overlay" onClick={() => setShowSellerNotificationsModal(false)}>
-            <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Your Notifications</h3>
-                <button type="button" className="ghost-btn" onClick={() => setShowSellerNotificationsModal(false)}>Close</button>
-              </div>
-              <table className="data-table">
-                <thead>
-                  <tr><th>Title</th><th>Channel</th><th>Status</th><th>When</th></tr>
-                </thead>
-                <tbody>
-                  {notifications.length === 0 ? (
-                    <tr><td colSpan="4">No notifications yet.</td></tr>
-                  ) : (
-                    notifications.map((notification) => (
-                      <tr key={notification.id} className="lead-row" onClick={() => handleOpenSellerNotification(notification)}>
-                        <td>
-                          <strong>{notification.title}</strong>
-                          <div className="seller-meta-stack">
-                            <span>{notification.message}</span>
-                          </div>
-                        </td>
-                        <td>{notification.channel}</td>
-                        <td>
-                          <span className={`badge ${String(notification.delivery_status || "").toLowerCase() === "read" ? "success" : "pending"}`}>
-                            {String(notification.delivery_status || "").toLowerCase() === "read" ? "Read" : "Unread"}
-                          </span>
-                        </td>
-                        <td>{formatDateTime(notification.read_at || notification.delivered_at || notification.created_at)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-              <div className="modal-fixed-actions">
-                <button type="button" className="ghost-btn" onClick={() => setShowSellerNotificationsModal(false)}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showSubscriptionModal && selectedSellerSubscription && (
-          <div className="modal-overlay" onClick={closeSubscriptionModal}>
-            <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
-              <div className="section-head">
-                <h3>Subscription Detail</h3>
-                <button type="button" className="ghost-btn" onClick={closeSubscriptionModal}>Close</button>
-              </div>
-              <div className="seller-meta-stack" style={{ marginBottom: "14px" }}>
-                <strong>{selectedSellerSubscription.seller.name}</strong>
-                <span>{selectedSellerSubscription.seller.seller_code}</span>
-                <span>{selectedSellerSubscription.seller.email || selectedSellerSubscription.seller.mobile || "-"}</span>
-              </div>
-              <div className="seller-lifecycle-grid">
-                <label>
-                  <span>Plan</span>
-                  <select value={subscriptionModalDraft.planCode} onChange={(e) => setSubscriptionModalDraft((prev) => ({ ...prev, planCode: e.target.value }))}>
-                    <option value="">Select Plan</option>
-                    {plans.map((plan) => <option key={plan.id} value={plan.plan_code}>{plan.plan_name} ({plan.plan_code})</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>Subscription Status</span>
-                  <select value={subscriptionModalDraft.status} onChange={(e) => setSubscriptionModalDraft((prev) => ({ ...prev, status: e.target.value }))}>
-                    {SUBSCRIPTION_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>Trial End</span>
-                  <input type="date" value={subscriptionModalDraft.trialEndAt} onChange={(e) => setSubscriptionModalDraft((prev) => ({ ...prev, trialEndAt: e.target.value }))} />
-                </label>
-                <label className="seller-toggle" style={{ alignSelf: "end" }}>
-                  <input type="checkbox" checked={subscriptionModalDraft.convertedFromTrial} onChange={(e) => setSubscriptionModalDraft((prev) => ({ ...prev, convertedFromTrial: e.target.checked }))} style={{ width: "auto" }} />
-                  Converted From Trial
-                </label>
-              </div>
-              <div className="seller-lifecycle-actions" style={{ marginTop: "16px" }}>
-                <button type="button" className="ghost-btn" onClick={handleSaveSubscriptionModal}>Save Subscription</button>
-                {canConvertToPaid(subscriptionModalDraft.planCode, subscriptionModalDraft.status, plans) && (
-                  <button type="button" className="compact-btn" onClick={handleConvertToPaid}>Convert To Paid</button>
-                )}
-              </div>
-              <table className="data-table" style={{ marginTop: "18px" }}>
-                <thead>
-                  <tr><th>Plan</th><th>Status</th><th>Trial</th><th>Start</th><th>End</th></tr>
-                </thead>
-                <tbody>
-                  {(selectedSellerSubscription.subscriptions || []).map((subscription) => (
-                    <tr key={subscription.id}>
-                      <td>{subscription.plan_name || subscription.plan_code}</td>
-                      <td>{subscription.status}</td>
-                      <td>{formatDateIST(subscription.trial_end_at)}</td>
-                      <td>{formatDateIST(subscription.start_date)}</td>
-                      <td>{formatDateIST(subscription.end_date)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              <div className="section-head compact" style={{ marginTop: "18px" }}>
-                <h3>Change History</h3>
-                <span>{(selectedSellerSubscription.auditLogs || []).length} event(s)</span>
-              </div>
-              <table className="data-table">
-                <thead>
-                  <tr><th>When</th><th>Action</th><th>Actor</th><th>Details</th></tr>
-                </thead>
-                <tbody>
-                  {(selectedSellerSubscription.auditLogs || []).length === 0 ? (
-                    <tr><td colSpan="4">No subscription audit found yet.</td></tr>
-                  ) : (
-                    (selectedSellerSubscription.auditLogs || []).map((entry) => (
-                      <tr key={entry.id}>
-                        <td>{formatDateTime(entry.created_at)}</td>
-                        <td>{formatAuditActionLabel(entry.action_key)}</td>
-                        <td>{entry.actor_name || entry.actor_mobile || "System"}</td>
-                        <td><pre className="audit-detail">{JSON.stringify(entry.detail || {}, null, 2)}</pre></td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        <SubscriptionDetailModal
+          showSubscriptionModal={showSubscriptionModal}
+          selectedSellerSubscription={selectedSellerSubscription}
+          closeSubscriptionModal={closeSubscriptionModal}
+          subscriptionModalDraft={subscriptionModalDraft}
+          setSubscriptionModalDraft={setSubscriptionModalDraft}
+          plans={plans}
+          SUBSCRIPTION_STATUS_OPTIONS={SUBSCRIPTION_STATUS_OPTIONS}
+          handleSaveSubscriptionModal={handleSaveSubscriptionModal}
+          canConvertToPaid={canConvertToPaid}
+          handleConvertToPaid={handleConvertToPaid}
+          formatDateIST={formatDateIST}
+          formatDateTime={formatDateTime}
+          formatAuditActionLabel={formatAuditActionLabel}
+        />
       </div>
     </div>
   );

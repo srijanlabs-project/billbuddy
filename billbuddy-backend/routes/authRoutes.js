@@ -1,8 +1,20 @@
 const crypto = require("crypto");
 const express = require("express");
 const pool = require("../db/db");
-const { signAuthToken, decodeToken } = require("../utils/jwt");
+const {
+  signAuthToken,
+  decodeToken,
+  DEFAULT_JWT_EXPIRES_IN,
+  REMEMBER_ME_JWT_EXPIRES_IN
+} = require("../utils/jwt");
 const { authenticate } = require("../middleware/auth");
+const { getAccessScope, normalizeRoleName } = require("../rbac/permissions");
+const { getEffectivePermissionsForUser } = require("../services/rbacService");
+const { seedSellerOnboardingWorkspace } = require("../services/onboardingTemplateService");
+const { hashPassword, verifyPassword, isHashedPassword, validatePasswordStrength } = require("../utils/passwords");
+
+const MAX_FAILED_LOGIN_ATTEMPTS = 5;
+const LOGIN_LOCKOUT_MINUTES = 15;
 
 const router = express.Router();
 const ROLE_NAMES = [
@@ -28,8 +40,9 @@ async function seedRolesIfMissing() {
   }
 }
 
-async function createSessionToken(user, clientOrPool = pool) {
+async function createSessionToken(user, clientOrPool = pool, options = {}) {
   const jti = crypto.randomUUID();
+  const expiresIn = options.rememberMe ? REMEMBER_ME_JWT_EXPIRES_IN : DEFAULT_JWT_EXPIRES_IN;
   const token = signAuthToken(
     {
       sub: String(user.id),
@@ -39,7 +52,8 @@ async function createSessionToken(user, clientOrPool = pool) {
       sellerId: user.seller_id,
       isPlatformAdmin: Boolean(user.is_platform_admin)
     },
-    jti
+    jti,
+    expiresIn
   );
 
   const decoded = decodeToken(token);
@@ -51,7 +65,10 @@ async function createSessionToken(user, clientOrPool = pool) {
     [user.id, jti, expiresAt]
   );
 
-  return token;
+  return {
+    token,
+    expiresAt
+  };
 }
 
 async function findRoleId(preferredNames) {
@@ -80,6 +97,24 @@ function buildSellerCode(seedValue) {
   return `${normalized}-${suffix}`.slice(0, 30);
 }
 
+async function buildAuthUserPayload(user) {
+  const nextUser = {
+    id: user.id,
+    name: user.name,
+    mobile: user.mobile,
+    role: user.role_name || user.role || "Unknown",
+    sellerId: user.seller_id ?? user.sellerId ?? null,
+    isPlatformAdmin: Boolean(user.is_platform_admin ?? user.isPlatformAdmin)
+  };
+
+  return {
+    ...nextUser,
+    normalizedRole: normalizeRoleName(nextUser.role),
+    accessScope: getAccessScope(nextUser),
+    permissions: await getEffectivePermissionsForUser(nextUser, pool)
+  };
+}
+
 router.get("/setup-status", async (_req, res) => {
   try {
     const usersCount = await pool.query(`SELECT COUNT(*)::int AS count FROM users`);
@@ -95,6 +130,11 @@ router.post("/bootstrap-admin", async (req, res) => {
 
     if (!name || !mobile || !password) {
       return res.status(400).json({ message: "name, mobile, and password are required" });
+    }
+
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     const usersCount = await pool.query(`SELECT COUNT(*)::int AS count FROM users`);
@@ -117,7 +157,7 @@ router.post("/bootstrap-admin", async (req, res) => {
       `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status)
        VALUES ($1, $2, $3, $4, $5, TRUE, TRUE)
        RETURNING id, name, mobile, seller_id, is_platform_admin`,
-      [name, mobile, password, roleId, null]
+      [name, mobile, await hashPassword(password), roleId, null]
     );
 
     return res.status(201).json({ message: "Platform admin created", user: created.rows[0] });
@@ -141,11 +181,21 @@ router.post("/demo-signup", async (req, res) => {
       businessName,
       city,
       state,
-      businessCategory
+      businessCategory,
+      businessSegment,
+      wantsSampleData,
+      headerImageData,
+      logoImageData,
+      brandingMode
     } = req.body || {};
 
     if (!name || !mobile || !password) {
       return res.status(400).json({ message: "name, mobile, and password are required" });
+    }
+
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     await seedRolesIfMissing();
@@ -186,6 +236,7 @@ router.post("/demo-signup", async (req, res) => {
          city,
          state,
          business_category,
+         business_segment,
          seller_code,
          onboarding_status,
          status,
@@ -204,6 +255,7 @@ router.post("/demo-signup", async (req, res) => {
         String(city || "").trim() || null,
         String(state || "").trim() || null,
         String(businessCategory || "").trim() || null,
+        String(businessSegment || "").trim() || null,
         sellerCode,
         trialEndAt
       ]
@@ -251,13 +303,13 @@ router.post("/demo-signup", async (req, res) => {
 
     const demoRoleId = await findRoleId(["Demo User", "Seller User", "Master User"]);
     const createdUser = await client.query(
-      `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status, locked)
-       VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE)
+      `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status, locked, password_changed_at)
+       VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE, CURRENT_TIMESTAMP)
        RETURNING id, name, mobile, seller_id, is_platform_admin`,
       [
         String(name).trim(),
         String(mobile).trim(),
-        String(password),
+        await hashPassword(String(password)),
         demoRoleId,
         sellerInsert.rows[0].id
       ]
@@ -271,6 +323,8 @@ router.post("/demo-signup", async (req, res) => {
          business_name,
          city,
          business_type,
+         business_segment,
+         wants_sample_data,
          requirement,
          interested_in_demo,
          source,
@@ -286,10 +340,24 @@ router.post("/demo-signup", async (req, res) => {
         String(businessName || name).trim(),
         String(city || "").trim() || null,
         String(businessCategory || "").trim() || null,
+        String(businessSegment || "").trim() || null,
+        Boolean(wantsSampleData),
         "Self-signup demo account created.",
         sellerInsert.rows[0].id
       ]
     );
+
+    await seedSellerOnboardingWorkspace(client, {
+      sellerId: sellerInsert.rows[0].id,
+      actorUserId: createdUser.rows[0].id,
+      businessCategory,
+      businessSegment,
+      wantsSampleData: Boolean(wantsSampleData),
+      headerImageData: brandingMode === "header" ? (headerImageData || null) : null,
+      logoImageData: brandingMode === "logo" ? (logoImageData || null) : null,
+      showHeaderImage: brandingMode === "header" && Boolean(headerImageData),
+      showLogoOnly: brandingMode === "logo" && Boolean(logoImageData)
+    });
 
     await client.query(
       `INSERT INTO lead_activity (lead_id, activity_type, note, actor_user_id)
@@ -316,7 +384,7 @@ router.post("/demo-signup", async (req, res) => {
       ]
     );
 
-    const token = await createSessionToken({
+    const { token, expiresAt } = await createSessionToken({
       ...createdUser.rows[0],
       role_name: "Demo User",
       seller_id: sellerInsert.rows[0].id,
@@ -328,14 +396,13 @@ router.post("/demo-signup", async (req, res) => {
     return res.status(201).json({
       message: "Demo account created successfully.",
       token,
-      user: {
-        id: createdUser.rows[0].id,
-        name: createdUser.rows[0].name,
-        mobile: createdUser.rows[0].mobile,
-        role: "Demo User",
-        sellerId: sellerInsert.rows[0].id,
-        isPlatformAdmin: false
-      },
+      expiresAt,
+      user: await buildAuthUserPayload({
+        ...createdUser.rows[0],
+        role_name: "Demo User",
+        seller_id: sellerInsert.rows[0].id,
+        is_platform_admin: false
+      }),
       seller: sellerInsert.rows[0]
     });
   } catch (error) {
@@ -351,14 +418,16 @@ router.post("/demo-signup", async (req, res) => {
 
 router.post("/login", async (req, res) => {
   try {
-    const { mobile, password } = req.body;
+    const { mobile, password, rememberMe = false } = req.body;
 
     if (!mobile || !password) {
       return res.status(400).json({ message: "mobile and password are required" });
     }
 
     const result = await pool.query(
-      `SELECT u.id, u.name, u.mobile, u.password, u.status, u.locked, u.seller_id, u.is_platform_admin, r.role_name,
+      `SELECT u.id, u.name, u.mobile, u.password, u.status, u.locked, u.seller_id, u.is_platform_admin,
+              u.failed_login_attempts, u.locked_until,
+              r.role_name,
               s.status AS seller_status, s.is_locked AS seller_locked
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
@@ -368,14 +437,67 @@ router.post("/login", async (req, res) => {
     );
 
     if (result.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
+         VALUES (NULL, NULL, 'login_failed_unknown_mobile', $1::jsonb)`,
+        [
+          JSON.stringify({
+            mobile
+          })
+        ]
+      );
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const user = result.rows[0];
-    const validPassword = user.password && password === user.password;
+    const lockedUntil = user.locked_until ? new Date(user.locked_until) : null;
+    if (lockedUntil && lockedUntil > new Date()) {
+      return res.status(429).json({ message: "Too many failed login attempts. Try again later." });
+    }
+
+    const passwordCheck = await verifyPassword(password, user.password);
+    const validPassword = Boolean(user.password) && passwordCheck.valid;
 
     if (!validPassword) {
+      const nextFailedAttempts = Number(user.failed_login_attempts || 0) + 1;
+      const shouldLock = nextFailedAttempts >= MAX_FAILED_LOGIN_ATTEMPTS;
+      const lockUntil = shouldLock
+        ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60 * 1000)
+        : null;
+
+      await pool.query(
+        `UPDATE users
+         SET failed_login_attempts = $1,
+             last_failed_login_at = CURRENT_TIMESTAMP,
+             locked_until = CASE WHEN $2::boolean THEN $3 ELSE NULL END
+         WHERE id = $4`,
+        [nextFailedAttempts, shouldLock, lockUntil, user.id]
+      );
+
+      await pool.query(
+        `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
+         VALUES (NULL, $1, 'login_failed', $2::jsonb)`,
+        [
+          user.seller_id || null,
+          JSON.stringify({
+            mobile,
+            userId: user.id,
+            failedLoginAttempts: nextFailedAttempts,
+            lockedUntil: lockUntil ? lockUntil.toISOString() : null
+          })
+        ]
+      );
+
       return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    if (passwordCheck.legacy && !isHashedPassword(user.password)) {
+      await pool.query(
+        `UPDATE users
+         SET password = $1
+         WHERE id = $2`,
+        [await hashPassword(password), user.id]
+      );
     }
 
     if (!user.status || user.locked) {
@@ -387,18 +509,36 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({ message: "Seller account is inactive or locked" });
     }
 
-    const token = await createSessionToken(user);
+    const { token, expiresAt } = await createSessionToken(user, pool, { rememberMe: Boolean(rememberMe) });
+
+    await pool.query(
+      `UPDATE users
+       SET failed_login_attempts = 0,
+           last_failed_login_at = NULL,
+           locked_until = NULL,
+           last_login_at = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [user.id]
+    );
+
+    await pool.query(
+      `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
+       VALUES ($1, $2, 'login_succeeded', $3::jsonb)`,
+      [
+        user.id,
+        user.seller_id || null,
+        JSON.stringify({
+          userId: user.id,
+          mobile: user.mobile,
+          rememberMe: Boolean(rememberMe)
+        })
+      ]
+    );
 
     res.json({
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        mobile: user.mobile,
-        role: user.role_name,
-        sellerId: user.seller_id,
-        isPlatformAdmin: Boolean(user.is_platform_admin)
-      }
+      expiresAt,
+      user: await buildAuthUserPayload(user)
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -414,6 +554,19 @@ router.post("/logout", authenticate, async (req, res) => {
     await pool.query(
       `UPDATE user_sessions SET revoked = TRUE WHERE token_jti = $1`,
       [req.user.jti]
+    );
+
+    await pool.query(
+      `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
+       VALUES ($1, $2, 'logout', $3::jsonb)`,
+      [
+        req.user.id,
+        req.user.sellerId || null,
+        JSON.stringify({
+          userId: req.user.id,
+          sessionJti: req.user.jti
+        })
+      ]
     );
 
     return res.json({ message: "Logged out" });

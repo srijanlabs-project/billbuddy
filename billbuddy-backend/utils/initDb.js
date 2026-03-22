@@ -1,10 +1,39 @@
 const pool = require("../db/db");
+const { seedRbacRolesAndPermissions } = require("../services/rbacService");
 
 async function initializeDatabase() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS roles (
       id SERIAL PRIMARY KEY,
       role_name VARCHAR(50) UNIQUE
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rbac_roles (
+      id SERIAL PRIMARY KEY,
+      scope VARCHAR(20) NOT NULL,
+      role_key VARCHAR(80) NOT NULL,
+      role_label VARCHAR(120) NOT NULL,
+      role_summary TEXT,
+      is_system BOOLEAN DEFAULT TRUE,
+      is_editable BOOLEAN DEFAULT TRUE,
+      is_visible BOOLEAN DEFAULT TRUE,
+      display_order INTEGER DEFAULT 0,
+      permissions_initialized BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (scope, role_key)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS rbac_role_permissions (
+      id SERIAL PRIMARY KEY,
+      role_id INTEGER NOT NULL REFERENCES rbac_roles(id) ON DELETE CASCADE,
+      permission_key VARCHAR(120) NOT NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (role_id, permission_key)
     )
   `);
 
@@ -30,6 +59,9 @@ async function initializeDatabase() {
 
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS status VARCHAR(30) DEFAULT 'pending'`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS business_segment VARCHAR(160)`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS sample_data_enabled BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS sample_data_seeded_at TIMESTAMP WITHOUT TIME ZONE`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(50) DEFAULT 'DEMO'`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS max_users INTEGER`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS max_orders_per_month INTEGER`);
@@ -54,10 +86,17 @@ async function initializeDatabase() {
     ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN DEFAULT FALSE,
     ADD COLUMN IF NOT EXISTS locked BOOLEAN DEFAULT FALSE
   `);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_failed_login_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT FALSE`);
 
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email VARCHAR(200)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS monthly_billing BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS shipping_addresses JSONB DEFAULT '[]'::jsonb`);
 
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(80)`);
@@ -72,6 +111,10 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS color_name VARCHAR(120)`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS ps_supported BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(20) DEFAULT 'SFT'`);
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS catalogue_source VARCHAR(20) DEFAULT 'primary'`);
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS limit_rate_edit BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS max_discount_percent NUMERIC(5,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS max_discount_type VARCHAR(20) DEFAULT 'percent'`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'::jsonb`);
 
   await pool.query(`ALTER TABLE product_variants ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
@@ -441,6 +484,8 @@ async function initializeDatabase() {
       business_name VARCHAR(200),
       city VARCHAR(120),
       business_type VARCHAR(120),
+      business_segment VARCHAR(160),
+      wants_sample_data BOOLEAN DEFAULT FALSE,
       requirement TEXT,
       interested_in_demo BOOLEAN DEFAULT FALSE,
       source VARCHAR(50) DEFAULT 'website',
@@ -452,6 +497,8 @@ async function initializeDatabase() {
       updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS business_segment VARCHAR(160)`);
+  await pool.query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS wants_sample_data BOOLEAN DEFAULT FALSE`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lead_activity (
@@ -541,6 +588,7 @@ async function initializeDatabase() {
   await pool.query(`UPDATE products SET ps_supported = COALESCE(ps_supported, FALSE)`);
   await pool.query(`UPDATE products SET pricing_type = COALESCE(pricing_type, 'SFT')`);
   await pool.query(`UPDATE customers SET monthly_billing = COALESCE(monthly_billing, FALSE)`);
+  await pool.query(`UPDATE customers SET shipping_addresses = COALESCE(shipping_addresses, '[]'::jsonb)`);
   await pool.query(`
     UPDATE sellers
     SET status = CASE
@@ -550,6 +598,8 @@ async function initializeDatabase() {
   `);
   await pool.query(`UPDATE sellers SET subscription_plan = COALESCE(subscription_plan, 'DEMO')`);
   await pool.query(`UPDATE sellers SET is_locked = COALESCE(is_locked, FALSE)`);
+  await pool.query(`UPDATE sellers SET sample_data_enabled = COALESCE(sample_data_enabled, FALSE)`);
+  await pool.query(`UPDATE leads SET wants_sample_data = COALESCE(wants_sample_data, FALSE)`);
 
   const demoPlanResult = await pool.query(
     `INSERT INTO plans (plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, watermark_text)
@@ -640,9 +690,27 @@ async function initializeDatabase() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS mobile_otp_codes (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+      mobile VARCHAR(20) NOT NULL,
+      otp_hash VARCHAR(128) NOT NULL,
+      attempts INTEGER DEFAULT 0,
+      revoked BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      expires_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+      verified_at TIMESTAMP WITHOUT TIME ZONE
+    )
+  `);
+
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_token_jti ON user_sessions(token_jti)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_otp_codes_mobile_created ON mobile_otp_codes(mobile, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_otp_codes_user_created ON mobile_otp_codes(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_seller_id ON users(seller_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_mobile ON users(mobile)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_customers_seller_id ON customers(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_seller_id ON products(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotations_seller_id ON quotations(seller_id)`);
@@ -659,6 +727,10 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_versions_quotation_version ON quotation_versions(quotation_id, version_no DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_audit_logs_user_created ON mobile_audit_logs(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_actor_created ON platform_audit_logs(actor_user_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_roles_scope_order ON rbac_roles(scope, display_order, id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_role_permissions_role ON rbac_role_permissions(role_id)`);
+
+  await seedRbacRolesAndPermissions(pool);
 }
 
 module.exports = {

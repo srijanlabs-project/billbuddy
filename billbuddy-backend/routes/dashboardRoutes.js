@@ -1,10 +1,11 @@
 const express = require("express");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
-router.get("/summary", async (req, res) => {
+router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const { range = "daily" } = req.query;
     const tenantId = getTenantId(req);

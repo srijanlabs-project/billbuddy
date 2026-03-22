@@ -2,10 +2,11 @@ const express = require("express");
 const pool = require("../db/db");
 const { requirePlatformAdmin, getTenantId } = require("../middleware/auth");
 const { syncSellerSubscriptionCache } = require("../services/subscriptionService");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.SUBSCRIPTION_VIEW), async (req, res) => {
   try {
     const sellerId = req.user?.isPlatformAdmin
       ? (req.query.sellerId ? Number(req.query.sellerId) : null)
@@ -47,7 +48,7 @@ router.get("/", async (req, res) => {
 
 router.use(requirePlatformAdmin);
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", requirePermission(PERMISSIONS.SUBSCRIPTION_MANAGE), async (req, res) => {
   const client = await pool.connect();
 
   try {

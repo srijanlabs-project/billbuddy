@@ -1,6 +1,7 @@
 const express = require("express");
 const pool = require("../db/db");
 const { createQuotationWithItems } = require("../services/quotationService");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -57,7 +58,7 @@ async function findOrCreateCustomer({ sellerId, customer }) {
   return created.rows[0].id;
 }
 
-router.post("/quotations", async (req, res) => {
+router.post("/quotations", requirePermission(PERMISSIONS.QUOTATION_CREATE), async (req, res) => {
   try {
     const sellerId = req.user.sellerId;
     const createdBy = req.user.id;
@@ -119,7 +120,7 @@ router.post("/quotations", async (req, res) => {
   }
 });
 
-router.get("/quotations/search", async (req, res) => {
+router.get("/quotations/search", requirePermission(PERMISSIONS.QUOTATION_SEARCH), async (req, res) => {
   try {
     const sellerId = req.user.sellerId;
     const query = String(req.query.q || "").trim();
@@ -156,7 +157,7 @@ router.get("/quotations/search", async (req, res) => {
   }
 });
 
-router.get("/summary", async (req, res) => {
+router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
     const sellerId = req.user.sellerId;
     const userId = req.user.id;

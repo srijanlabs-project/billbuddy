@@ -14,6 +14,7 @@ const {
   createQuotationVersionSnapshot,
   toAmount,
   getSellerCustomQuotationColumns,
+  validateQuotationItemRateLimits,
   validateCustomQuotationFields,
   applyComputedQuotationFields
 } = require("../services/quotationService");
@@ -27,6 +28,7 @@ const {
   getQuotationSummaryRows
 } = require("../services/quotationViewService");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -141,6 +143,43 @@ function getQuotationItemPrimaryName(item = {}) {
     item.sku ||
     "Item"
   );
+}
+
+function normalizeComparableAddress(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.,-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getEffectiveCustomerGstin(quotation = {}) {
+  const customerGstin = String(quotation.customer_gst_number || quotation.gst_number || quotation.customer_gstin || "").trim().toUpperCase();
+  const shippingAddresses = Array.isArray(quotation.customer_shipping_addresses) ? quotation.customer_shipping_addresses : [];
+  const deliveryAddress = normalizeComparableAddress(quotation.delivery_address);
+  const deliveryPincode = String(quotation.delivery_pincode || "").trim();
+
+  const matchingShippingAddress = shippingAddresses.find((entry) => {
+    const entryAddress = normalizeComparableAddress(entry?.address);
+    const entryPincode = String(entry?.pincode || "").trim();
+    return (
+      String(entry?.gstNumber || "").trim() &&
+      ((deliveryAddress && entryAddress && deliveryAddress === entryAddress) ||
+        (deliveryPincode && entryPincode && deliveryPincode === entryPincode))
+    );
+  });
+
+  return String(matchingShippingAddress?.gstNumber || customerGstin || "-").trim().toUpperCase() || "-";
+}
+
+function enrichQuotationTaxData(quotation = {}, sellerRow = null) {
+  return {
+    ...quotation,
+    gstin: String(quotation.gstin || sellerRow?.gst_number || quotation.seller_gst_number || "-").trim().toUpperCase() || "-",
+    customer_gstin: getEffectiveCustomerGstin(quotation)
+  };
 }
 
 async function getPublishedQuotationPdfConfiguration(clientOrPool, sellerId) {
@@ -2700,7 +2739,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   doc.end();
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.QUOTATION_SEARCH), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const values = [];
@@ -2708,22 +2747,23 @@ router.get("/", async (req, res) => {
     if (tenantId) values.push(tenantId);
 
     const result = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, u.name AS created_by_name
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, u.name AS created_by_name
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN sellers s ON s.id = q.seller_id
        LEFT JOIN users u ON u.id = q.created_by
        ${where}
        ORDER BY q.id DESC`,
       values
     );
 
-    res.json(result.rows);
+    res.json(result.rows.map((row) => enrichQuotationTaxData(row)));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-router.get("/:id/versions", async (req, res) => {
+router.get("/:id/versions", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
@@ -2734,7 +2774,7 @@ router.get("/:id/versions", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
@@ -2747,9 +2787,10 @@ router.get("/:id", async (req, res) => {
     }
 
     const quotationResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN sellers s ON s.id = q.seller_id
        WHERE ${where}`,
       values
     );
@@ -2786,7 +2827,7 @@ router.get("/:id", async (req, res) => {
     const outstanding = await getCustomerOutstanding(quotationResult.rows[0].customer_id, quotationResult.rows[0].seller_id);
 
     res.json({
-      quotation: quotationResult.rows[0],
+      quotation: enrichQuotationTaxData(quotationResult.rows[0]),
       items: itemsResult.rows,
       events: eventsResult.rows,
       customerOutstanding: outstanding
@@ -2796,7 +2837,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.get("/:id/download", async (req, res) => {
+router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
@@ -2812,9 +2853,10 @@ router.get("/:id/download", async (req, res) => {
     }
 
     const quotationResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN sellers s ON s.id = q.seller_id
        WHERE ${where}
        LIMIT 1`,
       values
@@ -2825,7 +2867,7 @@ router.get("/:id/download", async (req, res) => {
       return res.status(404).json({ message: "Quotation not found" });
     }
 
-    const quotation = quotationResult.rows[0];
+    const quotation = enrichQuotationTaxData(quotationResult.rows[0]);
     debugLogger.log("quotation-loaded", `seller=${quotation.seller_id}`);
     const itemsResult = await pool.query(
       `SELECT qi.*, p.material_name, pv.variant_name
@@ -2847,7 +2889,7 @@ router.get("/:id/download", async (req, res) => {
     );
     debugLogger.log("template-loaded", `hasTemplate=${template.rowCount > 0}`);
     const sellerResult = await pool.query(
-      `SELECT id, name, business_name, bank_name, bank_branch, bank_account_no, bank_ifsc
+      `SELECT id, name, business_name, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
        FROM sellers
        WHERE id = $1
        LIMIT 1`,
@@ -2929,7 +2971,7 @@ router.get("/:id/download", async (req, res) => {
   }
 });
 
-router.get("/templates/current", async (req, res) => {
+router.get("/templates/current", requirePermission(PERMISSIONS.SETTINGS_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     if (!tenantId) {
@@ -2947,7 +2989,7 @@ router.get("/templates/current", async (req, res) => {
   }
 });
 
-router.put("/templates/current", async (req, res) => {
+router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     if (!tenantId) {
@@ -3023,7 +3065,7 @@ router.put("/templates/current", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.QUOTATION_CREATE), async (req, res) => {
   try {
     const tenantId = req.user.isPlatformAdmin ? Number(req.body.sellerId || getTenantId(req)) : getTenantId(req);
     const data = await createQuotationWithItems({
@@ -3038,7 +3080,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.patch("/:id/revise", async (req, res) => {
+router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3117,6 +3159,8 @@ router.patch("/:id/revise", async (req, res) => {
       pricing_type: String(item.pricingType || item.pricing_type || "SFT").toUpperCase(),
       custom_fields: item.customFields || item.custom_fields || {}
     }));
+
+    await validateQuotationItemRateLimits(client, tenantId, normalizedItems);
 
     const customColumns = await getSellerCustomQuotationColumns(client, tenantId);
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
@@ -3251,9 +3295,10 @@ router.patch("/:id/revise", async (req, res) => {
     await client.query("COMMIT");
 
     const detailResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN sellers s ON s.id = q.seller_id
        WHERE q.id = $1 AND q.seller_id = $2
        LIMIT 1`,
       [id, tenantId]
@@ -3263,7 +3308,7 @@ router.patch("/:id/revise", async (req, res) => {
     const detailItems = await getQuotationItems(pool, id, tenantId);
 
     res.json({
-      quotation: detailResult.rows[0],
+      quotation: enrichQuotationTaxData(detailResult.rows[0]),
       items: detailItems,
       versions: versionRows,
       inventoryWarnings
@@ -3276,7 +3321,7 @@ router.patch("/:id/revise", async (req, res) => {
   }
 });
 
-router.patch("/:id/confirm", async (req, res) => {
+router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3337,7 +3382,7 @@ router.patch("/:id/confirm", async (req, res) => {
   }
 });
 
-router.patch("/:id/order-status", async (req, res) => {
+router.patch("/:id/order-status", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3386,7 +3431,7 @@ router.patch("/:id/order-status", async (req, res) => {
   }
 });
 
-router.patch("/:id/logistics", async (req, res) => {
+router.patch("/:id/logistics", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3442,7 +3487,7 @@ router.patch("/:id/logistics", async (req, res) => {
   }
 });
 
-router.patch("/:id/mark-sent", async (req, res) => {
+router.patch("/:id/mark-sent", requirePermission(PERMISSIONS.QUOTATION_SEND), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;
@@ -3491,7 +3536,7 @@ router.patch("/:id/mark-sent", async (req, res) => {
   }
 });
 
-router.patch("/:id/payment-status", async (req, res) => {
+router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK_PAID), async (req, res) => {
   const client = await pool.connect();
   try {
     const { id } = req.params;

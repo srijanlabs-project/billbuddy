@@ -2,6 +2,7 @@ const express = require("express");
 const pool = require("../db/db");
 const { createQuotationWithItems, createPaymentEntry } = require("../services/quotationService");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -379,7 +380,7 @@ async function sendMetaMessage(payload) {
   return result;
 }
 
-async function ensureCustomer(sellerId, customerName, mobile) {
+async function ensureCustomer(sellerId, customerName, mobile, options = {}) {
   if (!customerName) throw new Error("Could not parse customer name from message");
 
   const existing = await pool.query(
@@ -395,6 +396,10 @@ async function ensureCustomer(sellerId, customerName, mobile) {
     return existing.rows[0];
   }
 
+  if (!options.allowCreate) {
+    throw new Error("Customer creation is not allowed for this user");
+  }
+
   const created = await pool.query(
     `INSERT INTO customers (seller_id, name, mobile, firm_name)
      VALUES ($1, $2, $3, $4)
@@ -405,7 +410,7 @@ async function ensureCustomer(sellerId, customerName, mobile) {
   return created.rows[0];
 }
 
-async function ensureProduct(sellerId, data) {
+async function ensureProduct(sellerId, data, options = {}) {
   const normalizedService = normalizeProductName(data.service);
   const normalizedThickness = String(data.thickness || "").trim().toLowerCase();
   const existing = await pool.query(
@@ -426,6 +431,10 @@ async function ensureProduct(sellerId, data) {
 
   if (existing.rowCount > 0) {
     return existing.rows[0];
+  }
+
+  if (!options.allowCreate) {
+    throw new Error("Secondary product creation is not allowed for this user");
   }
 
   const created = await pool.query(
@@ -494,7 +503,7 @@ function resolveItemPrice(item, product) {
   };
 }
 
-router.get("/meta/status", (_req, res) => {
+router.get("/meta/status", requirePermission(PERMISSIONS.SETTINGS_VIEW), (_req, res) => {
   const cfg = metaConfig();
   res.json({
     configured: Boolean(cfg.accessToken && cfg.phoneNumberId),
@@ -504,7 +513,7 @@ router.get("/meta/status", (_req, res) => {
   });
 });
 
-router.get("/decode-rules", async (req, res) => {
+router.get("/decode-rules", requirePermission(PERMISSIONS.SETTINGS_VIEW), async (req, res) => {
   try {
     const sellerId = getTenantId(req);
     if (!sellerId) return res.status(400).json({ message: "sellerId is required" });
@@ -516,7 +525,7 @@ router.get("/decode-rules", async (req, res) => {
   }
 });
 
-router.put("/decode-rules", async (req, res) => {
+router.put("/decode-rules", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
     const sellerId = getTenantId(req);
     if (!sellerId) return res.status(400).json({ message: "sellerId is required" });
@@ -561,7 +570,7 @@ router.put("/decode-rules", async (req, res) => {
   }
 });
 
-router.post("/send-test", async (req, res) => {
+router.post("/send-test", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
     const { to, message, templateName, languageCode = "en", templateParams = [] } = req.body;
 
@@ -605,7 +614,7 @@ router.post("/send-test", async (req, res) => {
   }
 });
 
-router.post("/parse", async (req, res) => {
+router.post("/parse", requirePermission(PERMISSIONS.QUOTATION_CREATE), async (req, res) => {
   try {
     const { message, createdBy, autoMarkPaid, sellerId, confirmations = {} } = req.body;
 
@@ -638,12 +647,24 @@ router.post("/parse", async (req, res) => {
       });
     }
 
-    const customer = await ensureCustomer(tenantId, parsed.customerName, parsed.mobile);
+    const canCreateCustomer = Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.CUSTOMER_CREATE);
+    const canCreateSecondaryProduct = Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.PRODUCT_SECONDARY_CREATE);
+    const canMarkPaid = Array.isArray(req.user?.permissions) && req.user.permissions.includes(PERMISSIONS.QUOTATION_MARK_PAID);
+
+    if ((autoMarkPaid || parsed.paymentStatus === "paid") && !canMarkPaid) {
+      return res.status(403).json({ message: "You do not have permission to mark quotations as paid" });
+    }
+
+    const customer = await ensureCustomer(tenantId, parsed.customerName, parsed.mobile, {
+      allowCreate: canCreateCustomer
+    });
     const parsedItems = Array.isArray(parsed.items) && parsed.items.length > 0 ? parsed.items : [parsed];
     const resolvedItems = [];
 
     for (const item of parsedItems) {
-      const product = await ensureProduct(tenantId, item);
+      const product = await ensureProduct(tenantId, item, {
+        allowCreate: canCreateSecondaryProduct
+      });
       const unitResolved = applyProductUnitRules(item, product);
       const priceResolved = resolveItemPrice(item, product);
       resolvedItems.push({

@@ -1,5 +1,7 @@
 const pool = require("../db/db");
 const { verifyAuthToken } = require("../utils/jwt");
+const { getAccessScope, normalizeRoleName } = require("../rbac/permissions");
+const { getEffectivePermissionsForUser } = require("../services/rbacService");
 
 async function authenticate(req, res, next) {
   try {
@@ -20,6 +22,7 @@ async function authenticate(req, res, next) {
        us.expires_at,
        u.status,
        u.locked,
+       u.locked_until,
        u.seller_id,
         u.is_platform_admin,
         s.status AS seller_status,
@@ -44,6 +47,7 @@ async function authenticate(req, res, next) {
       session.revoked ||
       !session.status ||
       session.locked ||
+      (session.locked_until && new Date(session.locked_until) > new Date()) ||
       (enforceSellerLifecycle && session.seller_locked) ||
       (enforceSellerLifecycle && sellerInactive) ||
       new Date(session.expires_at) < new Date()
@@ -58,7 +62,7 @@ async function authenticate(req, res, next) {
       [decoded.jti]
     );
 
-    req.user = {
+    const nextUser = {
       id: Number(decoded.sub),
       name: decoded.name,
       mobile: decoded.mobile,
@@ -72,6 +76,13 @@ async function authenticate(req, res, next) {
       jti: decoded.jti,
       token
     };
+
+    req.user = {
+      ...nextUser,
+      normalizedRole: normalizeRoleName(decoded.role),
+      accessScope: getAccessScope(nextUser)
+    };
+    req.user.permissions = await getEffectivePermissionsForUser(req.user, pool);
 
     next();
   } catch (error) {

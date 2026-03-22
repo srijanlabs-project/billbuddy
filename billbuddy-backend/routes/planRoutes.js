@@ -1,6 +1,7 @@
 const express = require("express");
 const pool = require("../db/db");
 const { requirePlatformAdmin } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ function normalizePlanPayload(body = {}) {
   };
 }
 
-router.get("/", async (_req, res) => {
+router.get("/", requirePermission(PERMISSIONS.PLAN_VIEW), async (_req, res) => {
   try {
     const result = await pool.query(
       `SELECT
@@ -58,7 +59,7 @@ router.get("/", async (_req, res) => {
 
 router.use(requirePlatformAdmin);
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.PLAN_CREATE), async (req, res) => {
   const client = await pool.connect();
 
   try {
@@ -146,7 +147,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) => {
   const client = await pool.connect();
 
   try {

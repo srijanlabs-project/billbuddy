@@ -208,6 +208,54 @@ async function getNextSellerQuotationMeta(client, sellerId) {
   };
 }
 
+async function validateQuotationItemRateLimits(clientOrPool, sellerId, items = []) {
+  const productIds = [...new Set(
+    (items || [])
+      .map((item) => Number(item.product_id || item.productId || 0))
+      .filter((value) => Number.isFinite(value) && value > 0)
+  )];
+
+  if (!productIds.length) return;
+
+  const result = await clientOrPool.query(
+    `SELECT id, material_name, base_price, limit_rate_edit, max_discount_percent, max_discount_type
+     FROM products
+     WHERE seller_id = $1
+       AND id = ANY($2::int[])`,
+    [sellerId, productIds]
+  );
+
+  const productMap = new Map(result.rows.map((row) => [Number(row.id), row]));
+
+  for (const item of items || []) {
+    const productId = Number(item.product_id || item.productId || 0);
+    if (!productId || !productMap.has(productId)) continue;
+
+    const product = productMap.get(productId);
+    if (!product.limit_rate_edit) continue;
+
+    const basePrice = toAmount(product.base_price);
+    const rate = toAmount(item.unit_price ?? item.unitPrice);
+    const maxDiscountValue = Math.max(0, toAmount(product.max_discount_percent));
+    const maxDiscountType = String(product.max_discount_type || "percent").toLowerCase() === "amount" ? "amount" : "percent";
+    if (basePrice <= 0 || rate <= 0) continue;
+
+    const minimumAllowedRate = Number(
+      Math.max(
+        maxDiscountType === "percent"
+          ? basePrice - (basePrice * maxDiscountValue / 100)
+          : basePrice - maxDiscountValue,
+        0
+      ).toFixed(2)
+    );
+    if (rate + 0.0001 < minimumAllowedRate) {
+      throw new Error(
+        `${product.material_name || "Item"} cannot be added below Rs ${minimumAllowedRate.toLocaleString("en-IN")}. Maximum allowed discount is ${maxDiscountType === "percent" ? `${maxDiscountValue}%` : `Rs ${maxDiscountValue.toLocaleString("en-IN")}`}.`
+      );
+    }
+  }
+}
+
 async function getCustomerOutstanding(customerId, sellerId) {
   const result = await pool.query(
     `SELECT
@@ -502,6 +550,8 @@ async function createQuotationWithItems(payload) {
       throw new Error("deliveryAddress and deliveryPincode are required for DOORSTEP delivery");
     }
 
+    await validateQuotationItemRateLimits(client, sellerId, items);
+
     const { normalizedItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =
       computeQuotationTotals({
         items,
@@ -706,6 +756,7 @@ module.exports = {
   logOrderEvent,
   createQuotationVersionSnapshot,
   getSellerCustomQuotationColumns,
+  validateQuotationItemRateLimits,
   validateCustomQuotationFields,
   applyComputedQuotationFields
 };

@@ -1,11 +1,12 @@
 const express = require("express");
-const crypto = require("crypto");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
+const { hashPassword, validatePasswordStrength } = require("../utils/passwords");
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
 
@@ -27,12 +28,19 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) => {
   try {
     const { name, mobile, password, roleId, createdBy, status = true, sellerId } = req.body;
 
     if (!name || !mobile || !roleId) {
       return res.status(400).json({ message: "name, mobile and roleId are required" });
+    }
+    if (!password) {
+      return res.status(400).json({ message: "password is required" });
+    }
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     const tenantId = req.user.isPlatformAdmin ? Number(sellerId || getTenantId(req)) : getTenantId(req);
@@ -44,7 +52,7 @@ router.post("/", async (req, res) => {
       `INSERT INTO users (name, mobile, password, role_id, created_by, status, seller_id, is_platform_admin)
        VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)
        RETURNING id, name, mobile, role_id, created_by, status, created_at, seller_id`,
-      [name, mobile, password || null, roleId, createdBy || req.user.id, status, tenantId]
+      [name, mobile, await hashPassword(password), roleId, createdBy || req.user.id, status, tenantId]
     );
 
     res.status(201).json(result.rows[0]);
@@ -56,7 +64,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.patch("/:id/lock", async (req, res) => {
+router.patch("/:id/lock", requirePermission(PERMISSIONS.USER_EDIT), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const { id } = req.params;
@@ -88,17 +96,25 @@ router.patch("/:id/lock", async (req, res) => {
   }
 });
 
-router.patch("/:id/reset-password", async (req, res) => {
+router.patch("/:id/reset-password", requirePermission(PERMISSIONS.USER_EDIT), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const { id } = req.params;
+    const newPassword = String(req.body?.newPassword || "");
 
     if (!req.user.isPlatformAdmin && !tenantId) {
       return res.status(403).json({ message: "Access denied" });
     }
+    if (!newPassword) {
+      return res.status(400).json({ message: "newPassword is required" });
+    }
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
+    }
 
-    const temporaryPassword = crypto.randomBytes(4).toString("hex").toUpperCase();
-    const values = [temporaryPassword, Number(id)];
+    const hashedNewPassword = await hashPassword(newPassword);
+    const values = [hashedNewPassword, Number(id)];
     let where = "id = $2";
 
     if (!req.user.isPlatformAdmin && tenantId) {
@@ -108,7 +124,12 @@ router.patch("/:id/reset-password", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE users
-       SET password = $1
+       SET password = $1,
+           failed_login_attempts = 0,
+           last_failed_login_at = NULL,
+           locked_until = NULL,
+           force_password_change = FALSE,
+           password_changed_at = CURRENT_TIMESTAMP
        WHERE ${where}
        RETURNING id, name, mobile, seller_id`,
       values
@@ -119,6 +140,12 @@ router.patch("/:id/reset-password", async (req, res) => {
     }
 
     const resetUser = result.rows[0];
+    await pool.query(
+      `UPDATE user_sessions
+       SET revoked = TRUE
+       WHERE user_id = $1`,
+      [resetUser.id]
+    );
     await pool.query(
       `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
        VALUES ($1, $2, $3, $4::jsonb)`,
@@ -137,7 +164,7 @@ router.patch("/:id/reset-password", async (req, res) => {
 
     return res.json({
       user: resetUser,
-      temporaryPassword
+      message: "Password updated successfully."
     });
   } catch (error) {
     return res.status(500).json({ message: error.message });

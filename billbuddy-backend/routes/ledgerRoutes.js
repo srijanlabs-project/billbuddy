@@ -1,10 +1,11 @@
 const express = require("express");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.BILLING_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const { customerId } = req.query;
@@ -17,7 +18,11 @@ router.get("/", async (req, res) => {
     }
 
     if (customerId) {
-      values.push(customerId);
+      const numericCustomerId = Number(customerId);
+      if (!Number.isFinite(numericCustomerId) || numericCustomerId <= 0) {
+        return res.status(400).json({ message: "Valid customerId is required" });
+      }
+      values.push(numericCustomerId);
       clauses.push(`l.customer_id = $${values.length}`);
     }
 

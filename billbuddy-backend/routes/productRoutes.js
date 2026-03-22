@@ -1,6 +1,7 @@
 const express = require("express");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
+const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -39,6 +40,8 @@ async function getSellerCustomCatalogueFields(sellerId) {
     "unit_type",
     "pricing_type",
     "base_price",
+    "limit_rate_edit",
+    "max_discount_percent",
     "sku",
     "always_available",
     "ps_supported"
@@ -80,6 +83,29 @@ function validateProductCustomFields(customFields = {}, customConfigFields = [])
   });
 }
 
+function parseMaxDiscountLimit(rawValue, explicitType = null) {
+  const raw = String(rawValue ?? "").trim();
+  const normalizedExplicitType = String(explicitType || "").trim().toLowerCase();
+
+  if (!raw) {
+    return {
+      value: 0,
+      type: normalizedExplicitType === "amount" ? "amount" : "percent"
+    };
+  }
+
+  const derivedType = raw.includes("%") ? "percent" : (normalizedExplicitType === "percent" || normalizedExplicitType === "amount" ? normalizedExplicitType : "amount");
+  const parsed = Number(raw.replace(/%/g, "").replace(/,/g, "").trim());
+  if (!Number.isFinite(parsed)) {
+    throw new Error("Max Discount Limit must be a number or percentage like 10%.");
+  }
+
+  return {
+    value: Math.max(0, parsed),
+    type: derivedType
+  };
+}
+
 function validateRequiredProductFields({ materialName, category, sku }) {
   if (!String(materialName || "").trim()) {
     throw new Error("materialName is required");
@@ -92,7 +118,7 @@ function validateRequiredProductFields({ materialName, category, sku }) {
   }
 }
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission(PERMISSIONS.PRODUCT_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
     const values = [];
@@ -106,12 +132,17 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:productId/variants", async (req, res) => {
+router.get("/:productId/variants", requirePermission(PERMISSIONS.PRODUCT_VIEW), async (req, res) => {
   try {
     const { productId } = req.params;
     const tenantId = getTenantId(req);
+    const numericProductId = Number(productId);
 
-    const values = [productId];
+    if (!Number.isFinite(numericProductId) || numericProductId <= 0) {
+      return res.status(400).json({ message: "Valid productId is required" });
+    }
+
+    const values = [numericProductId];
     let where = "WHERE product_id = $1";
     if (tenantId) {
       where += " AND seller_id = $2";
@@ -125,7 +156,7 @@ router.get("/:productId/variants", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requirePermission(PERMISSIONS.PRODUCT_CREATE), async (req, res) => {
   try {
     const {
       materialName,
@@ -145,6 +176,10 @@ router.post("/", async (req, res) => {
       colorName,
       psSupported,
       pricingType,
+      catalogueSource,
+      limitRateEdit,
+      maxDiscountPercent,
+      maxDiscountType,
       customFields
     } = req.body;
 
@@ -156,10 +191,11 @@ router.post("/", async (req, res) => {
     validateRequiredProductFields({ materialName, category, sku });
     const customConfigFields = await getSellerCustomCatalogueFields(tenantId);
     validateProductCustomFields(customFields || {}, customConfigFields);
+    const parsedDiscountLimit = parseMaxDiscountLimit(maxDiscountPercent, maxDiscountType);
 
     const result = await pool.query(
-      `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18::jsonb, '{}'::jsonb))
+      `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, catalogue_source, limit_rate_edit, max_discount_percent, max_discount_type, custom_fields)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
        RETURNING *`,
       [
         tenantId,
@@ -179,6 +215,10 @@ router.post("/", async (req, res) => {
         colorName || null,
         Boolean(psSupported),
         String(pricingType || "SFT").toUpperCase(),
+        String(catalogueSource || "primary").toLowerCase(),
+        Boolean(limitRateEdit),
+        parsedDiscountLimit.value,
+        parsedDiscountLimit.type,
         JSON.stringify(customFields || {})
       ]
     );
@@ -189,7 +229,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.post("/bulk", async (req, res) => {
+router.post("/bulk", requirePermission(PERMISSIONS.PRODUCT_BULK_UPLOAD), async (req, res) => {
   try {
     const { sellerId, products } = req.body;
     const tenantId = req.user.isPlatformAdmin ? Number(sellerId || getTenantId(req)) : getTenantId(req);
@@ -201,6 +241,9 @@ router.post("/bulk", async (req, res) => {
     if (!Array.isArray(products) || products.length === 0) {
       return res.status(400).json({ message: "products array is required" });
     }
+    if (products.length > 250) {
+      return res.status(400).json({ message: "Bulk upload limit is 250 products per request" });
+    }
 
     const customConfigFields = await getSellerCustomCatalogueFields(tenantId);
 
@@ -210,8 +253,8 @@ router.post("/bulk", async (req, res) => {
       validateProductCustomFields(product.customFields || {}, customConfigFields);
 
       const result = await pool.query(
-        `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18::jsonb, '{}'::jsonb))
+        `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, catalogue_source, limit_rate_edit, max_discount_percent, max_discount_type, custom_fields)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
          RETURNING *`,
         [
           tenantId,
@@ -231,6 +274,10 @@ router.post("/bulk", async (req, res) => {
           product.colorName || null,
           Boolean(product.psSupported),
           String(product.pricingType || "SFT").toUpperCase(),
+          String(product.catalogueSource || "primary").toLowerCase(),
+          Boolean(product.limitRateEdit),
+          parseMaxDiscountLimit(product.maxDiscountPercent, product.maxDiscountType).value,
+          parseMaxDiscountLimit(product.maxDiscountPercent, product.maxDiscountType).type,
           JSON.stringify(product.customFields || {})
         ]
       );
@@ -244,11 +291,15 @@ router.post("/bulk", async (req, res) => {
   }
 });
 
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", requirePermission(PERMISSIONS.PRODUCT_EDIT), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = req.user.isPlatformAdmin ? Number(req.body.sellerId || getTenantId(req)) : getTenantId(req);
+    const numericProductId = Number(id);
 
+    if (!Number.isFinite(numericProductId) || numericProductId <= 0) {
+      return res.status(400).json({ message: "Valid product id is required" });
+    }
     if (!tenantId) {
       return res.status(400).json({ message: "sellerId is required" });
     }
@@ -257,7 +308,7 @@ router.patch("/:id", async (req, res) => {
 
     const existingResult = await pool.query(
       `SELECT * FROM products WHERE id = $1 AND seller_id = $2 LIMIT 1`,
-      [id, tenantId]
+      [numericProductId, tenantId]
     );
 
     if (existingResult.rowCount === 0) {
@@ -281,6 +332,10 @@ router.patch("/:id", async (req, res) => {
       colorName,
       psSupported,
       pricingType,
+      catalogueSource,
+      limitRateEdit,
+      maxDiscountPercent,
+      maxDiscountType,
       sku,
       customFields
     } = req.body;
@@ -290,6 +345,16 @@ router.patch("/:id", async (req, res) => {
       category: category ?? existing.category,
       sku: sku === undefined ? existing.sku : sku
     });
+    const parsedDiscountLimit =
+      maxDiscountPercent === undefined && maxDiscountType === undefined
+        ? {
+            value: Number(existing.max_discount_percent || 0),
+            type: String(existing.max_discount_type || "percent").toLowerCase() === "amount" ? "amount" : "percent"
+          }
+        : parseMaxDiscountLimit(
+            maxDiscountPercent === undefined ? existing.max_discount_percent : maxDiscountPercent,
+            maxDiscountType === undefined ? existing.max_discount_type : maxDiscountType
+          );
 
     const result = await pool.query(
       `UPDATE products
@@ -309,8 +374,12 @@ router.patch("/:id", async (req, res) => {
            color_name = $14,
            ps_supported = $15,
            pricing_type = $16,
-           custom_fields = $17::jsonb
-       WHERE id = $18 AND seller_id = $19
+           catalogue_source = $17,
+           limit_rate_edit = $18,
+           max_discount_percent = $19,
+           max_discount_type = $20,
+           custom_fields = $21::jsonb
+       WHERE id = $22 AND seller_id = $23
        RETURNING *`,
       [
         materialName ?? existing.material_name,
@@ -329,12 +398,16 @@ router.patch("/:id", async (req, res) => {
         colorName ?? existing.color_name,
         psSupported === undefined ? existing.ps_supported : Boolean(psSupported),
         String(pricingType || existing.pricing_type || "SFT").toUpperCase(),
+        String(catalogueSource || existing.catalogue_source || "primary").toLowerCase(),
+        limitRateEdit === undefined ? existing.limit_rate_edit : Boolean(limitRateEdit),
+        parsedDiscountLimit.value,
+        parsedDiscountLimit.type,
         (() => {
           const resolvedCustomFields = customFields === undefined ? (existing.custom_fields || {}) : (customFields || {});
           validateProductCustomFields(resolvedCustomFields, customConfigFields);
           return JSON.stringify(resolvedCustomFields);
         })(),
-        id,
+        numericProductId,
         tenantId
       ]
     );
@@ -345,13 +418,18 @@ router.patch("/:id", async (req, res) => {
   }
 });
 
-router.patch("/:id/inventory", async (req, res) => {
+router.patch("/:id/inventory", requirePermission(PERMISSIONS.PRODUCT_EDIT), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
     const { inventoryQty, alwaysAvailable } = req.body;
+    const numericProductId = Number(id);
 
-    const values = [inventoryQty ?? 0, Boolean(alwaysAvailable), id];
+    if (!Number.isFinite(numericProductId) || numericProductId <= 0) {
+      return res.status(400).json({ message: "Valid product id is required" });
+    }
+
+    const values = [inventoryQty ?? 0, Boolean(alwaysAvailable), numericProductId];
     let where = "id = $3";
 
     if (tenantId) {
@@ -378,18 +456,23 @@ router.patch("/:id/inventory", async (req, res) => {
   }
 });
 
-router.patch("/:id/unit-config", async (req, res) => {
+router.patch("/:id/unit-config", requirePermission(PERMISSIONS.PRODUCT_EDIT), async (req, res) => {
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
     const { unitType, defaultWidth, defaultHeight } = req.body;
+    const numericProductId = Number(id);
+
+    if (!Number.isFinite(numericProductId) || numericProductId <= 0) {
+      return res.status(400).json({ message: "Valid product id is required" });
+    }
 
     const normalizedUnit = String(unitType || "COUNT").toUpperCase();
     if (!["COUNT", "SFT"].includes(normalizedUnit)) {
       return res.status(400).json({ message: "unitType must be COUNT or SFT" });
     }
 
-    const values = [normalizedUnit, defaultWidth || null, defaultHeight || null, id];
+    const values = [normalizedUnit, defaultWidth || null, defaultHeight || null, numericProductId];
     let where = "id = $4";
 
     if (tenantId) {
@@ -417,13 +500,17 @@ router.patch("/:id/unit-config", async (req, res) => {
   }
 });
 
-router.post("/:productId/variants", async (req, res) => {
+router.post("/:productId/variants", requirePermission(PERMISSIONS.PRODUCT_EDIT), async (req, res) => {
   try {
     const { productId } = req.params;
     const { variantName, size, unitPrice, sellerId } = req.body;
+    const numericProductId = Number(productId);
 
     if (!variantName) {
       return res.status(400).json({ message: "variantName is required" });
+    }
+    if (!Number.isFinite(numericProductId) || numericProductId <= 0) {
+      return res.status(400).json({ message: "Valid productId is required" });
     }
 
     const tenantId = req.user.isPlatformAdmin ? Number(sellerId || getTenantId(req)) : getTenantId(req);
@@ -433,7 +520,7 @@ router.post("/:productId/variants", async (req, res) => {
 
     const productCheck = await pool.query(
       `SELECT id FROM products WHERE id = $1 AND seller_id = $2 LIMIT 1`,
-      [productId, tenantId]
+      [numericProductId, tenantId]
     );
 
     if (productCheck.rowCount === 0) {
@@ -444,7 +531,7 @@ router.post("/:productId/variants", async (req, res) => {
       `INSERT INTO product_variants (seller_id, product_id, variant_name, size, unit_price)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [tenantId, productId, variantName, size || null, unitPrice || null]
+      [tenantId, numericProductId, variantName, size || null, unitPrice || null]
     );
 
     res.status(201).json(result.rows[0]);

@@ -1037,7 +1037,7 @@ export default function ResponsiveQuotationApp({
     <div className="responsive-quote-shell">
       <header className="rq-topbar">
         <div>
-          <div className="rq-kicker">{seller?.name || "BillBuddy"}</div>
+          <div className="rq-kicker">{seller?.name || "Quotsy"}</div>
           <h1>Create Quotation</h1>
           <p>Draft-friendly quotation flow for mobile and desktop web.</p>
         </div>

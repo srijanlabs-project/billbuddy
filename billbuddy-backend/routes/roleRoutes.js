@@ -1,5 +1,6 @@
 const express = require("express");
 const pool = require("../db/db");
+const { requirePlatformAdmin } = require("../middleware/auth");
 
 const router = express.Router();
 const ROLE_NAMES = ["Super Admin", "Sales", "Seller Admin", "Seller User", "Demo User", "Master User", "Sub User", "Customer", "Admin"];
@@ -13,7 +14,7 @@ router.get("/", async (_req, res) => {
   }
 });
 
-router.post("/seed", async (_req, res) => {
+router.post("/seed", requirePlatformAdmin, async (_req, res) => {
   try {
     for (const roleName of ROLE_NAMES) {
       await pool.query(
