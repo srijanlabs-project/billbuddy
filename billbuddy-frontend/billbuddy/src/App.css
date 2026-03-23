@@ -5226,6 +5226,10 @@ button:disabled {
     display: none;
   }
 
+  .labs-topbar {
+    position: static;
+  }
+
   .labs-topbar-inner,
   .labs-contact-actions,
   .labs-showcase-card,
@@ -5244,6 +5248,111 @@ button:disabled {
   .labs-shared-products,
   .labs-hero-support-grid {
     grid-template-columns: 1fr;
+  }
+
+  .labs-topbar-inner {
+    align-items: flex-start;
+    gap: 14px;
+    padding: 14px 16px;
+  }
+
+  .labs-brand {
+    width: 100%;
+  }
+
+  .labs-top-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .labs-top-actions a {
+    flex: 0 0 auto;
+  }
+
+  .labs-main {
+    gap: 24px;
+    padding: 20px 0 32px;
+  }
+
+  .labs-hero {
+    padding: 26px 16px 4px;
+    gap: 20px;
+  }
+
+  .labs-hero-copy h1 {
+    max-width: none;
+    font-size: clamp(1.95rem, 7vw, 3.1rem);
+    line-height: 1.04;
+  }
+
+  .labs-pill {
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+  }
+
+  .labs-metrics {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .labs-section,
+  .labs-footer {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .labs-section-soft {
+    padding: 34px 16px;
+    border-radius: 24px;
+  }
+
+  .labs-section-head {
+    margin-bottom: 20px;
+  }
+
+  .labs-section-head h2,
+  .labs-contact-card h2 {
+    font-size: clamp(1.45rem, 5.6vw, 2rem);
+  }
+
+  .labs-product-title {
+    margin-top: 16px;
+    line-height: 1.35;
+  }
+
+  .labs-product-actions,
+  .labs-contact-actions {
+    align-items: flex-start;
+  }
+
+  .labs-product-actions {
+    flex-direction: column;
+  }
+
+  .labs-command-head,
+  .labs-product-head,
+  .labs-partner-head,
+  .labs-quote-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .labs-partner-logo {
+    width: 104px;
+    height: 56px;
+  }
+
+  .labs-contact-card {
+    border-radius: 28px;
+  }
+
+  .labs-footer-grid {
+    gap: 22px;
+    padding: 26px 0;
   }
 
   .banner-stat {
@@ -5276,6 +5385,92 @@ button:disabled {
   .seller-detail-hero {
     grid-template-columns: 1fr;
     display: grid;
+  }
+}
+
+@media (max-width: 640px) {
+  .labs-topbar-inner {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+
+  .labs-brand-logo {
+    height: 38px;
+  }
+
+  .labs-brand-title {
+    font-size: 15px;
+  }
+
+  .labs-brand-subtitle {
+    font-size: 11px;
+  }
+
+  .labs-top-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .labs-top-actions a,
+  .labs-hero-actions a,
+  .labs-product-actions a,
+  .labs-contact-actions a {
+    width: 100%;
+  }
+
+  .labs-btn {
+    min-height: 38px;
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  .labs-hero {
+    padding: 20px 0 0;
+  }
+
+  .labs-section,
+  .labs-section-soft,
+  .labs-footer {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .labs-hero-support-card,
+  .labs-product-card,
+  .labs-capability-card,
+  .labs-showcase-card,
+  .labs-reason-card,
+  .labs-partner-card,
+  .labs-collaboration-note,
+  .labs-contact-card {
+    border-radius: 22px;
+  }
+
+  .labs-command-card,
+  .labs-mini-card,
+  .labs-product-card,
+  .labs-capability-card,
+  .labs-showcase-card,
+  .labs-reason-card,
+  .labs-contact-card,
+  .labs-partner-card,
+  .labs-collaboration-note {
+    padding: 16px;
+  }
+
+  .labs-hero-image-frame {
+    border-radius: 24px;
+  }
+
+  .labs-live-badge,
+  .labs-flagship-badge {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  .labs-footer-bottom {
+    text-align: left;
   }
 }
 
