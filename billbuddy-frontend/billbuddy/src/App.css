@@ -5389,9 +5389,22 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
+  .landing-shell {
+    padding: 0;
+  }
+
+  .labs-topbar,
+  .labs-main,
+  .labs-footer {
+    width: 100%;
+  }
+
   .labs-topbar-inner {
     padding: 12px 14px;
-    border-radius: 14px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
   }
 
   .labs-brand-logo {
@@ -5403,13 +5416,22 @@ button:disabled {
   }
 
   .labs-brand-subtitle {
-    font-size: 11px;
+    display: none;
+  }
+
+  .labs-brand {
+    width: auto;
+  }
+
+  .labs-brand > div {
+    display: none;
   }
 
   .labs-top-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+    width: 100%;
   }
 
   .labs-top-actions a,
