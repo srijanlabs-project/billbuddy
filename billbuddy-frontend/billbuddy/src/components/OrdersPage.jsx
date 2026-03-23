@@ -6,6 +6,22 @@ function getQuotationBadgeClass(status) {
   return 'quotation-new';
 }
 
+function getApprovalBadgeClass(status) {
+  const normalized = String(status || "not_required").toLowerCase();
+  if (normalized === "approved") return "success";
+  if (normalized === "rejected") return "error";
+  if (normalized === "pending") return "pending";
+  return "neutral";
+}
+
+function getApprovalLabel(status) {
+  const normalized = String(status || "not_required").toLowerCase();
+  if (normalized === "approved") return "Approved";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "pending") return "Pending";
+  return "Not Required";
+}
+
 function SentStatusIcon({ sent }) {
   if (sent) {
     return (
@@ -54,6 +70,7 @@ export default function OrdersPage(props) {
     handleMarkPaid,
     handleDownloadQuotationSheet,
     handleDownloadQuotation,
+    handleSendQuotationEmail,
     handleDownloadRichPdfDebug,
     renderPagination,
     canEditQuotation,
@@ -88,6 +105,7 @@ export default function OrdersPage(props) {
             <th>Quotation</th>
             <th>Payment</th>
             <th>Quotation Status</th>
+            <th>Approval</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -120,6 +138,9 @@ export default function OrdersPage(props) {
                 )}
               </td>
               <td>
+                <span className={`badge ${getApprovalBadgeClass(order.approval_status)}`}>{getApprovalLabel(order.approval_status)}</span>
+              </td>
+              <td>
                 <div className="order-actions">
                   {canSendQuotation && (
                     <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkQuotationSent(order.id)} disabled={order.quotation_sent}>Send</button>
@@ -130,6 +151,9 @@ export default function OrdersPage(props) {
                   <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotationSheet(order.id)} title="Download XLSX">XLSX</button>
                   {canDownloadQuotationPdf && (
                     <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
+                  )}
+                  {canSendQuotation && (
+                    <button type="button" className="ghost-btn order-action-btn" onClick={() => handleSendQuotationEmail(order.id)} title="Send Email">Email</button>
                   )}
                   <button type="button" className="ghost-btn order-action-btn" onClick={() => handleDownloadRichPdfDebug(order.id)} title="Run Rich PDF Debug">Rich PDF Debug</button>
                 </div>

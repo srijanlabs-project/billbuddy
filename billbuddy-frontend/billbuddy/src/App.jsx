@@ -9,6 +9,7 @@ import ProductsPage from "./components/ProductsPage";
 import OrdersPage from "./components/OrdersPage";
 import CustomersPage from "./components/CustomersPage";
 import UsersPage from "./components/UsersPage";
+import ApprovalsPage from "./components/ApprovalsPage";
 import SubscriptionsPage from "./components/SubscriptionsPage";
 import PlansPage from "./components/PlansPage";
 import LeadsPage from "./components/LeadsPage";
@@ -48,6 +49,7 @@ const SELLER_MODULES = [
   "Help Center",
   "Roles & Permissions",
   "Users",
+  "Approvals",
   "Orders",
   "Products",
   "Customers",
@@ -157,6 +159,11 @@ const PERMISSION_KEYS = {
   productEdit: "product.edit",
   userCreate: "user.create",
   userEdit: "user.edit",
+  approvalRequest: "approval.request",
+  approvalViewOwn: "approval.view_own",
+  approvalViewTeam: "approval.view_team",
+  approvalDecide: "approval.decide",
+  approvalOverride: "approval.override",
   settingsEdit: "settings.edit",
   configurationEdit: "configuration.edit",
   configurationSaveDraft: "configuration.save_draft",
@@ -165,6 +172,30 @@ const PERMISSION_KEYS = {
 
 function getBusinessSegments(category) {
   return BUSINESS_CATEGORY_SEGMENTS[category] || [];
+}
+
+function approvalStatusLabel(status) {
+  const normalized = String(status || "not_required").toLowerCase();
+  if (normalized === "approved") return "Approved";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "pending") return "Pending Approval";
+  return "Not Required";
+}
+
+function createInitialUserForm() {
+  return {
+    name: "",
+    mobile: "",
+    password: "",
+    roleId: "",
+    createdBy: "",
+    approvalMode: "requester",
+    approvalLimitAmount: "",
+    canApproveQuotations: false,
+    canApprovePriceException: false,
+    approverUserId: "",
+    requesterUserIds: []
+  };
 }
 
 const ORDER_STATUS_OPTIONS = [
@@ -178,6 +209,7 @@ const MODULE_META = {
   Dashboard: { eyebrow: "Control Center", title: "Operations Dashboard", subtitle: "A polished daily cockpit for quotations, dispatch, and receivables." },
   "Help Center": { eyebrow: "Support", title: "Help Center", subtitle: "Understand Quotsy workflows, search FAQs, and get role-aware guidance in one place." },
   Users: { eyebrow: "Access", title: "User Access Management", subtitle: "Create master users and team accounts with clear role control." },
+  Approvals: { eyebrow: "Governance", title: "Quotation Approvals", subtitle: "Review pending exceptions, approve or reject requests, and keep only the latest quotation version moving forward." },
   Orders: { eyebrow: "Workflow", title: "Quotation Tracker", subtitle: "Monitor quotation status, payment flow, and message-based quotation capture." },
   Products: { eyebrow: "Catalogue", title: "Product Catalogue", subtitle: "Manage upload-ready product structure for matching, inventory, and pricing." },
   Customers: { eyebrow: "CRM", title: "Customer Directory", subtitle: "Keep your customer master clean, searchable, and ready for quotation flow." },
@@ -1685,23 +1717,146 @@ const PUBLIC_VISITOR_FAQS = [
   }
 ];
 
+const PUBLIC_QUOTSY_FEATURE_SECTIONS = [
+  {
+    title: "Quotation Control",
+    points: [
+      "Guided quotation creation with customer, item, charge, and preview flow",
+      "Quotation version maintenance with latest and historical version visibility",
+      "Approval mechanism based on amount limits and pricing exceptions",
+      "Final download and sending blocked until approval is complete"
+    ]
+  },
+  {
+    title: "Commercial Governance",
+    points: [
+      "Requester, approver, and both-type user structure",
+      "Approval request recreation on quotation revision",
+      "Superseded request handling with latest-version warning",
+      "Role-based access control for seller teams and platform governance"
+    ]
+  },
+  {
+    title: "Design and Flexibility",
+    points: [
+      "Configurable quotation fields and PDF columns",
+      "Industry-friendly quotation structure and helping text support",
+      "Seller-specific branding with logo, header image, and accent color",
+      "Custom quotation layouts through Configuration Studio"
+    ]
+  },
+  {
+    title: "Operational Workflow",
+    points: [
+      "Search quotations by customer, mobile, or quotation number",
+      "Approval counters, badges, and notifications across dashboard and tracker",
+      "Product, customer, and secondary catalogue integration",
+      "Direct quotation email sending from the application"
+    ]
+  }
+];
+
+const PUBLIC_QUOTSY_COMPARISON_ROWS = [
+  {
+    feature: "Quotation-first workflow",
+    quotsy: "Built specifically around quotation creation, revision, approval, sending, and tracking.",
+    zoho: "Quotes are part of a broader finance workflow and convert into sales orders or invoices.",
+    odoo: "Quotations live inside the larger Sales and ERP flow with strong process linkage.",
+    vyapar: "Estimate and quotation creation is available with sharing and conversion to invoice.",
+    gogst: "Quotation and proforma support exists inside GST billing and invoicing workflow."
+  },
+  {
+    feature: "Version maintenance",
+    quotsy: "Native quotation revision history with latest vs historical version clarity.",
+    zoho: "Quote status and conversion flow are supported, but version-led quotation governance is not the primary message.",
+    odoo: "Strong quotation lifecycle, but quotation-version governance is typically handled within broader sales operations.",
+    vyapar: "Focus is on fast quote creation and conversion, not deep version control.",
+    gogst: "Focus is on fast GST quotation generation and document templates."
+  },
+  {
+    feature: "Approval mechanism",
+    quotsy: "Built-in requester/approver workflow with limits, supersede logic, and decision tracking.",
+    zoho: "Broader workflow tools exist, but quotation-specific approval depth is not the headline value in quote flow.",
+    odoo: "Can be configured across ERP workflows, but not positioned as a quotation-first approval product.",
+    vyapar: "Permission and activity monitoring are available, but quotation approval is lighter.",
+    gogst: "Staff access exists, but quotation-first approval control is not the main proposition."
+  },
+  {
+    feature: "Configurable quotation structure",
+    quotsy: "Configurable quotation fields, columns, formula fields, helping text, and layout logic.",
+    zoho: "Templates and quote workflow support are available.",
+    odoo: "Quotation templates and configurable sales documents are available through the sales suite.",
+    vyapar: "Templates, branding, and GST-ready quotation formats are available.",
+    gogst: "Quotation templates and GST-oriented document formats are available."
+  },
+  {
+    feature: "MSME fit for quotation teams",
+    quotsy: "Designed for MSMEs needing a practical middle ground between manual quoting and heavy ERP.",
+    zoho: "Strong business suite option for broader finance operations.",
+    odoo: "Strong ERP option for businesses comfortable with larger process scope.",
+    vyapar: "Very accessible for fast billing and estimate use cases.",
+    gogst: "Strong GST billing orientation with quotation support for Indian SMEs."
+  }
+];
+
+function PublicPageHeader({ activePath }) {
+  const links = [
+    { href: "/quotsy-features", label: "Features" },
+    { href: "/quotsy-features#comparison", label: "Comparison" },
+    { href: "/user-guide", label: "User Guide" },
+    { href: "/try-demo", label: "Start Demo" },
+    { href: "/login", label: "Login" }
+  ];
+
+  return (
+    <header className="labs-topbar public-page-topbar">
+      <div className="labs-topbar-inner public-page-topbar-inner">
+        <a className="public-page-brand" href="/" aria-label="Go to Quotsy home">
+          <div className="brand-block public-page-brand-lockup">
+            <div className="brand-dot" />
+            <div>
+              <h2>Quotsy</h2>
+              <p>Quotation workflows for growing MSMEs</p>
+            </div>
+          </div>
+        </a>
+        <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
+          {links.map((link) => (
+          <a
+            key={link.href}
+            className={`public-page-nav-link${activePath === link.href ? " is-active" : ""}`}
+            href={link.href}
+          >
+            {link.label}
+          </a>
+          ))}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
 function PublicVisitorFaqPage() {
   const [openQuestion, setOpenQuestion] = useState(PUBLIC_VISITOR_FAQS[0]?.question || "");
 
   return (
-    <div className="auth-wrap lead-capture-shell">
+    <div className="auth-wrap lead-capture-shell public-page-shell">
       <div className="app-ambience" aria-hidden="true">
         <span className="shape shape-cube" />
         <span className="shape shape-ring" />
         <span className="shape shape-panel" />
       </div>
       <div className="auth-bg-glow" />
-      <div className="auth-grid auth-grid-duo auth-grid-public-help">
-        <div className="glass-card hero-card auth-showcase-card">
-          <p className="eyebrow">Quotsy Visitor Guide</p>
-          <h1>Before You Sign Up</h1>
-          <p>Everything a first-time visitor usually wants to understand before starting a demo, creating an account, or sharing the product internally with a team.</p>
-          <div className="lead-capture-points">
+      <div className="public-page-stage">
+        <PublicPageHeader activePath="/user-guide" />
+      <div className="auth-grid auth-grid-public-help-single">
+        <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card auth-visitor-faq-page-wide">
+          <div className="auth-visitor-faq-head">
+            <p className="eyebrow">User Guide</p>
+            <h3>Before You Sign Up</h3>
+            <p>Everything a first-time visitor usually wants to understand before starting a demo, creating an account, or sharing Quotsy internally with a team.</p>
+          </div>
+          <div className="lead-capture-points auth-visitor-info-grid">
             <div>
               <strong>What You Will Learn</strong>
               <span>What Quotsy does, who it is built for, how demo setup works, and how quotations, GST, catalogue, and team access fit together.</span>
@@ -1710,18 +1865,6 @@ function PublicVisitorFaqPage() {
               <strong>Who This Helps</strong>
               <span>Business owners, operations managers, sales teams, fabricators, distributors, contractors, and service providers evaluating the platform.</span>
             </div>
-          </div>
-          <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
-            <a className="glass-btn lead-login-link" href="/login">Back to Login</a>
-            <a className="glass-btn lead-login-link" href="/try-demo">Go to Demo Signup</a>
-          </div>
-        </div>
-
-        <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card">
-          <div className="auth-visitor-faq-head">
-            <p className="eyebrow">All Visitor Questions</p>
-            <h3>Quotsy FAQs for New Visitors</h3>
-            <p>Open any question to see a direct answer. This page is meant for people who have not registered yet and want to understand the product clearly.</p>
           </div>
           <div className="auth-visitor-faq-list">
             {PUBLIC_VISITOR_FAQS.map((faq) => {
@@ -1743,6 +1886,106 @@ function PublicVisitorFaqPage() {
             })}
           </div>
         </section>
+      </div>
+      </div>
+    </div>
+  );
+}
+
+function PublicQuotsyFeaturesPage() {
+  return (
+    <div className="auth-wrap lead-capture-shell public-page-shell">
+      <div className="app-ambience" aria-hidden="true">
+        <span className="shape shape-cube" />
+        <span className="shape shape-ring" />
+        <span className="shape shape-panel" />
+      </div>
+      <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+        <PublicPageHeader activePath="/quotsy-features" />
+      <div className="auth-grid auth-grid-public-features-single">
+        <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card public-features-page-card public-features-page-wide">
+          <div className="auth-visitor-faq-head">
+            <p className="eyebrow">Why Quotsy</p>
+            <h3>Quotation software built for MSMEs that need speed and control</h3>
+            <p>This page focuses on what Quotsy does best for quotation-heavy MSME workflows and how it compares with broader billing or ERP options specifically from a quotation perspective.</p>
+          </div>
+
+          <div className="auth-value-stack public-feature-hero-stack">
+            <div className="auth-value-card auth-value-card-blue">
+              <span className="auth-value-icon" aria-hidden="true" />
+              <div>
+                <strong>Quotation-first workflow</strong>
+                <span>Create, revise, approve, send, and track quotations from one focused operational flow.</span>
+              </div>
+            </div>
+            <div className="auth-value-card auth-value-card-indigo">
+              <span className="auth-value-icon" aria-hidden="true" />
+              <div>
+                <strong>Built for MSMEs</strong>
+                <span>Designed for distributors, manufacturers, contractors, and service businesses that need structure without ERP heaviness.</span>
+              </div>
+            </div>
+            <div className="auth-value-card auth-value-card-mustard">
+              <span className="auth-value-icon" aria-hidden="true" />
+              <div>
+                <strong>Professional output</strong>
+                <span>Generate branded quotations with configurable layout, approval control, and direct email delivery from the application.</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="public-feature-grid">
+            {PUBLIC_QUOTSY_FEATURE_SECTIONS.map((section) => (
+              <article key={section.title} className="public-feature-card">
+                <h4>{section.title}</h4>
+                <ul>
+                  {section.points.map((point) => <li key={point}>{point}</li>)}
+                </ul>
+              </article>
+            ))}
+          </div>
+
+          <div id="comparison" className="public-comparison-block">
+            <div className="auth-visitor-faq-head">
+              <p className="eyebrow">Quotation Comparison</p>
+              <h3>How Quotsy compares on quotation workflow focus</h3>
+              <p>Comparison is limited to quotation workflow depth and based on publicly described product capabilities. It does not try to compare the full ERP or accounting scope of each platform.</p>
+            </div>
+            <div className="public-comparison-table-wrap">
+              <table className="public-comparison-table">
+                <thead>
+                  <tr>
+                    <th>Area</th>
+                    <th>Quotsy</th>
+                    <th>Zoho</th>
+                    <th>Odoo</th>
+                    <th>Vyapar</th>
+                    <th>GoGST</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PUBLIC_QUOTSY_COMPARISON_ROWS.map((row) => (
+                  <tr key={row.feature}>
+                      <td><strong>{row.feature}</strong></td>
+                      <td className="comparison-fit-strong">{row.quotsy}</td>
+                      <td className="comparison-fit-medium">{row.zoho}</td>
+                      <td className="comparison-fit-medium">{row.odoo}</td>
+                      <td className="comparison-fit-strong-soft">{row.vyapar}</td>
+                      <td className="comparison-fit-strong-soft">{row.gogst}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="public-feature-footer-note">
+            <strong>Where Quotsy stands out</strong>
+            <p>Quotsy is especially strong when a business wants quotation workflow depth such as version maintenance, approval routing, configurable quotation design, seller-team access control, and operational clarity without jumping into a much larger ERP implementation.</p>
+          </div>
+        </section>
+      </div>
       </div>
     </div>
   );
@@ -1780,13 +2023,15 @@ function PublicDemoSignupPage({
   ];
 
   return (
-    <div className="auth-wrap lead-capture-shell">
+    <div className="auth-wrap lead-capture-shell public-page-shell">
       <div className="app-ambience" aria-hidden="true">
         <span className="shape shape-cube" />
         <span className="shape shape-ring" />
         <span className="shape shape-panel" />
       </div>
       <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+        <PublicPageHeader activePath="/try-demo" />
       <div className="auth-grid lead-capture-grid">
         <div className="glass-card hero-card auth-showcase-card">
           <p className="eyebrow">Quotsy Demo</p>
@@ -1806,10 +2051,6 @@ function PublicDemoSignupPage({
           <div className="glass-card auth-visitor-mini-card">
             <strong>{PUBLIC_VISITOR_FAQS[0].question}</strong>
             <p>{PUBLIC_VISITOR_FAQS[0].answer}</p>
-          </div>
-          <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
-            <a className="glass-btn lead-login-link" href="/">Back to Home</a>
-            <a className="glass-btn lead-login-link auth-more-details-link" href="/visitor-help" target="_blank" rel="noreferrer">More Details...</a>
           </div>
         </div>
 
@@ -1956,6 +2197,7 @@ function PublicDemoSignupPage({
           </div>
         </div>
       </div>
+      </div>
     </div>
   );
 }
@@ -2000,13 +2242,15 @@ function PublicLoginPage({
   ];
 
   return (
-    <div className="auth-wrap">
+    <div className="auth-wrap public-page-shell">
       <div className="app-ambience" aria-hidden="true">
         <span className="shape shape-cube" />
         <span className="shape shape-ring" />
         <span className="shape shape-panel" />
       </div>
       <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+      <PublicPageHeader activePath="/login" />
       <div className={`auth-grid ${showSetup || showLogin ? "auth-grid-duo" : ""}`}>
         {(showSetup || showLogin) && (
           <div className="glass-card hero-card auth-showcase-card">
@@ -2027,10 +2271,6 @@ function PublicLoginPage({
             <div className="glass-card auth-visitor-mini-card">
               <strong>{PUBLIC_VISITOR_FAQS[0].question}</strong>
               <p>{PUBLIC_VISITOR_FAQS[0].answer}</p>
-            </div>
-            <div className="landing-hero-actions auth-home-link-row auth-public-link-row">
-              <a className="glass-btn lead-login-link" href="/">Back to Home</a>
-              <a className="glass-btn lead-login-link auth-more-details-link" href="/visitor-help" target="_blank" rel="noreferrer">More Details...</a>
             </div>
           </div>
         )}
@@ -2138,6 +2378,7 @@ function PublicLoginPage({
             )}
           </div>
         </div>
+      </div>
       </div>
       {errorMessage && <div className="error-toast">{errorMessage}</div>}
     </div>
@@ -2574,6 +2815,7 @@ function App() {
   const [authReady, setAuthReady] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(null);
   const [error, setError] = useState("");
+  const [successNotice, setSuccessNotice] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -2626,6 +2868,12 @@ function App() {
   const [customers, setCustomers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [users, setUsers] = useState([]);
+  const [approvals, setApprovals] = useState([]);
+  const [approvalFilter, setApprovalFilter] = useState("pending");
+  const [selectedApprovalId, setSelectedApprovalId] = useState("");
+  const [selectedApprovalDetail, setSelectedApprovalDetail] = useState(null);
+  const [approvalDecisionLoading, setApprovalDecisionLoading] = useState(false);
+  const [approvalDecisionNote, setApprovalDecisionNote] = useState("");
 
   const [seller, setSeller] = useState(null);
   const [theme, setTheme] = useState("matte-blue");
@@ -2769,13 +3017,7 @@ function App() {
   const [notificationDetailLoading, setNotificationDetailLoading] = useState(false);
   const [showSellerNotificationsModal, setShowSellerNotificationsModal] = useState(false);
 
-  const [userForm, setUserForm] = useState({
-    name: "",
-    mobile: "",
-    password: "",
-    roleId: "",
-    createdBy: ""
-  });
+  const [userForm, setUserForm] = useState(createInitialUserForm);
   const [customerForm, setCustomerForm] = useState(createInitialCustomerForm);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -2826,21 +3068,28 @@ function App() {
   const canCreateProduct = hasPermission(PERMISSION_KEYS.productCreate);
   const canEditProduct = hasPermission(PERMISSION_KEYS.productEdit);
   const canCreateUser = hasPermission(PERMISSION_KEYS.userCreate);
+  const canViewOwnApprovals = hasPermission(PERMISSION_KEYS.approvalViewOwn);
+  const canViewApprovals = hasPermission(PERMISSION_KEYS.approvalViewTeam) || hasPermission(PERMISSION_KEYS.approvalOverride);
+  const canAccessApprovals = canViewApprovals || canViewOwnApprovals;
+  const canDecideApprovals = hasPermission(PERMISSION_KEYS.approvalDecide);
   const canEditSettings = hasPermission(PERMISSION_KEYS.settingsEdit);
   const canEditConfiguration = hasPermission(PERMISSION_KEYS.configurationEdit);
   const canSaveConfigurationDraft = hasPermission(PERMISSION_KEYS.configurationSaveDraft);
   const canPublishConfiguration = hasPermission(PERMISSION_KEYS.configurationPublish);
-  const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : SELLER_MODULES;
+  const sellerModules = canAccessApprovals ? SELLER_MODULES : SELLER_MODULES.filter((module) => module !== "Approvals");
+  const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : sellerModules;
   const currentModuleMeta = isPlatformAdmin ? PLATFORM_MODULE_META : MODULE_META;
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
-  const publicVisitorHelpPaths = new Set(["/visitor-help", "/visitor-faqs"]);
+  const publicVisitorHelpPaths = new Set(["/user-guide", "/visitor-help", "/visitor-faqs"]);
+  const publicFeaturesPaths = new Set(["/quotsy-features", "/features"]);
   const bootstrapSetupPaths = new Set(["/platform-setup", "/setup-admin"]);
   const isPublicLandingPage = window.location.pathname === "/";
   const isPublicLeadPage = publicLeadPaths.has(window.location.pathname);
   const isPublicDemoPage = publicDemoPaths.has(window.location.pathname);
   const isPublicVisitorHelpPage = publicVisitorHelpPaths.has(window.location.pathname);
+  const isPublicFeaturesPage = publicFeaturesPaths.has(window.location.pathname);
   const isBootstrapSetupPage = bootstrapSetupPaths.has(window.location.pathname);
 
   useEffect(() => {
@@ -2861,9 +3110,11 @@ function App() {
     clearStoredAuth();
     setAuth(null);
     if (message) setError(message);
+    setSuccessNotice("");
   }
 
   async function handleApiError(err) {
+    setSuccessNotice("");
     if (err?.status === 401) {
       clearAuth("Session expired. Please login again.");
       setAuthReady(true);
@@ -3096,19 +3347,88 @@ function App() {
     }
   }
 
+  async function refreshApprovals(nextSelectedApprovalId = selectedApprovalId) {
+    if (!auth?.token || isPlatformAdmin || !canAccessApprovals) {
+      setApprovals([]);
+      setSelectedApprovalDetail(null);
+      setSelectedApprovalId("");
+      return [];
+    }
+
+    const approvalRows = await apiFetch("/api/quotations/approvals").catch(() => []);
+    const normalizedRows = Array.isArray(approvalRows) ? approvalRows : [];
+    setApprovals(normalizedRows);
+
+    const preferredId = Number(nextSelectedApprovalId || 0);
+    const resolvedId = preferredId && normalizedRows.some((approval) => Number(approval.id) === preferredId)
+      ? preferredId
+      : normalizedRows[0]?.id || "";
+
+    setSelectedApprovalId(String(resolvedId || ""));
+
+    if (resolvedId) {
+      const detail = await apiFetch(`/api/quotations/approvals/${resolvedId}`).catch(() => null);
+      setSelectedApprovalDetail(detail);
+    } else {
+      setSelectedApprovalDetail(null);
+    }
+
+    return normalizedRows;
+  }
+
+  async function openApprovalDetail(approvalId) {
+    try {
+      setSelectedApprovalId(String(approvalId));
+      setApprovalDecisionNote("");
+      const detail = await apiFetch(`/api/quotations/approvals/${approvalId}`);
+      setSelectedApprovalDetail(detail);
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
+  async function openApprovalRequest(approvalId) {
+    setActiveModule("Approvals");
+    await openApprovalDetail(approvalId);
+    closeOrderDetailsModal();
+  }
+
+  async function handleApprovalDecision(approvalId, decision, decisionNote) {
+    try {
+      setApprovalDecisionLoading(true);
+      await apiFetch(`/api/quotations/approvals/${approvalId}/decision`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          decision,
+          decisionNote
+        })
+      });
+      setApprovalDecisionNote("");
+      await Promise.all([
+        refreshApprovals(approvalId),
+        apiFetch("/api/quotations").then((quotationRows) => setQuotations(quotationRows)).catch(() => [])
+      ]);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setApprovalDecisionLoading(false);
+    }
+  }
+
   async function loadDashboardData(range = dashboardRange) {
     if (!auth?.token) return;
 
     setLoading(true);
     setError("");
     try {
-      const [summary, quotationRows, productRows, customerRows, rolesData, usersData, templateData, decodeRulesData, planRows, notificationRows, subscriptionRows] = await Promise.all([
+      const [summary, quotationRows, productRows, customerRows, rolesData, usersData, approvalsData, templateData, decodeRulesData, planRows, notificationRows, subscriptionRows] = await Promise.all([
         apiFetch(`/api/dashboard/summary?range=${range}`),
         apiFetch("/api/quotations"),
         apiFetch("/api/products"),
         apiFetch("/api/customers"),
         apiFetch("/api/roles"),
         apiFetch("/api/users"),
+        canAccessApprovals ? apiFetch("/api/quotations/approvals").catch(() => []) : Promise.resolve([]),
         apiFetch("/api/quotations/templates/current").catch(() => null),
         apiFetch("/api/whatsapp/decode-rules").catch(() => null),
         apiFetch("/api/plans").catch(() => []),
@@ -3122,6 +3442,7 @@ function App() {
       setCustomers(customerRows);
       setRoles(rolesData);
       setUsers(usersData);
+      setApprovals(Array.isArray(approvalsData) ? approvalsData : []);
       setPlans(Array.isArray(planRows) ? planRows : []);
       setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
       setSubscriptions(Array.isArray(subscriptionRows) ? subscriptionRows : []);
@@ -3135,6 +3456,22 @@ function App() {
 
       if (!userForm.roleId && rolesData[0]) {
         setUserForm((prev) => ({ ...prev, roleId: String(rolesData[0].id) }));
+      }
+
+      if (canAccessApprovals) {
+        const nextSelectedApprovalId = selectedApprovalId && Array.isArray(approvalsData) && approvalsData.some((approval) => Number(approval.id) === Number(selectedApprovalId))
+          ? selectedApprovalId
+          : approvalsData?.[0]?.id || "";
+        setSelectedApprovalId(String(nextSelectedApprovalId || ""));
+        if (nextSelectedApprovalId) {
+          const detail = await apiFetch(`/api/quotations/approvals/${nextSelectedApprovalId}`).catch(() => null);
+          setSelectedApprovalDetail(detail);
+        } else {
+          setSelectedApprovalDetail(null);
+        }
+      } else {
+        setSelectedApprovalId("");
+        setSelectedApprovalDetail(null);
       }
 
       await loadSellerSettings();
@@ -3436,6 +3773,12 @@ function App() {
       return sum + (String(notification.delivery_status || "").toLowerCase() === "read" ? 0 : 1);
     }, 0);
   }, [isPlatformAdmin, notifications]);
+  const pendingApprovalCount = useMemo(() => (
+    approvals.filter((entry) => String(entry.status || "").toLowerCase() === "pending").length
+  ), [approvals]);
+  const requesterPendingApprovalCount = useMemo(() => (
+    approvals.filter((entry) => String(entry.status || "").toLowerCase() === "pending" && Number(entry.requested_by_user_id || 0) === Number(auth?.user?.id || 0)).length
+  ), [approvals, auth?.user?.id]);
 
   const {
     showMessageSimulatorModal,
@@ -3632,13 +3975,20 @@ function App() {
           mobile: userForm.mobile,
           password: userForm.password,
           roleId: Number(userForm.roleId),
-          createdBy: userForm.createdBy ? Number(userForm.createdBy) : null
+          createdBy: userForm.createdBy ? Number(userForm.createdBy) : null,
+          approvalMode: userForm.approvalMode,
+          approvalLimitAmount: userForm.approvalLimitAmount === "" ? 0 : Number(userForm.approvalLimitAmount),
+          canApproveQuotations: Boolean(userForm.canApproveQuotations),
+          canApprovePriceException: Boolean(userForm.canApprovePriceException),
+          approverUserId: userForm.approverUserId ? Number(userForm.approverUserId) : null,
+          requesterUserIds: userForm.requesterUserIds
         })
       });
 
       const usersData = await apiFetch("/api/users");
       setUsers(usersData);
-      setUserForm((prev) => ({ ...prev, name: "", mobile: "", password: "", createdBy: "" }));
+      setUserForm(createInitialUserForm());
+      setShowUserModal(false);
     } catch (err) {
       handleApiError(err);
     }
@@ -4660,6 +5010,26 @@ function App() {
     return handleQuotationTemplateImageChange(event, "logo_image_data", "show_logo_only");
   }
 
+  async function handleSendQuotationEmail(orderId) {
+    try {
+      setError("");
+      const response = await apiFetch(`/api/quotations/${orderId}/send-email`, {
+        method: "POST",
+        body: JSON.stringify({
+          ccEmail: String(auth?.user?.email || "").trim() || null
+        })
+      });
+      setSuccessNotice(response.message || "Quotation email sent successfully.");
+      const notificationRows = await apiFetch("/api/notifications").catch(() => []);
+      setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
+      if (showOrderDetailsModal && selectedOrderDetails?.quotation?.id === Number(orderId)) {
+        await handleOpenOrderDetails(orderId);
+      }
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
   async function handleDownloadQuotation(orderId) {
     try {
       const token = auth?.token || getStoredAuth()?.token || null;
@@ -4906,6 +5276,10 @@ function App() {
     return <PublicVisitorFaqPage />;
   }
 
+  if (isPublicFeaturesPage) {
+    return <PublicQuotsyFeaturesPage />;
+  }
+
   if (!auth?.token) {
     if (isPublicLandingPage) {
       return <PublicLandingPage />;
@@ -4995,6 +5369,9 @@ function App() {
             >
               <span className="nav-mark" aria-hidden="true" />
               <span className="nav-label">{module}</span>
+              {module === "Approvals" && pendingApprovalCount > 0 && (
+                <span className="notification-count-pill">{pendingApprovalCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -5099,6 +5476,7 @@ function App() {
         </header>
 
         {loading && <div className="notice">Syncing latest data...</div>}
+        {successNotice && !isAnyModalOpen && <div className="notice success">{successNotice}</div>}
         {error && !isAnyModalOpen && <div className="notice error">{error}</div>}
 
         {activeModule === "Leads" ? (
@@ -5302,6 +5680,26 @@ function App() {
             setUserForm={setUserForm}
             roles={roles}
           />
+        ) : activeModule === "Approvals" ? (
+          <ApprovalsPage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            approvals={approvals}
+            selectedApprovalId={selectedApprovalId}
+            selectedApprovalDetail={selectedApprovalDetail}
+            approvalFilter={approvalFilter}
+            setApprovalFilter={setApprovalFilter}
+            openApprovalDetail={openApprovalDetail}
+            handleApprovalDecision={handleApprovalDecision}
+            approvalDecisionNote={approvalDecisionNote}
+            setApprovalDecisionNote={setApprovalDecisionNote}
+            approvalDecisionLoading={approvalDecisionLoading}
+            canAccessApprovals={canAccessApprovals}
+            canDecideApprovals={canDecideApprovals}
+            formatCurrency={formatCurrency}
+            formatDateTime={formatDateTime}
+            handleDownloadQuotation={handleDownloadQuotation}
+          />
         ) : activeModule === "Orders" ? (
           <OrdersPage
             activeModule={activeModule}
@@ -5320,6 +5718,7 @@ function App() {
             handleMarkPaid={handleMarkPaid}
             handleDownloadQuotationSheet={handleDownloadQuotationSheet}
             handleDownloadQuotation={handleDownloadQuotation}
+            handleSendQuotationEmail={handleSendQuotationEmail}
             handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
             renderPagination={renderPagination}
             canEditQuotation={canEditQuotation}
@@ -5474,6 +5873,8 @@ function App() {
             canSearchQuotation={canSearchQuotation}
             canDownloadQuotationPdf={canDownloadQuotationPdf}
             canCreateCustomer={canCreateCustomer}
+            pendingApprovalCount={pendingApprovalCount}
+            requesterPendingApprovalCount={requesterPendingApprovalCount}
           />
         )}
 
@@ -5589,6 +5990,7 @@ function App() {
           closeOrderDetailsModal={closeOrderDetailsModal}
           handleDownloadQuotationSheet={handleDownloadQuotationSheet}
           handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
+          handleSendQuotationEmail={handleSendQuotationEmail}
           selectedVersionRecord={selectedVersionRecord}
           selectedVersionIndex={selectedVersionIndex}
           isEditingQuotation={isEditingQuotation}
@@ -5606,6 +6008,7 @@ function App() {
           formatQuotationLabel={formatQuotationLabel}
           formatCurrency={formatCurrency}
           statusLabel={statusLabel}
+          approvalStatusLabel={approvalStatusLabel}
           error={error}
           quotationEditForm={quotationEditForm}
           setQuotationEditForm={setQuotationEditForm}
@@ -5619,6 +6022,7 @@ function App() {
           getQuotationItemRateValue={getQuotationItemRateValue}
           getQuotationItemTotalValue={getQuotationItemTotalValue}
           canReviseQuotation={canReviseQuotation}
+          openApprovalRequest={openApprovalRequest}
         />
 
         <SellerDetailModal

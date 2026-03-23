@@ -279,6 +279,10 @@ CREATE TABLE public.quotations (
     design_charges numeric(10,2),
     total_amount numeric(10,2),
     payment_status character varying(20) DEFAULT 'pending'::character varying,
+    approval_status character varying(20) DEFAULT 'not_required'::character varying,
+    approval_required boolean DEFAULT false,
+    active_approval_request_id integer,
+    approved_for_download_at timestamp without time zone,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -353,7 +357,12 @@ CREATE TABLE public.users (
     role_id integer,
     created_by integer,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
-    status boolean DEFAULT true
+    status boolean DEFAULT true,
+    approval_mode character varying(20) DEFAULT 'requester'::character varying,
+    approval_limit_amount numeric(12,2) DEFAULT 0,
+    can_approve_quotations boolean DEFAULT false,
+    can_approve_price_exception boolean DEFAULT false,
+    approval_priority integer DEFAULT 100
 );
 
 
@@ -379,6 +388,137 @@ ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
 --
 
 ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- Name: user_approval_mappings; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.user_approval_mappings (
+    id integer NOT NULL,
+    seller_id integer NOT NULL,
+    requester_user_id integer NOT NULL,
+    approver_user_id integer NOT NULL,
+    is_active boolean DEFAULT true,
+    created_by_user_id integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.user_approval_mappings OWNER TO postgres;
+
+--
+-- Name: user_approval_mappings_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.user_approval_mappings_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.user_approval_mappings_id_seq OWNER TO postgres;
+
+--
+-- Name: user_approval_mappings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.user_approval_mappings_id_seq OWNED BY public.user_approval_mappings.id;
+
+--
+-- Name: quotation_approval_requests; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.quotation_approval_requests (
+    id integer NOT NULL,
+    seller_id integer NOT NULL,
+    quotation_id integer NOT NULL,
+    quotation_version_no integer DEFAULT 1 NOT NULL,
+    requested_by_user_id integer,
+    assigned_approver_user_id integer,
+    status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
+    approval_type_summary character varying(80),
+    request_note text,
+    decision_note text,
+    requested_amount numeric(12,2) DEFAULT 0,
+    approved_at timestamp without time zone,
+    approved_by_user_id integer,
+    rejected_at timestamp without time zone,
+    rejected_by_user_id integer,
+    superseded_at timestamp without time zone,
+    superseded_by_request_id integer,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.quotation_approval_requests OWNER TO postgres;
+
+--
+-- Name: quotation_approval_requests_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.quotation_approval_requests_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.quotation_approval_requests_id_seq OWNER TO postgres;
+
+--
+-- Name: quotation_approval_requests_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.quotation_approval_requests_id_seq OWNED BY public.quotation_approval_requests.id;
+
+--
+-- Name: quotation_approval_reasons; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.quotation_approval_reasons (
+    id integer NOT NULL,
+    approval_request_id integer NOT NULL,
+    reason_type character varying(50) NOT NULL,
+    item_index integer,
+    product_id integer,
+    requested_value numeric(12,2),
+    allowed_value numeric(12,2),
+    base_value numeric(12,2),
+    meta_json jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.quotation_approval_reasons OWNER TO postgres;
+
+--
+-- Name: quotation_approval_reasons_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.quotation_approval_reasons_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.quotation_approval_reasons_id_seq OWNER TO postgres;
+
+--
+-- Name: quotation_approval_reasons_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.quotation_approval_reasons_id_seq OWNED BY public.quotation_approval_reasons.id;
 
 
 --
@@ -442,6 +582,27 @@ ALTER TABLE ONLY public.roles ALTER COLUMN id SET DEFAULT nextval('public.roles_
 --
 
 ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: user_approval_mappings id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings ALTER COLUMN id SET DEFAULT nextval('public.user_approval_mappings_id_seq'::regclass);
+
+
+--
+-- Name: quotation_approval_requests id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests ALTER COLUMN id SET DEFAULT nextval('public.quotation_approval_requests_id_seq'::regclass);
+
+
+--
+-- Name: quotation_approval_reasons id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_reasons ALTER COLUMN id SET DEFAULT nextval('public.quotation_approval_reasons_id_seq'::regclass);
 
 
 --
@@ -553,6 +714,38 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: user_approval_mappings user_approval_mappings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: user_approval_mappings user_approval_mappings_requester_approver_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_requester_approver_key UNIQUE (requester_user_id, approver_user_id);
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: quotation_approval_reasons quotation_approval_reasons_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_reasons
+    ADD CONSTRAINT quotation_approval_reasons_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: idx_customer_mobile; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -578,6 +771,55 @@ CREATE INDEX idx_quotation_customer ON public.quotations USING btree (customer_i
 --
 
 CREATE INDEX idx_quotation_date ON public.quotations USING btree (created_at);
+
+
+--
+-- Name: idx_users_approval_mode; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_users_approval_mode ON public.users USING btree (approval_mode);
+
+
+--
+-- Name: idx_quotations_approval_status; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_quotations_approval_status ON public.quotations USING btree (seller_id, approval_status, created_at DESC);
+
+
+--
+-- Name: idx_user_approval_mappings_requester_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_user_approval_mappings_requester_active ON public.user_approval_mappings USING btree (requester_user_id, is_active);
+
+
+--
+-- Name: idx_user_approval_mappings_approver_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_user_approval_mappings_approver_active ON public.user_approval_mappings USING btree (approver_user_id, is_active);
+
+
+--
+-- Name: idx_quotation_approval_requests_quotation_status; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_quotation_approval_requests_quotation_status ON public.quotation_approval_requests USING btree (quotation_id, status, created_at DESC);
+
+
+--
+-- Name: idx_quotation_approval_requests_approver_status; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_quotation_approval_requests_approver_status ON public.quotation_approval_requests USING btree (assigned_approver_user_id, status, created_at DESC);
+
+
+--
+-- Name: idx_quotation_approval_reasons_request; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_quotation_approval_reasons_request ON public.quotation_approval_reasons USING btree (approval_request_id);
 
 
 --
@@ -658,6 +900,118 @@ ALTER TABLE ONLY public.quotations
 
 ALTER TABLE ONLY public.quotations
     ADD CONSTRAINT quotations_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customers(id);
+
+
+--
+-- Name: quotations quotations_active_approval_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotations
+    ADD CONSTRAINT quotations_active_approval_request_id_fkey FOREIGN KEY (active_approval_request_id) REFERENCES public.quotation_approval_requests(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_assigned_approver_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_assigned_approver_user_id_fkey FOREIGN KEY (assigned_approver_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_approved_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_approved_by_user_id_fkey FOREIGN KEY (approved_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_quotation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_quotation_id_fkey FOREIGN KEY (quotation_id) REFERENCES public.quotations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_rejected_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_rejected_by_user_id_fkey FOREIGN KEY (rejected_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_requested_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_requested_by_user_id_fkey FOREIGN KEY (requested_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_seller_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quotation_approval_requests quotation_approval_requests_superseded_by_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_requests
+    ADD CONSTRAINT quotation_approval_requests_superseded_by_request_id_fkey FOREIGN KEY (superseded_by_request_id) REFERENCES public.quotation_approval_requests(id) ON DELETE SET NULL;
+
+
+--
+-- Name: quotation_approval_reasons quotation_approval_reasons_approval_request_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_reasons
+    ADD CONSTRAINT quotation_approval_reasons_approval_request_id_fkey FOREIGN KEY (approval_request_id) REFERENCES public.quotation_approval_requests(id) ON DELETE CASCADE;
+
+
+--
+-- Name: quotation_approval_reasons quotation_approval_reasons_product_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.quotation_approval_reasons
+    ADD CONSTRAINT quotation_approval_reasons_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_approval_mappings user_approval_mappings_approver_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_approver_user_id_fkey FOREIGN KEY (approver_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_approval_mappings user_approval_mappings_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: user_approval_mappings user_approval_mappings_requester_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_requester_user_id_fkey FOREIGN KEY (requester_user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: user_approval_mappings user_approval_mappings_seller_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.user_approval_mappings
+    ADD CONSTRAINT user_approval_mappings_seller_id_fkey FOREIGN KEY (seller_id) REFERENCES public.sellers(id) ON DELETE CASCADE;
 
 
 --

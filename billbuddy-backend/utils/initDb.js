@@ -92,6 +92,11 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITHOUT TIME ZONE`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS force_password_change BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_mode VARCHAR(20) DEFAULT 'requester'`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_limit_amount NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_quotations BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_price_exception BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approval_priority INTEGER DEFAULT 100`);
 
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email VARCHAR(200)`);
@@ -140,6 +145,10 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS seller_quotation_serial INTEGER`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS seller_quotation_number VARCHAR(80)`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS custom_quotation_number VARCHAR(120)`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approval_status VARCHAR(20) DEFAULT 'not_required'`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approval_required BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS active_approval_request_id INTEGER`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approved_for_download_at TIMESTAMP WITHOUT TIME ZONE`);
   await pool.query(`CREATE SEQUENCE IF NOT EXISTS quotation_number_seq START WITH 1 INCREMENT BY 1`);
   await pool.query(`
     SELECT setval(
@@ -283,6 +292,67 @@ async function initializeDatabase() {
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS user_approval_mappings (
+      id SERIAL PRIMARY KEY,
+      seller_id INTEGER NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
+      requester_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      approver_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      is_active BOOLEAN DEFAULT TRUE,
+      created_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (requester_user_id, approver_user_id)
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS quotation_approval_requests (
+      id SERIAL PRIMARY KEY,
+      seller_id INTEGER NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
+      quotation_id INTEGER NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+      quotation_version_no INTEGER NOT NULL DEFAULT 1,
+      requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_approver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      approval_type_summary VARCHAR(80),
+      request_note TEXT,
+      decision_note TEXT,
+      requested_amount NUMERIC(12,2) DEFAULT 0,
+      approved_at TIMESTAMP WITHOUT TIME ZONE,
+      approved_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      rejected_at TIMESTAMP WITHOUT TIME ZONE,
+      rejected_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      superseded_at TIMESTAMP WITHOUT TIME ZONE,
+      superseded_by_request_id INTEGER REFERENCES quotation_approval_requests(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS quotation_approval_reasons (
+      id SERIAL PRIMARY KEY,
+      approval_request_id INTEGER NOT NULL REFERENCES quotation_approval_requests(id) ON DELETE CASCADE,
+      reason_type VARCHAR(50) NOT NULL,
+      item_index INTEGER,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+      requested_value NUMERIC(12,2),
+      allowed_value NUMERIC(12,2),
+      base_value NUMERIC(12,2),
+      meta_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    ALTER TABLE quotations
+    ADD CONSTRAINT quotations_active_approval_request_id_fkey
+    FOREIGN KEY (active_approval_request_id) REFERENCES quotation_approval_requests(id) ON DELETE SET NULL
+  `).catch((error) => {
+    if (!String(error.message || "").includes("already exists")) throw error;
+  });
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS mobile_audit_logs (
@@ -711,9 +781,11 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_otp_codes_user_created ON mobile_otp_codes(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_seller_id ON users(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_mobile ON users(mobile)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_approval_mode ON users(approval_mode)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_customers_seller_id ON customers(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_seller_id ON products(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotations_seller_id ON quotations(seller_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotations_approval_status ON quotations(seller_id, approval_status, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payments_seller_id ON payments(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_seller_id ON subscriptions(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_id ON subscriptions(plan_id)`);
@@ -725,6 +797,11 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_notification_logs_seller_created ON notification_logs(seller_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_order_events_seller_quotation ON order_events(seller_id, quotation_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_versions_quotation_version ON quotation_versions(quotation_id, version_no DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_approval_mappings_requester_active ON user_approval_mappings(requester_user_id, is_active)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_approval_mappings_approver_active ON user_approval_mappings(approver_user_id, is_active)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_approval_requests_quotation_status ON quotation_approval_requests(quotation_id, status, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_approval_requests_approver_status ON quotation_approval_requests(assigned_approver_user_id, status, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_approval_reasons_request ON quotation_approval_reasons(approval_request_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_audit_logs_user_created ON mobile_audit_logs(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_actor_created ON platform_audit_logs(actor_user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_roles_scope_order ON rbac_roles(scope, display_order, id)`);

@@ -1,9 +1,11 @@
 const express = require("express");
 const PDFDocument = require("pdfkit");
 const puppeteer = require("puppeteer-core");
+const { PassThrough } = require("stream");
 const fs = require("fs");
 const { spawnSync } = require("child_process");
 const pool = require("../db/db");
+const { isEmailConfigured, sendMail } = require("../utils/email");
 const {
   createQuotationWithItems,
   getCustomerOutstanding,
@@ -18,7 +20,10 @@ const {
   getSellerCustomQuotationColumns,
   validateQuotationItemRateLimits,
   validateCustomQuotationFields,
-  applyComputedQuotationFields
+  applyComputedQuotationFields,
+  evaluateQuotationApproval,
+  supersedeActiveApprovalRequest,
+  createQuotationApprovalRequest
 } = require("../services/quotationService");
 const {
   getQuotationCustomFieldEntries,
@@ -30,7 +35,7 @@ const {
   getQuotationSummaryRows
 } = require("../services/quotationViewService");
 const { getTenantId } = require("../middleware/auth");
-const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
+const { PERMISSIONS, hasPermission, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
@@ -320,6 +325,15 @@ function createPdfDebugLogger(enabled, context = {}) {
   };
 }
 
+function collectStreamBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    stream.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+    stream.on("error", reject);
+  });
+}
+
 function getHelpingTextEntries(item, pdfColumns = [], options = {}) {
   return pdfColumns
     .filter((column) => {
@@ -379,6 +393,30 @@ async function getQuotationVersions(clientOrPool, quotationId, sellerId) {
   );
 
   return result.rows;
+}
+
+async function getApprovalRequestReasons(clientOrPool, approvalRequestId) {
+  const result = await clientOrPool.query(
+    `SELECT id, reason_type, item_index, product_id, requested_value, allowed_value, base_value, meta_json, created_at
+     FROM quotation_approval_reasons
+     WHERE approval_request_id = $1
+     ORDER BY id ASC`,
+    [approvalRequestId]
+  );
+  return result.rows;
+}
+
+function canAccessApprovals(user = {}) {
+  return hasPermission(user, PERMISSIONS.APPROVAL_VIEW_TEAM)
+    || hasPermission(user, PERMISSIONS.APPROVAL_VIEW_OWN)
+    || hasPermission(user, PERMISSIONS.APPROVAL_OVERRIDE);
+}
+
+function requireApprovalAccess(req, res, next) {
+  if (!canAccessApprovals(req.user)) {
+    return res.status(403).json({ message: "Permission denied: approval access" });
+  }
+  return next();
 }
 
 async function getCustomerOutstandingInTransaction(client, customerId, sellerId) {
@@ -2812,6 +2850,291 @@ router.get("/:id/versions", requirePermission(PERMISSIONS.QUOTATION_VIEW), async
   }
 });
 
+router.get("/approvals", requireApprovalAccess, async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ message: "sellerId is required" });
+    }
+
+    const showAll = req.user.isPlatformAdmin || hasPermission(req.user, PERMISSIONS.APPROVAL_OVERRIDE);
+    const values = [tenantId];
+    let where = "qar.seller_id = $1";
+    if (!showAll) {
+      values.push(req.user.id);
+      const canViewTeam = hasPermission(req.user, PERMISSIONS.APPROVAL_VIEW_TEAM);
+      const canViewOwn = hasPermission(req.user, PERMISSIONS.APPROVAL_VIEW_OWN);
+      if (canViewTeam && canViewOwn) {
+        where += " AND (qar.assigned_approver_user_id = $2 OR qar.requested_by_user_id = $2)";
+      } else if (canViewTeam) {
+        where += " AND qar.assigned_approver_user_id = $2";
+      } else {
+        where += " AND qar.requested_by_user_id = $2";
+      }
+    }
+
+    const result = await pool.query(
+      `SELECT
+         qar.*,
+         q.approval_status AS quotation_approval_status,
+         q.total_amount,
+         q.version_no AS current_version_no,
+         q.custom_quotation_number,
+         q.seller_quotation_number,
+         q.quotation_number,
+         q.active_approval_request_id,
+         c.name AS customer_name,
+         c.firm_name,
+         requester.name AS requester_name,
+         approver.name AS approver_name
+       FROM quotation_approval_requests qar
+       INNER JOIN quotations q ON q.id = qar.quotation_id AND q.seller_id = qar.seller_id
+       LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN users requester ON requester.id = qar.requested_by_user_id
+       LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
+       WHERE ${where}
+       ORDER BY
+         CASE qar.status
+           WHEN 'pending' THEN 1
+           WHEN 'rejected' THEN 2
+           WHEN 'approved' THEN 3
+           WHEN 'superseded' THEN 4
+           ELSE 5
+         END,
+         qar.created_at DESC`,
+      values
+    );
+
+    const approvals = await Promise.all(result.rows.map(async (row) => ({
+      ...row,
+      reasons: await getApprovalRequestReasons(pool, row.id),
+      is_latest_request: Number(row.active_approval_request_id || 0) === Number(row.id),
+      is_superseded_view: String(row.status || "").toLowerCase() === "superseded" || Number(row.current_version_no || 0) !== Number(row.quotation_version_no || 0)
+    })));
+
+    res.json(approvals);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/approvals/:approvalId", requireApprovalAccess, async (req, res) => {
+  try {
+    const tenantId = getTenantId(req);
+    const approvalId = Number(req.params.approvalId);
+    if (!tenantId || !approvalId) {
+      return res.status(400).json({ message: "Valid sellerId and approvalId are required" });
+    }
+
+    const showAll = req.user.isPlatformAdmin || hasPermission(req.user, PERMISSIONS.APPROVAL_OVERRIDE);
+    const values = [tenantId, approvalId];
+    let where = "qar.seller_id = $1 AND qar.id = $2";
+    if (!showAll) {
+      values.push(req.user.id);
+      const canViewTeam = hasPermission(req.user, PERMISSIONS.APPROVAL_VIEW_TEAM);
+      const canViewOwn = hasPermission(req.user, PERMISSIONS.APPROVAL_VIEW_OWN);
+      if (canViewTeam && canViewOwn) {
+        where += " AND (qar.assigned_approver_user_id = $3 OR qar.requested_by_user_id = $3)";
+      } else if (canViewTeam) {
+        where += " AND qar.assigned_approver_user_id = $3";
+      } else {
+        where += " AND qar.requested_by_user_id = $3";
+      }
+    }
+
+    const result = await pool.query(
+      `SELECT
+         qar.*,
+         q.approval_status AS quotation_approval_status,
+         q.total_amount,
+         q.version_no AS current_version_no,
+         q.custom_quotation_number,
+         q.seller_quotation_number,
+         q.quotation_number,
+         q.active_approval_request_id,
+         q.created_at AS quotation_created_at,
+         c.name AS customer_name,
+         c.firm_name,
+         c.mobile,
+         requester.name AS requester_name,
+         approver.name AS approver_name
+       FROM quotation_approval_requests qar
+       INNER JOIN quotations q ON q.id = qar.quotation_id AND q.seller_id = qar.seller_id
+       LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN users requester ON requester.id = qar.requested_by_user_id
+       LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
+       WHERE ${where}
+       LIMIT 1`,
+      values
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Approval request not found" });
+    }
+
+    const approval = result.rows[0];
+    const reasons = await getApprovalRequestReasons(pool, approval.id);
+    const quotationItems = await getQuotationItems(pool, approval.quotation_id, tenantId);
+    const latestApproval = approval.active_approval_request_id
+      ? await pool.query(
+        `SELECT id, status, quotation_version_no
+         FROM quotation_approval_requests
+         WHERE id = $1
+         LIMIT 1`,
+        [approval.active_approval_request_id]
+      )
+      : { rows: [] };
+
+    res.json({
+      approval: {
+        ...approval,
+        reasons,
+        is_latest_request: Number(approval.active_approval_request_id || 0) === Number(approval.id),
+        is_superseded_view: String(approval.status || "").toLowerCase() === "superseded" || Number(approval.current_version_no || 0) !== Number(approval.quotation_version_no || 0)
+      },
+      latestRequest: latestApproval.rows[0] || null,
+      quotationItems
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.patch("/approvals/:approvalId/decision", requirePermission(PERMISSIONS.APPROVAL_DECIDE), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = getTenantId(req);
+    const approvalId = Number(req.params.approvalId);
+    const decision = String(req.body?.decision || "").trim().toLowerCase();
+    const decisionNote = String(req.body?.decisionNote || "").trim();
+
+    if (!tenantId || !approvalId) {
+      return res.status(400).json({ message: "Valid sellerId and approvalId are required" });
+    }
+    if (!["approved", "rejected"].includes(decision)) {
+      return res.status(400).json({ message: "decision must be approved or rejected" });
+    }
+
+    await client.query("BEGIN");
+    const approvalResult = await client.query(
+      `SELECT qar.*, q.active_approval_request_id, q.version_no AS current_version_no
+       FROM quotation_approval_requests qar
+       INNER JOIN quotations q ON q.id = qar.quotation_id AND q.seller_id = qar.seller_id
+       WHERE qar.id = $1
+         AND qar.seller_id = $2
+       LIMIT 1
+       FOR UPDATE`,
+      [approvalId, tenantId]
+    );
+
+    if (approvalResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Approval request not found" });
+    }
+
+    const approval = approvalResult.rows[0];
+    const isLatestRequest = Number(approval.active_approval_request_id || 0) === Number(approval.id);
+    const isSupersededView = String(approval.status || "").toLowerCase() === "superseded" || Number(approval.current_version_no || 0) !== Number(approval.quotation_version_no || 0);
+    if (isSupersededView || !isLatestRequest) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "This is not the latest version of the quotation. Please review the latest PDF before approving." });
+    }
+
+    const showAll = req.user.isPlatformAdmin || req.user.permissions?.includes(PERMISSIONS.APPROVAL_OVERRIDE);
+    if (!showAll && Number(approval.assigned_approver_user_id || 0) !== Number(req.user.id)) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "You are not assigned to decide this approval request." });
+    }
+
+    if (String(approval.status || "").toLowerCase() !== "pending") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Only pending approval requests can be decided." });
+    }
+
+    const updatedApproval = await client.query(
+      `UPDATE quotation_approval_requests
+       SET status = $1,
+           decision_note = $2,
+           approved_at = CASE WHEN $1 = 'approved' THEN CURRENT_TIMESTAMP ELSE approved_at END,
+           approved_by_user_id = CASE WHEN $1 = 'approved' THEN $3 ELSE approved_by_user_id END,
+           rejected_at = CASE WHEN $1 = 'rejected' THEN CURRENT_TIMESTAMP ELSE rejected_at END,
+           rejected_by_user_id = CASE WHEN $1 = 'rejected' THEN $3 ELSE rejected_by_user_id END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $4
+       RETURNING *`,
+      [decision, decisionNote || null, req.user.id, approval.id]
+    );
+
+    const quotationUpdate = await client.query(
+      `UPDATE quotations
+       SET approval_status = $1,
+           approval_required = TRUE,
+           approved_for_download_at = CASE WHEN $1 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+       WHERE id = $2 AND seller_id = $3
+       RETURNING *`,
+      [decision, approval.quotation_id, tenantId]
+    );
+
+    const requesterNotification = await client.query(
+      `INSERT INTO notifications (
+         title,
+         message,
+         audience_type,
+         channel,
+         seller_id,
+         sent_at,
+         created_by
+       )
+       VALUES ($1, $2, 'specific_seller', 'in_app', $3, CURRENT_TIMESTAMP, $4)
+       RETURNING id`,
+      [
+        `Quotation ${decision === "approved" ? "approved" : "rejected"}`,
+        `Your quotation approval request for version ${approval.quotation_version_no} has been ${decision}.${decisionNote ? ` Note: ${decisionNote}` : ""}`,
+        tenantId,
+        req.user.id
+      ]
+    );
+
+    if (requesterNotification.rows?.[0]?.id) {
+      await client.query(
+        `INSERT INTO notification_logs (
+           notification_id,
+           seller_id,
+           delivery_status,
+           delivery_message,
+           delivered_at
+         )
+         VALUES ($1, $2, 'sent', $3, CURRENT_TIMESTAMP)`,
+        [
+          requesterNotification.rows[0].id,
+          tenantId,
+          `Approval request ${decision} for requester ${approval.requested_by_user_id}.`
+        ]
+      );
+    }
+
+    await logOrderEvent(client, {
+      sellerId: tenantId,
+      quotationId: approval.quotation_id,
+      eventType: decision === "approved" ? "QUOTATION_APPROVED" : "QUOTATION_REJECTED",
+      eventNote: decisionNote || (decision === "approved" ? "Quotation approved" : "Quotation rejected"),
+      actorUserId: req.user.id
+    });
+
+    await client.query("COMMIT");
+    res.json({
+      approval: updatedApproval.rows[0],
+      quotation: quotationUpdate.rows[0],
+      message: decision === "approved" ? "Quotation approved successfully." : "Quotation rejected successfully."
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, res) => {
   try {
     const { id } = req.params;
@@ -2846,6 +3169,32 @@ router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, re
 
     const itemsResult = { rows: await getQuotationItems(pool, id, tenantId) };
 
+    const activeApprovalResult = await pool.query(
+      `SELECT
+         qar.id,
+         qar.status,
+         qar.quotation_version_no,
+         qar.requested_by_user_id,
+         qar.assigned_approver_user_id,
+         qar.decision_note,
+         requester.name AS requester_name,
+         approver.name AS approver_name
+       FROM quotation_approval_requests qar
+       LEFT JOIN users requester ON requester.id = qar.requested_by_user_id
+       LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
+       WHERE qar.quotation_id = $1
+         AND qar.seller_id = $2
+         AND qar.id = (
+           SELECT active_approval_request_id
+           FROM quotations
+           WHERE id = $1
+             AND seller_id = $2
+           LIMIT 1
+         )
+       LIMIT 1`,
+      [id, tenantId]
+    );
+
     const eventsValues = [id];
     let eventsWhere = "quotation_id = $1";
     if (tenantId) {
@@ -2868,7 +3217,8 @@ router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, re
       quotation: enrichQuotationTaxData(quotationResult.rows[0]),
       items: itemsResult.rows,
       events: eventsResult.rows,
-      customerOutstanding: outstanding
+      customerOutstanding: outstanding,
+      activeApprovalRequest: activeApprovalResult.rows[0] || null
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -2907,6 +3257,12 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
 
     const quotation = enrichQuotationTaxData(quotationResult.rows[0]);
     debugLogger.log("quotation-loaded", `seller=${quotation.seller_id}`);
+    const useSimplePdf = String(req.query.simple || "") === "1";
+    const normalizedApprovalStatus = String(quotation.approval_status || "not_required").toLowerCase();
+    if (!useSimplePdf && ["pending", "rejected"].includes(normalizedApprovalStatus)) {
+      debugLogger.log("download-blocked", `approval=${normalizedApprovalStatus}`);
+      return res.status(403).json({ message: `Quotation is ${normalizedApprovalStatus} for approval. Final download is blocked until approval is complete.` });
+    }
     const itemsResult = await pool.query(
       `SELECT qi.*, p.material_name, pv.variant_name
        FROM quotation_items qi
@@ -2955,7 +3311,6 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     const pdfColumns = pdfConfig.columns || [];
     debugLogger.log("pdf-columns-loaded", `count=${pdfColumns.length} combineHelping=${Boolean(pdfConfig.modules?.combineHelpingTextInItemColumn)}`);
 
-    const useSimplePdf = String(req.query.simple || "") === "1";
     const templatePreset = normalizeTemplatePreset(tpl.template_preset);
     if (useSimplePdf) {
       debugLogger.log("simple-pdf-start");
@@ -3006,6 +3361,148 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
         // Ignore secondary stream-end failures after a PDF stream has already started.
       }
     }
+  }
+});
+
+router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), async (req, res) => {
+  try {
+    if (!isEmailConfigured()) {
+      return res.status(400).json({ message: "SMTP email settings are not configured yet." });
+    }
+
+    const { id } = req.params;
+    const tenantId = getTenantId(req);
+    const overrideToEmail = String(req.body?.toEmail || "").trim().toLowerCase();
+    const ccEmail = String(req.body?.ccEmail || "").trim().toLowerCase();
+
+    const quotationResult = await pool.query(
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email AS customer_email, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
+       FROM quotations q
+       LEFT JOIN customers c ON c.id = q.customer_id
+       LEFT JOIN sellers s ON s.id = q.seller_id
+       WHERE q.id = $1
+         AND q.seller_id = $2
+       LIMIT 1`,
+      [id, tenantId]
+    );
+
+    if (quotationResult.rowCount === 0) {
+      return res.status(404).json({ message: "Quotation not found" });
+    }
+
+    const quotation = enrichQuotationTaxData(quotationResult.rows[0]);
+    if (["pending", "rejected"].includes(String(quotation.approval_status || "not_required").toLowerCase())) {
+      return res.status(400).json({ message: "Quotation email can be sent only after approval is complete." });
+    }
+
+    const recipientEmail = overrideToEmail || String(quotation.customer_email || "").trim().toLowerCase();
+    if (!recipientEmail) {
+      return res.status(400).json({ message: "Customer email is required to send quotation." });
+    }
+
+    const items = await getQuotationItems(pool, id, tenantId);
+    const templateResult = await pool.query(
+      `SELECT *
+       FROM quotation_templates
+       WHERE seller_id = $1
+         AND template_name = 'default'
+       LIMIT 1`,
+      [quotation.seller_id]
+    );
+    const sellerResult = await pool.query(
+      `SELECT id, name, business_name, email, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
+       FROM sellers
+       WHERE id = $1
+       LIMIT 1`,
+      [quotation.seller_id]
+    );
+
+    const sellerRow = sellerResult.rows[0] || null;
+    const template = templateResult.rows[0] || {
+      template_preset: "commercial_offer",
+      header_text: "Commercial Offer",
+      body_template: "Dear {{customer_name}}, thank you for your enquiry. Please find our offer for quotation {{quotation_number}}.",
+      footer_text: "We look forward to working with you.",
+      company_phone: "",
+      company_email: "",
+      company_address: "",
+      accent_color: "#2563eb",
+      notes_text: "",
+      terms_text: ""
+    };
+    const pdfConfig = await getPublishedQuotationPdfConfiguration(pool, quotation.seller_id);
+
+    const fakeResponse = new PassThrough();
+    fakeResponse.setHeader = () => {};
+    const pdfBufferPromise = collectStreamBuffer(fakeResponse);
+    buildSimpleQuotationPdf({
+      quotation,
+      items,
+      template,
+      seller: sellerRow,
+      pdfColumns: pdfConfig.columns || [],
+      allPdfColumns: pdfConfig.allPdfColumns || pdfConfig.columns || [],
+      pdfModules: pdfConfig.modules || {},
+      res: fakeResponse
+    });
+    const pdfBuffer = await pdfBufferPromise;
+
+    const sellerDisplayName = sellerRow?.business_name || sellerRow?.name || "Quotsy";
+    const replyToEmail = String(sellerRow?.email || template?.company_email || "").trim().toLowerCase() || undefined;
+    const senderName = `${sellerDisplayName} Quotations`;
+    const quotationNumber = getQuotationNumberValue(quotation) || `Quotation ${quotation.id}`;
+    const customerName = quotation.firm_name || quotation.customer_name || "Customer";
+
+    const mailMessage = {
+      from: `"${senderName}" <${process.env.SMTP_FROM_EMAIL}>`,
+      to: recipientEmail,
+      subject: `${quotationNumber} from ${sellerDisplayName}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #1f2937; line-height: 1.6;">
+          <p>Dear ${escapeHtml(customerName)},</p>
+          <p>Please find attached ${escapeHtml(quotationNumber)} from ${escapeHtml(sellerDisplayName)}.</p>
+          <p>Total Amount: <strong>Rs ${Number(quotation.total_amount || 0).toLocaleString("en-IN")}</strong></p>
+          <p>If you have any questions, you can reply directly to this email.</p>
+          <p>Regards,<br />${escapeHtml(senderName)}</p>
+        </div>
+      `,
+      text: `Dear ${customerName},\n\nPlease find attached ${quotationNumber} from ${sellerDisplayName}.\nTotal Amount: Rs ${Number(quotation.total_amount || 0).toLocaleString("en-IN")}\n\nRegards,\n${senderName}`,
+      attachments: [
+        {
+          filename: `${quotationFileStem(quotation)}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf"
+        }
+      ]
+    };
+
+    if (replyToEmail) {
+      mailMessage.replyTo = replyToEmail;
+    }
+    if (ccEmail) {
+      mailMessage.cc = ccEmail;
+    }
+
+    await sendMail(mailMessage);
+
+    await pool.query(
+      `INSERT INTO order_events (seller_id, quotation_id, event_type, event_note, actor_user_id)
+       VALUES ($1, $2, 'QUOTATION_EMAIL_SENT', $3, $4)`,
+      [
+        tenantId,
+        quotation.id,
+        `Quotation emailed to ${recipientEmail}${ccEmail ? ` with CC ${ccEmail}` : ""}`,
+        req.user.id
+      ]
+    );
+
+    return res.json({
+      message: "Quotation email sent successfully.",
+      to: recipientEmail,
+      cc: ccEmail || null
+    });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
   }
 });
 
@@ -3198,8 +3695,6 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       custom_fields: item.customFields || item.custom_fields || {}
     }));
 
-    await validateQuotationItemRateLimits(client, tenantId, normalizedItems);
-
     const customColumns = await getSellerCustomQuotationColumns(client, tenantId);
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
     validateCustomQuotationFields(computedItems, customColumns);
@@ -3211,6 +3706,12 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       designCharges: req.body.designCharges ?? quotation.design_charges ?? 0,
       discountAmount: req.body.discountAmount ?? quotation.discount_amount ?? 0,
       advanceAmount: req.body.advanceAmount ?? quotation.advance_amount ?? 0
+    });
+    const approvalEvaluation = await evaluateQuotationApproval(client, {
+      sellerId: tenantId,
+      requesterUserId: req.user.id,
+      totalAmount: totals.totalAmount,
+      items: computedItems
     });
 
     await restoreInventoryForItems(client, tenantId, existingItems);
@@ -3250,6 +3751,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     }
 
     const nextVersion = Number(quotation.version_no || 1) + 1;
+    const previousApprovalRequestId = await supersedeActiveApprovalRequest(client, Number(id), tenantId);
     const updateResult = await client.query(
       `UPDATE quotations
        SET subtotal = $1,
@@ -3269,8 +3771,12 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
            order_status = $15,
            payment_status = $16,
            version_no = $17,
-           custom_quotation_number = $18
-       WHERE id = $19 AND seller_id = $20
+           custom_quotation_number = $18,
+           approval_required = $19,
+           approval_status = $20,
+           active_approval_request_id = NULL,
+           approved_for_download_at = CASE WHEN $20 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+       WHERE id = $21 AND seller_id = $22
        RETURNING *`,
       [
         totals.subtotal,
@@ -3291,12 +3797,36 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
         req.body.paymentStatus || (totals.advanceAmount > 0 && totals.balanceAmount > 0 ? "partial" : quotation.payment_status),
         nextVersion,
         normalizedCustomQuotationNumber,
+        approvalEvaluation.approvalStatus === "approved",
+        approvalEvaluation.requiresApproval ? "pending" : approvalEvaluation.approvalStatus,
         id,
         tenantId
       ]
     );
 
-    const updatedQuotation = updateResult.rows[0];
+    let updatedQuotation = updateResult.rows[0];
+    let activeApprovalRequest = null;
+    if (approvalEvaluation.requiresApproval) {
+      activeApprovalRequest = await createQuotationApprovalRequest(client, {
+        sellerId: tenantId,
+        quotationId: Number(id),
+        quotationVersionNo: nextVersion,
+        requestedByUserId: req.user.id,
+        assignedApproverUserId: approvalEvaluation.assignedApprover?.id || null,
+        requestedAmount: totals.totalAmount,
+        reasons: approvalEvaluation.reasons,
+        previousRequestId: previousApprovalRequestId
+      });
+
+      const approvalUpdate = await client.query(
+        `UPDATE quotations
+         SET active_approval_request_id = $1
+         WHERE id = $2 AND seller_id = $3
+         RETURNING *`,
+        [activeApprovalRequest.id, id, tenantId]
+      );
+      updatedQuotation = approvalUpdate.rows[0];
+    }
     const amountDifference = totals.balanceAmount - toAmount(quotation.balance_amount ?? quotation.total_amount);
 
     if (amountDifference !== 0) {
@@ -3349,7 +3879,19 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       quotation: enrichQuotationTaxData(detailResult.rows[0]),
       items: detailItems,
       versions: versionRows,
-      inventoryWarnings
+      inventoryWarnings,
+      approval: {
+        requiresApproval: approvalEvaluation.requiresApproval,
+        approvalStatus: updatedQuotation.approval_status,
+        assignedApprover: approvalEvaluation.assignedApprover
+          ? {
+            id: approvalEvaluation.assignedApprover.id,
+            name: approvalEvaluation.assignedApprover.name || "-"
+          }
+          : null,
+        activeApprovalRequestId: activeApprovalRequest?.id || null,
+        reasons: approvalEvaluation.reasons
+      }
     });
   } catch (error) {
     await client.query("ROLLBACK");
@@ -3392,6 +3934,10 @@ router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), asyn
     if (String(quotation.record_status || "").toLowerCase() === "confirmed") {
       await client.query("ROLLBACK");
       return res.status(400).json({ message: "Quotation already confirmed" });
+    }
+    if (["pending", "rejected"].includes(String(quotation.approval_status || "not_required").toLowerCase())) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Quotation cannot be confirmed until approval is completed." });
     }
 
     const updateResult = await client.query(

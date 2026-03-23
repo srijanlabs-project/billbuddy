@@ -256,6 +256,329 @@ async function validateQuotationItemRateLimits(clientOrPool, sellerId, items = [
   }
 }
 
+async function collectQuotationPriceExceptionReasons(clientOrPool, sellerId, items = []) {
+  const productIds = [...new Set(
+    (items || [])
+      .map((item) => Number(item.product_id || item.productId || 0))
+      .filter((value) => Number.isFinite(value) && value > 0)
+  )];
+
+  if (!productIds.length) return [];
+
+  const result = await clientOrPool.query(
+    `SELECT id, material_name, base_price, limit_rate_edit, max_discount_percent, max_discount_type
+     FROM products
+     WHERE seller_id = $1
+       AND id = ANY($2::int[])`,
+    [sellerId, productIds]
+  );
+
+  const productMap = new Map(result.rows.map((row) => [Number(row.id), row]));
+  const reasons = [];
+
+  (items || []).forEach((item, index) => {
+    const productId = Number(item.product_id || item.productId || 0);
+    if (!productId || !productMap.has(productId)) return;
+
+    const product = productMap.get(productId);
+    if (!product.limit_rate_edit) return;
+
+    const basePrice = toAmount(product.base_price);
+    const rate = toAmount(item.unit_price ?? item.unitPrice);
+    const maxDiscountValue = Math.max(0, toAmount(product.max_discount_percent));
+    const maxDiscountType = String(product.max_discount_type || "percent").toLowerCase() === "amount" ? "amount" : "percent";
+    if (basePrice <= 0 || rate <= 0) return;
+
+    const minimumAllowedRate = Number(
+      Math.max(
+        maxDiscountType === "percent"
+          ? basePrice - (basePrice * maxDiscountValue / 100)
+          : basePrice - maxDiscountValue,
+        0
+      ).toFixed(2)
+    );
+
+    if (rate + 0.0001 < minimumAllowedRate) {
+      reasons.push({
+        reasonType: "price_exception_below_min_rate",
+        itemIndex: index,
+        productId,
+        requestedValue: rate,
+        allowedValue: minimumAllowedRate,
+        baseValue: basePrice,
+        meta: {
+          productName: product.material_name || "Item",
+          maxDiscountValue,
+          maxDiscountType
+        }
+      });
+    }
+  });
+
+  return reasons;
+}
+
+async function getQuotationApprovalUser(client, sellerId, userId) {
+  if (!sellerId || !userId) return null;
+  const result = await client.query(
+    `SELECT u.id, u.name, u.status, u.locked, u.approval_mode, u.approval_limit_amount,
+            u.can_approve_quotations, u.can_approve_price_exception, r.role_name
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1 AND u.seller_id = $2
+     LIMIT 1`,
+    [userId, sellerId]
+  );
+  return result.rows[0] || null;
+}
+
+function canUserApproveQuotation(user, { totalAmount, hasPriceException }) {
+  if (!user) return false;
+  if (!user.status || user.locked) return false;
+  const approvalMode = String(user.approval_mode || "").toLowerCase();
+  if (!["approver", "both"].includes(approvalMode)) return false;
+  if (!user.can_approve_quotations) return false;
+  if (hasPriceException && !user.can_approve_price_exception) return false;
+  const limit = toAmount(user.approval_limit_amount);
+  return limit <= 0 ? false : totalAmount <= limit + 0.0001;
+}
+
+async function findFallbackSellerAdmin(client, sellerId, evaluationContext) {
+  const { totalAmount, hasPriceException } = evaluationContext;
+  const result = await client.query(
+    `SELECT u.id, u.name, u.status, u.locked, u.approval_mode, u.approval_limit_amount,
+            u.can_approve_quotations, u.can_approve_price_exception, r.role_name
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.seller_id = $1
+       AND u.status = TRUE
+       AND COALESCE(u.locked, FALSE) = FALSE
+       AND LOWER(COALESCE(r.role_name, '')) IN ('seller admin', 'seller_admin', 'admin')
+     ORDER BY u.id ASC`,
+    [sellerId]
+  );
+
+  const eligible = result.rows.find((user) => canUserApproveQuotation(user, { totalAmount, hasPriceException }));
+  return eligible || null;
+}
+
+async function findAssignedApprover(client, sellerId, requesterUserId, evaluationContext) {
+  const visited = new Set();
+  let currentRequesterId = Number(requesterUserId);
+
+  while (currentRequesterId && !visited.has(currentRequesterId)) {
+    visited.add(currentRequesterId);
+
+    const mappingResult = await client.query(
+      `SELECT approver_user_id
+       FROM user_approval_mappings
+       WHERE seller_id = $1
+         AND requester_user_id = $2
+         AND is_active = TRUE
+       ORDER BY id DESC
+       LIMIT 1`,
+      [sellerId, currentRequesterId]
+    );
+
+    if (mappingResult.rowCount === 0) break;
+
+    const approverUserId = Number(mappingResult.rows[0].approver_user_id);
+    const approver = await getQuotationApprovalUser(client, sellerId, approverUserId);
+    if (!approver) break;
+    if (canUserApproveQuotation(approver, evaluationContext)) {
+      return approver;
+    }
+
+    if (String(approver.approval_mode || "").toLowerCase() !== "both") {
+      break;
+    }
+    currentRequesterId = approver.id;
+  }
+
+  return findFallbackSellerAdmin(client, sellerId, evaluationContext);
+}
+
+async function evaluateQuotationApproval(client, { sellerId, requesterUserId, totalAmount, items = [] }) {
+  const requester = await getQuotationApprovalUser(client, sellerId, requesterUserId);
+  if (!requester) {
+    throw new Error("Quotation requester was not found for approval evaluation");
+  }
+
+  const priceExceptionReasons = await collectQuotationPriceExceptionReasons(client, sellerId, items);
+  const reasons = [...priceExceptionReasons];
+  const requesterLimit = Math.max(0, toAmount(requester.approval_limit_amount));
+  if (totalAmount > requesterLimit + 0.0001) {
+    reasons.unshift({
+      reasonType: "amount_limit_exceeded",
+      requestedValue: totalAmount,
+      allowedValue: requesterLimit,
+      baseValue: requesterLimit,
+      meta: {
+        requesterId: requester.id,
+        requesterName: requester.name || "Requester"
+      }
+    });
+  }
+
+  if (!reasons.length) {
+    return {
+      requiresApproval: false,
+      approvalStatus: "not_required",
+      assignedApprover: null,
+      reasons: []
+    };
+  }
+
+  const hasPriceException = reasons.some((reason) => reason.reasonType === "price_exception_below_min_rate");
+  if (canUserApproveQuotation(requester, { totalAmount, hasPriceException })) {
+    return {
+      requiresApproval: false,
+      approvalStatus: "approved",
+      assignedApprover: null,
+      reasons
+    };
+  }
+
+  const assignedApprover = await findAssignedApprover(client, sellerId, requester.id, { totalAmount, hasPriceException });
+  if (!assignedApprover) {
+    throw new Error("No approver configured for this user.");
+  }
+
+  return {
+    requiresApproval: true,
+    approvalStatus: "pending",
+    assignedApprover,
+    reasons
+  };
+}
+
+function getApprovalTypeSummary(reasons = []) {
+  const reasonTypes = [...new Set((reasons || []).map((reason) => reason.reasonType))];
+  if (reasonTypes.length > 1) return "combined";
+  if (reasonTypes.includes("price_exception_below_min_rate")) return "price_exception";
+  if (reasonTypes.includes("amount_limit_exceeded")) return "amount_limit";
+  return null;
+}
+
+async function supersedeActiveApprovalRequest(client, quotationId, sellerId) {
+  const result = await client.query(
+    `SELECT id
+     FROM quotation_approval_requests
+     WHERE quotation_id = $1
+       AND seller_id = $2
+       AND superseded_at IS NULL
+       AND status IN ('pending', 'approved', 'rejected')
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [quotationId, sellerId]
+  );
+
+  if (result.rowCount === 0) {
+    return null;
+  }
+
+  const requestId = Number(result.rows[0].id);
+  await client.query(
+    `UPDATE quotation_approval_requests
+     SET status = 'superseded',
+         superseded_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [requestId]
+  );
+
+  return requestId;
+}
+
+async function createQuotationApprovalRequest(client, { sellerId, quotationId, quotationVersionNo, requestedByUserId, assignedApproverUserId, requestedAmount, reasons = [], previousRequestId = null }) {
+  const approvalResult = await client.query(
+    `INSERT INTO quotation_approval_requests
+     (seller_id, quotation_id, quotation_version_no, requested_by_user_id, assigned_approver_user_id, status, approval_type_summary, requested_amount)
+     VALUES ($1, $2, $3, $4, $5, 'pending', $6, $7)
+     RETURNING *`,
+    [
+      sellerId,
+      quotationId,
+      quotationVersionNo,
+      requestedByUserId || null,
+      assignedApproverUserId || null,
+      getApprovalTypeSummary(reasons),
+      requestedAmount
+    ]
+  );
+
+  const approvalRequest = approvalResult.rows[0];
+
+  if (previousRequestId) {
+    await client.query(
+      `UPDATE quotation_approval_requests
+       SET superseded_by_request_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [approvalRequest.id, previousRequestId]
+    );
+  }
+
+  for (const reason of reasons) {
+    await client.query(
+      `INSERT INTO quotation_approval_reasons
+       (approval_request_id, reason_type, item_index, product_id, requested_value, allowed_value, base_value, meta_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb))`,
+      [
+        approvalRequest.id,
+        reason.reasonType,
+        reason.itemIndex ?? null,
+        reason.productId ?? null,
+        reason.requestedValue ?? null,
+        reason.allowedValue ?? null,
+        reason.baseValue ?? null,
+        JSON.stringify(reason.meta || {})
+      ]
+    );
+  }
+
+  const approvalSummary = getApprovalTypeSummary(reasons).replace(/_/g, " ");
+  const notificationResult = await client.query(
+    `INSERT INTO notifications (
+       title,
+       message,
+       audience_type,
+       channel,
+       seller_id,
+       sent_at,
+       created_by
+     )
+     VALUES ($1, $2, 'specific_seller', 'in_app', $3, CURRENT_TIMESTAMP, $4)
+     RETURNING id`,
+    [
+      `Approval required for quotation ${quotationId}`,
+      `A quotation approval request has been raised for version ${quotationVersionNo}. Reason: ${approvalSummary}.`,
+      sellerId,
+      requestedByUserId || null
+    ]
+  );
+  const notificationId = notificationResult.rows?.[0]?.id;
+  if (notificationId) {
+    await client.query(
+      `INSERT INTO notification_logs (
+         notification_id,
+         seller_id,
+         delivery_status,
+         delivery_message,
+         delivered_at
+       )
+       VALUES ($1, $2, 'sent', $3, CURRENT_TIMESTAMP)`,
+      [
+        notificationId,
+        sellerId,
+        `Approval request assigned${assignedApproverUserId ? ` to user ${assignedApproverUserId}` : ""}.`
+      ]
+    );
+  }
+
+  return approvalRequest;
+}
+
 async function getCustomerOutstanding(customerId, sellerId) {
   const result = await pool.query(
     `SELECT
@@ -550,8 +873,6 @@ async function createQuotationWithItems(payload) {
       throw new Error("deliveryAddress and deliveryPincode are required for DOORSTEP delivery");
     }
 
-    await validateQuotationItemRateLimits(client, sellerId, items);
-
     const { normalizedItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =
       computeQuotationTotals({
         items,
@@ -564,6 +885,12 @@ async function createQuotationWithItems(payload) {
 
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
     validateCustomQuotationFields(computedItems, customColumns);
+    const approvalEvaluation = await evaluateQuotationApproval(client, {
+      sellerId,
+      requesterUserId: createdBy,
+      totalAmount,
+      items: computedItems
+    });
 
     const inventoryWarnings = await reserveInventoryForItems(client, sellerId, computedItems, { strict: false });
 
@@ -609,6 +936,43 @@ async function createQuotationWithItems(payload) {
     );
 
     const quotation = quotationResult.rows[0];
+
+    let activeApprovalRequest = null;
+    if (approvalEvaluation.requiresApproval) {
+      activeApprovalRequest = await createQuotationApprovalRequest(client, {
+        sellerId,
+        quotationId: quotation.id,
+        quotationVersionNo: quotation.version_no || 1,
+        requestedByUserId: createdBy,
+        assignedApproverUserId: approvalEvaluation.assignedApprover?.id || null,
+        requestedAmount: totalAmount,
+        reasons: approvalEvaluation.reasons
+      });
+
+      const quotationUpdateResult = await client.query(
+        `UPDATE quotations
+         SET approval_required = TRUE,
+             approval_status = 'pending',
+             active_approval_request_id = $1,
+             approved_for_download_at = NULL
+         WHERE id = $2
+         RETURNING *`,
+        [activeApprovalRequest.id, quotation.id]
+      );
+      Object.assign(quotation, quotationUpdateResult.rows[0]);
+    } else {
+      const quotationUpdateResult = await client.query(
+        `UPDATE quotations
+         SET approval_required = $1,
+             approval_status = $2,
+             active_approval_request_id = NULL,
+             approved_for_download_at = CASE WHEN $2 = 'approved' THEN CURRENT_TIMESTAMP ELSE approved_for_download_at END
+         WHERE id = $3
+         RETURNING *`,
+        [approvalEvaluation.approvalStatus === "approved", approvalEvaluation.approvalStatus, quotation.id]
+      );
+      Object.assign(quotation, quotationUpdateResult.rows[0]);
+    }
 
     for (const item of computedItems) {
       await client.query(
@@ -670,7 +1034,19 @@ async function createQuotationWithItems(payload) {
       quotation,
       items: computedItems,
       customerOutstanding,
-      inventoryWarnings
+      inventoryWarnings,
+      approval: {
+        requiresApproval: approvalEvaluation.requiresApproval,
+        approvalStatus: quotation.approval_status,
+        assignedApprover: approvalEvaluation.assignedApprover
+          ? {
+            id: approvalEvaluation.assignedApprover.id,
+            name: approvalEvaluation.assignedApprover.name || "-"
+          }
+          : null,
+        activeApprovalRequestId: activeApprovalRequest?.id || null,
+        reasons: approvalEvaluation.reasons
+      }
     };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -757,6 +1133,10 @@ module.exports = {
   createQuotationVersionSnapshot,
   getSellerCustomQuotationColumns,
   validateQuotationItemRateLimits,
+  collectQuotationPriceExceptionReasons,
+  evaluateQuotationApproval,
+  supersedeActiveApprovalRequest,
+  createQuotationApprovalRequest,
   validateCustomQuotationFields,
   applyComputedQuotationFields
 };

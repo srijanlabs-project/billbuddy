@@ -43,6 +43,22 @@ function getQuotationBadgeClass(status) {
   return "quotation-new";
 }
 
+function getApprovalBadgeClass(status) {
+  const normalized = String(status || "not_required").toLowerCase();
+  if (normalized === "approved") return "success";
+  if (normalized === "rejected") return "error";
+  if (normalized === "pending") return "pending";
+  return "neutral";
+}
+
+function getApprovalLabel(status) {
+  const normalized = String(status || "not_required").toLowerCase();
+  if (normalized === "approved") return "Approved";
+  if (normalized === "rejected") return "Rejected";
+  if (normalized === "pending") return "Pending";
+  return "Not Required";
+}
+
 export default function DashboardPage(props) {
   const {
     activeModule,
@@ -82,7 +98,9 @@ export default function DashboardPage(props) {
     canCreateQuotation,
     canSearchQuotation,
     canDownloadQuotationPdf,
-    canCreateCustomer
+    canCreateCustomer,
+    pendingApprovalCount,
+    requesterPendingApprovalCount
   } = props;
 
   if (activeModule !== "Dashboard") return null;
@@ -287,6 +305,10 @@ export default function DashboardPage(props) {
                 <span>Walk-in sales</span>
                 <strong>{formatCurrency(dashboardData?.totals?.walk_in_sales)}</strong>
               </div>
+              <div>
+                <span>Pending approvals</span>
+                <strong>{pendingApprovalCount || 0}</strong>
+              </div>
             </div>
           </article>
           <article className="glass-panel quick-actions-panel">
@@ -306,6 +328,13 @@ export default function DashboardPage(props) {
                   {action}
                 </button>
               ))}
+              <button
+                type="button"
+                className="action-btn quick-action-btn secondary-action-btn"
+                onClick={() => setActiveModule("Approvals")}
+              >
+                Approvals ({requesterPendingApprovalCount || pendingApprovalCount || 0})
+              </button>
             </div>
           </article>
         </div>
@@ -329,6 +358,7 @@ export default function DashboardPage(props) {
           <article className="kpi-card glass-panel"><p>Quotations Saved</p><h3>{dashboardData?.totals?.invoices_generated || 0}</h3></article>
           <article className="kpi-card glass-panel"><p>Quotation Value</p><h3>{formatCurrency(dashboardData?.totals?.total_sales)}</h3></article>
           <article className="kpi-card glass-panel"><p>Pending Payments</p><h3>{formatCurrency(dashboardData?.pendingOverall)}</h3></article>
+          <article className="kpi-card glass-panel"><p>Approvals Pending</p><h3>{pendingApprovalCount || 0}</h3></article>
         </div>
 
         <section className="glass-panel chart-card">
@@ -351,7 +381,7 @@ export default function DashboardPage(props) {
                 <th>{isPlatformAdmin ? "Seller" : <button type="button" onClick={() => changeSort("quotation_number")}>Quotation #</button>}</th>
                 <th><button type="button" onClick={() => changeSort("customer_name")}>Customer</button></th>
                 <th><button type="button" onClick={() => changeSort("total_amount")}>Amount</button></th>
-                <th>Payment</th><th>Quotation</th><th>Sent</th>
+                <th>Payment</th><th>Quotation</th><th>Approval</th><th>Sent</th>
               </tr>
             </thead>
             <tbody>
@@ -366,6 +396,7 @@ export default function DashboardPage(props) {
                   <td>{formatCurrency(order.total_amount)}</td>
                   <td><span className={`badge ${getPaymentBadgeClass(order.payment_status)}`}>{statusLabel(order.payment_status)}</span></td>
                   <td><span className={`badge ${getQuotationBadgeClass(order.order_status)}`}>{orderStatusLabel(order.order_status)}</span></td>
+                  <td><span className={`badge ${getApprovalBadgeClass(order.approval_status)}`}>{getApprovalLabel(order.approval_status)}</span></td>
                   <td>
                     <span
                       className={`status-icon-badge ${order.quotation_sent ? "sent" : "not-sent"}`}

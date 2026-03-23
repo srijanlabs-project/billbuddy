@@ -25,6 +25,31 @@ export default function UsersPage(props) {
 
   if (activeModule !== "Users") return null;
 
+  const approvalRoleOptions = [
+    { value: "requester", label: "Requester" },
+    { value: "approver", label: "Approver" },
+    { value: "both", label: "Both" }
+  ];
+
+  const activeSellerUsers = (users || []).filter((user) => user.status);
+  const approverCandidates = activeSellerUsers.filter((user) => ["approver", "both"].includes(String(user.approval_mode || "").toLowerCase()));
+  const requesterCandidates = activeSellerUsers.filter((user) => ["requester", "both"].includes(String(user.approval_mode || "").toLowerCase()));
+  const needsApprover = ["requester", "both"].includes(userForm.approvalMode);
+  const managesRequesters = ["approver", "both"].includes(userForm.approvalMode);
+  const noApproverAvailable = needsApprover && approverCandidates.length === 0;
+
+  function handleRequesterToggle(requesterId) {
+    setUserForm((prev) => {
+      const exists = prev.requesterUserIds.includes(requesterId);
+      return {
+        ...prev,
+        requesterUserIds: exists
+          ? prev.requesterUserIds.filter((entry) => entry !== requesterId)
+          : [...prev.requesterUserIds, requesterId]
+      };
+    });
+  }
+
   return (
     <section className="module-placeholder glass-panel user-access">
       <div className="page-banner">
@@ -45,7 +70,7 @@ export default function UsersPage(props) {
         <div>
           <table className="data-table">
             <thead>
-              <tr><th>Sr.</th><th>Name</th><th>Mobile</th><th>Role</th><th>Status</th><th>Lock</th><th>Actions</th></tr>
+              <tr><th>Sr.</th><th>Name</th><th>Mobile</th><th>Role</th><th>Approval Role</th><th>Limit</th><th>Approver</th><th>Status</th><th>Lock</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {pagedUsers.map((user, index) => (
@@ -54,6 +79,11 @@ export default function UsersPage(props) {
                   <td>{user.name}</td>
                   <td>{user.mobile}</td>
                   <td>{user.role_name || "-"}</td>
+                  <td>
+                    <span className="badge neutral">{String(user.approval_mode || "requester").replace(/^\w/, (letter) => letter.toUpperCase())}</span>
+                  </td>
+                  <td>{Number(user.approval_limit_amount || 0).toLocaleString("en-IN")}</td>
+                  <td>{user.assigned_approver?.name || "-"}</td>
                   <td><span className={`badge ${user.status ? "success" : "pending"}`}>{user.status ? "Active" : "Inactive"}</span></td>
                   <td>
                     {auth.user?.isPlatformAdmin ? (
@@ -97,7 +127,84 @@ export default function UsersPage(props) {
                 <option value="">Created By (Optional)</option>
                 {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
               </select>
-              <button type="submit" disabled={!canCreateUser}>Create User</button>
+              <div className="settings-panel">
+                <div className="section-head">
+                  <h4>Approval Mapping</h4>
+                </div>
+                <div className="customer-form-grid">
+                  <select value={userForm.approvalMode} onChange={(event) => setUserForm((prev) => ({
+                    ...prev,
+                    approvalMode: event.target.value,
+                    approverUserId: event.target.value === "approver" ? "" : prev.approverUserId,
+                    requesterUserIds: event.target.value === "requester" ? [] : prev.requesterUserIds
+                  }))}>
+                    {approvalRoleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  <input
+                    placeholder="Approval Limit Amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={userForm.approvalLimitAmount}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, approvalLimitAmount: event.target.value }))}
+                  />
+                </div>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={userForm.canApproveQuotations}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, canApproveQuotations: event.target.checked }))}
+                    style={{ width: "auto" }}
+                  />
+                  Can Approve Quotations
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={userForm.canApprovePriceException}
+                    onChange={(event) => setUserForm((prev) => ({ ...prev, canApprovePriceException: event.target.checked }))}
+                    style={{ width: "auto" }}
+                  />
+                  Can Approve Price Exceptions
+                </label>
+
+                {needsApprover && (
+                  <div>
+                    <label className="field-help-label">Assigned Approver</label>
+                    <select
+                      value={userForm.approverUserId}
+                      onChange={(event) => setUserForm((prev) => ({ ...prev, approverUserId: event.target.value }))}
+                      required={needsApprover}
+                    >
+                      <option value="">Select Approver</option>
+                      {approverCandidates.map((user) => <option key={user.id} value={user.id}>{user.name} ({user.mobile})</option>)}
+                    </select>
+                    {noApproverAvailable ? <p className="muted">No approver exists yet. Create an approver first before saving this requester.</p> : null}
+                  </div>
+                )}
+
+                {managesRequesters && (
+                  <div>
+                    <label className="field-help-label">Assign Requesters</label>
+                    <div className="selection-chip-grid">
+                      {requesterCandidates.length ? requesterCandidates.map((user) => (
+                        <label key={user.id} className={`selection-chip ${userForm.requesterUserIds.includes(user.id) ? "active" : ""}`}>
+                          <input
+                            type="checkbox"
+                            checked={userForm.requesterUserIds.includes(user.id)}
+                            onChange={() => handleRequesterToggle(user.id)}
+                          />
+                          <span>{user.name}</span>
+                          <small>{user.mobile}</small>
+                        </label>
+                      )) : <p className="muted">No requester users exist yet. Create requester users first, then assign them here.</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button type="submit" disabled={!canCreateUser || noApproverAvailable}>Create User</button>
             </form>
           </div>
         </div>

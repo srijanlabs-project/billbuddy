@@ -4,6 +4,7 @@ export default function OrderDetailModal(props) {
     selectedOrderDetails,
     closeOrderDetailsModal,
     handleDownloadQuotationSheet,
+    handleSendQuotationEmail,
     handleDownloadRichPdfDebug,
     selectedVersionRecord,
     selectedVersionIndex,
@@ -22,6 +23,8 @@ export default function OrderDetailModal(props) {
     formatQuotationLabel,
     formatCurrency,
     statusLabel,
+    approvalStatusLabel,
+    openApprovalRequest,
     error,
     quotationEditForm,
     setQuotationEditForm,
@@ -51,6 +54,13 @@ export default function OrderDetailModal(props) {
               onClick={() => handleDownloadQuotationSheet(selectedOrderDetails.quotation.id)}
             >
               XLSX
+            </button>
+            <button
+              type="button"
+              className="ghost-btn"
+              onClick={() => handleSendQuotationEmail(selectedOrderDetails.quotation.id)}
+            >
+              Send Email
             </button>
             <button
               type="button"
@@ -112,6 +122,7 @@ export default function OrderDetailModal(props) {
             <span>Mobile: {displayedQuotation?.mobile || "-"}</span>
             <span className={quotationFieldChanged("total_amount") ? "change-highlight" : ""}>Total: {formatCurrency(displayedQuotation?.total_amount)}</span>
             <span className={quotationFieldChanged("payment_status") ? "change-highlight" : ""}>Payment: {statusLabel(displayedQuotation?.payment_status)}</span>
+            <span className={quotationFieldChanged("approval_status") ? "change-highlight" : ""}>Approval: {approvalStatusLabel(displayedQuotation?.approval_status)}</span>
           </div>
           <div className="preview-pane">
             <h5>Delivery</h5>
@@ -138,6 +149,29 @@ export default function OrderDetailModal(props) {
             <span>{previousVersionRecord ? "Highlighted fields changed from previous version." : "This is the first saved version."}</span>
           </div>
         </div>
+
+        {selectedOrderDetails?.activeApprovalRequest && (
+          <div className="preview-grid" style={{ marginTop: "14px" }}>
+            <div className="preview-pane">
+              <h5>Approval Flow</h5>
+              <span>Status: {approvalStatusLabel(selectedOrderDetails.activeApprovalRequest.status || displayedQuotation?.approval_status)}</span>
+              <span>Requester: {selectedOrderDetails.activeApprovalRequest.requester_name || "-"}</span>
+              <span>Approver: {selectedOrderDetails.activeApprovalRequest.approver_name || "-"}</span>
+              <span>Version: {selectedOrderDetails.activeApprovalRequest.quotation_version_no || displayedQuotation?.version_no || 1}</span>
+            </div>
+            <div className="preview-pane">
+              <h5>Approval Actions</h5>
+              <span>{selectedOrderDetails.activeApprovalRequest.decision_note || "No decision note yet."}</span>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => openApprovalRequest(selectedOrderDetails.activeApprovalRequest.id)}
+              >
+                Open Approval Request
+              </button>
+            </div>
+          </div>
+        )}
 
         {isEditingQuotation && (
           <div className="preview-grid" style={{ marginTop: "14px" }}>
