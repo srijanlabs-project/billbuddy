@@ -3508,6 +3508,8 @@ function App() {
     setLoading(true);
     setError("");
     try {
+      const shouldLoadSellerScopedData = !isPlatformAdmin;
+      const shouldLoadApprovals = shouldLoadSellerScopedData && canAccessApprovals;
       const [summary, quotationRows, productRows, customerRows, rolesData, usersData, approvalsData, templateData, decodeRulesData, planRows, notificationRows, subscriptionRows] = await Promise.all([
         apiFetch(`/api/dashboard/summary?range=${range}`),
         apiFetch("/api/quotations"),
@@ -3515,9 +3517,9 @@ function App() {
         apiFetch("/api/customers"),
         apiFetch("/api/roles"),
         apiFetch("/api/users"),
-        canAccessApprovals ? apiFetch("/api/quotations/approvals").catch(() => []) : Promise.resolve([]),
-        apiFetch("/api/quotations/templates/current").catch(() => null),
-        apiFetch("/api/whatsapp/decode-rules").catch(() => null),
+        shouldLoadApprovals ? apiFetch("/api/quotations/approvals").catch(() => []) : Promise.resolve([]),
+        shouldLoadSellerScopedData ? apiFetch("/api/quotations/templates/current").catch(() => null) : Promise.resolve(null),
+        shouldLoadSellerScopedData ? apiFetch("/api/whatsapp/decode-rules").catch(() => null) : Promise.resolve(null),
         apiFetch("/api/plans").catch(() => []),
         apiFetch("/api/notifications").catch(() => []),
         apiFetch("/api/subscriptions").catch(() => [])
@@ -3529,23 +3531,23 @@ function App() {
       setCustomers(customerRows);
       setRoles(rolesData);
       setUsers(usersData);
-      setApprovals(Array.isArray(approvalsData) ? approvalsData : []);
+      setApprovals(shouldLoadApprovals && Array.isArray(approvalsData) ? approvalsData : []);
       setPlans(Array.isArray(planRows) ? planRows : []);
       setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
       setSubscriptions(Array.isArray(subscriptionRows) ? subscriptionRows : []);
-      if (templateData) {
+      if (shouldLoadSellerScopedData && templateData) {
         setQuotationTemplate((prev) => ({
           ...prev,
           ...templateData
         }));
       }
-      if (decodeRulesData) setDecodeRules(decodeRulesData);
+      if (shouldLoadSellerScopedData && decodeRulesData) setDecodeRules(decodeRulesData);
 
       if (!userForm.roleId && rolesData[0]) {
         setUserForm((prev) => ({ ...prev, roleId: String(rolesData[0].id) }));
       }
 
-      if (canAccessApprovals) {
+      if (shouldLoadApprovals) {
         const nextSelectedApprovalId = selectedApprovalId && Array.isArray(approvalsData) && approvalsData.some((approval) => Number(approval.id) === Number(selectedApprovalId))
           ? selectedApprovalId
           : approvalsData?.[0]?.id || "";
@@ -3561,8 +3563,12 @@ function App() {
         setSelectedApprovalDetail(null);
       }
 
-      await loadSellerSettings();
-      await loadAdminData();
+      if (shouldLoadSellerScopedData) {
+        await loadSellerSettings();
+      }
+      if (isPlatformAdmin) {
+        await loadAdminData();
+      }
     } catch (err) {
       handleApiError(err);
     } finally {
