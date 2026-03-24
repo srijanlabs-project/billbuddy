@@ -416,6 +416,7 @@ export default function QuotationWizardModal(props) {
             <div className="quotation-wizard-grid two">
               <input placeholder="Discount Amount" type="number" min="0" value={quotationWizard.amounts.discountAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }))} />
               <input placeholder="Advance Amount" type="number" min="0" value={quotationWizard.amounts.advanceAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, advanceAmount: e.target.value } }))} />
+              <input placeholder="Reference Request ID" type="text" maxLength="120" value={quotationWizard.amounts.referenceRequestId || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, referenceRequestId: e.target.value } }))} />
               <label className="wizard-full">
                 <span className="muted">Delivery Date</span>
                 <input type="date" value={quotationWizard.amounts.deliveryDate || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryDate: e.target.value } }))} />
@@ -428,6 +429,7 @@ export default function QuotationWizardModal(props) {
                 <span>Gross Total: {formatCurrency(quotationWizardGrossTotal)}</span>
                 <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>
                 <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
+                <span>Reference Request ID: {quotationWizard.amounts.referenceRequestId || "-"}</span>
                 <span>Delivery Date: {formatDateIST(quotationWizard.amounts.deliveryDate)}</span>
                 <span>Balance: {formatCurrency(quotationWizardBalanceAmount)}</span>
               </div>

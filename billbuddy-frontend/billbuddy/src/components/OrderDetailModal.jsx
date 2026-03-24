@@ -128,6 +128,7 @@ export default function OrderDetailModal(props) {
             <h5>Delivery</h5>
             <span className={quotationFieldChanged("delivery_type") ? "change-highlight" : ""}>Type: {displayedQuotation?.delivery_type || "-"}</span>
             <span className={quotationFieldChanged("delivery_date") ? "change-highlight" : ""}>Date: {formatDateIST(displayedQuotation?.delivery_date)}</span>
+            <span className={quotationFieldChanged("reference_request_id") ? "change-highlight" : ""}>Reference Request ID: {displayedQuotation?.reference_request_id || "-"}</span>
             <span className={quotationFieldChanged("delivery_address") ? "change-highlight" : ""}>Address: {displayedQuotation?.delivery_address || "-"}</span>
             <span className={quotationFieldChanged("delivery_pincode") ? "change-highlight" : ""}>Pincode: {displayedQuotation?.delivery_pincode || "-"}</span>
           </div>
@@ -181,6 +182,11 @@ export default function OrderDetailModal(props) {
                 placeholder="Custom quotation number"
                 value={quotationEditForm.customQuotationNumber}
                 onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, customQuotationNumber: e.target.value }))}
+              />
+              <input
+                placeholder="Reference Request ID"
+                value={quotationEditForm.referenceRequestId}
+                onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, referenceRequestId: e.target.value }))}
               />
               <select value={quotationEditForm.deliveryType} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryType: e.target.value }))}>
                 <option value="PICKUP">Pickup</option>

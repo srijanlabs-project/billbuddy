@@ -452,7 +452,7 @@ function getVisibleQuotationNumber(quotation) {
 function getQuotationFileStem(quotation) {
   const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
   const version = quotation?.version_no || 1;
-  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_ver_${version}`;
+  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
 }
 
 function statusLabel(status) {
@@ -977,6 +977,7 @@ function validateProductRows(rows) {
 function buildOrderEditForm(details) {
   return {
     customQuotationNumber: details?.quotation?.custom_quotation_number || "",
+    referenceRequestId: details?.quotation?.reference_request_id || "",
     deliveryType: details?.quotation?.delivery_type || "PICKUP",
     deliveryDate: details?.quotation?.delivery_date || "",
     deliveryAddress: details?.quotation?.delivery_address || "",
@@ -1153,7 +1154,8 @@ function createInitialQuotationWizardState(firstProduct = null) {
     amounts: {
       discountAmount: "",
       advanceAmount: "",
-      deliveryDate: ""
+      deliveryDate: "",
+      referenceRequestId: ""
     },
     submittedQuotation: null
   };
@@ -3036,6 +3038,7 @@ function App() {
   const [isEditingQuotation, setIsEditingQuotation] = useState(false);
   const [quotationEditForm, setQuotationEditForm] = useState({
     customQuotationNumber: "",
+    referenceRequestId: "",
     deliveryType: "PICKUP",
     deliveryDate: "",
     deliveryAddress: "",
@@ -5175,6 +5178,7 @@ function App() {
         method: "PATCH",
         body: JSON.stringify({
           customQuotationNumber: quotationEditForm.customQuotationNumber || null,
+          referenceRequestId: quotationEditForm.referenceRequestId || null,
           deliveryType: quotationEditForm.deliveryType,
           deliveryDate: quotationEditForm.deliveryDate || null,
           deliveryAddress: quotationEditForm.deliveryAddress || null,

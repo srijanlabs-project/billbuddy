@@ -65,6 +65,11 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS subscription_plan VARCHAR(50) DEFAULT 'DEMO'`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS max_users INTEGER`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS max_orders_per_month INTEGER`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS included_users INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS purchased_user_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS active_user_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS available_user_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS seat_status VARCHAR(30) DEFAULT 'available'`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS business_name VARCHAR(200)`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(20)`);
@@ -141,6 +146,7 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS advance_amount NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS balance_amount NUMERIC(10,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS reference_request_id VARCHAR(120)`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS watermark_text TEXT`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS seller_quotation_serial INTEGER`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS seller_quotation_number VARCHAR(80)`);
@@ -398,6 +404,11 @@ async function initializeDatabase() {
       id SERIAL PRIMARY KEY,
       plan_id INTEGER NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
       max_users INTEGER,
+      included_users INTEGER DEFAULT 0,
+      max_users_allowed INTEGER,
+      extra_user_price_monthly NUMERIC(12,2) DEFAULT 0,
+      extra_user_price_yearly NUMERIC(12,2) DEFAULT 0,
+      seat_expansion_allowed BOOLEAN DEFAULT TRUE,
       max_quotations INTEGER,
       max_customers INTEGER,
       inventory_enabled BOOLEAN DEFAULT FALSE,
@@ -411,6 +422,11 @@ async function initializeDatabase() {
       UNIQUE (plan_id)
     )
   `);
+  await pool.query(`ALTER TABLE plan_features ADD COLUMN IF NOT EXISTS included_users INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE plan_features ADD COLUMN IF NOT EXISTS max_users_allowed INTEGER`);
+  await pool.query(`ALTER TABLE plan_features ADD COLUMN IF NOT EXISTS extra_user_price_monthly NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE plan_features ADD COLUMN IF NOT EXISTS extra_user_price_yearly NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE plan_features ADD COLUMN IF NOT EXISTS seat_expansion_allowed BOOLEAN DEFAULT TRUE`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS subscriptions (
@@ -418,6 +434,14 @@ async function initializeDatabase() {
       seller_id INTEGER NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
       plan_id INTEGER NOT NULL REFERENCES plans(id),
       status VARCHAR(20) NOT NULL DEFAULT 'trial',
+      included_users_snapshot INTEGER DEFAULT 0,
+      purchased_user_count INTEGER DEFAULT 0,
+      additional_user_count INTEGER DEFAULT 0,
+      extra_user_unit_price NUMERIC(12,2) DEFAULT 0,
+      seat_billing_cycle VARCHAR(20) DEFAULT 'monthly',
+      seat_amount NUMERIC(12,2) DEFAULT 0,
+      total_subscription_amount NUMERIC(12,2) DEFAULT 0,
+      seat_limit_enforced BOOLEAN DEFAULT TRUE,
       start_date DATE,
       end_date DATE,
       trial_start_at TIMESTAMP WITHOUT TIME ZONE,
@@ -426,6 +450,51 @@ async function initializeDatabase() {
       auto_assigned BOOLEAN DEFAULT FALSE,
       created_by INTEGER REFERENCES users(id),
       updated_by INTEGER REFERENCES users(id),
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS included_users_snapshot INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS purchased_user_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS additional_user_count INTEGER DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS extra_user_unit_price NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS seat_billing_cycle VARCHAR(20) DEFAULT 'monthly'`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS seat_amount NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS total_subscription_amount NUMERIC(12,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS seat_limit_enforced BOOLEAN DEFAULT TRUE`);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subscription_seat_events (
+      id SERIAL PRIMARY KEY,
+      seller_id INTEGER NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
+      subscription_id INTEGER REFERENCES subscriptions(id) ON DELETE CASCADE,
+      event_type VARCHAR(40) NOT NULL,
+      previous_purchased_user_count INTEGER DEFAULT 0,
+      new_purchased_user_count INTEGER DEFAULT 0,
+      delta_user_count INTEGER DEFAULT 0,
+      unit_price NUMERIC(12,2) DEFAULT 0,
+      seat_amount NUMERIC(12,2) DEFAULT 0,
+      performed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approval_status VARCHAR(20) DEFAULT 'approved',
+      note TEXT,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS subscription_seat_requests (
+      id SERIAL PRIMARY KEY,
+      seller_id INTEGER NOT NULL REFERENCES sellers(id) ON DELETE CASCADE,
+      subscription_id INTEGER REFERENCES subscriptions(id) ON DELETE SET NULL,
+      requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      requested_user_count INTEGER NOT NULL,
+      current_purchased_user_count INTEGER DEFAULT 0,
+      reason_note TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      decision_note TEXT,
+      approved_at TIMESTAMP WITHOUT TIME ZONE,
+      rejected_at TIMESTAMP WITHOUT TIME ZONE,
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
@@ -667,6 +736,11 @@ async function initializeDatabase() {
     END
   `);
   await pool.query(`UPDATE sellers SET subscription_plan = COALESCE(subscription_plan, 'DEMO')`);
+  await pool.query(`UPDATE sellers SET included_users = COALESCE(included_users, 0)`);
+  await pool.query(`UPDATE sellers SET purchased_user_count = COALESCE(purchased_user_count, max_users, 0)`);
+  await pool.query(`UPDATE sellers SET active_user_count = COALESCE(active_user_count, 0)`);
+  await pool.query(`UPDATE sellers SET available_user_count = COALESCE(available_user_count, 0)`);
+  await pool.query(`UPDATE sellers SET seat_status = COALESCE(seat_status, 'available')`);
   await pool.query(`UPDATE sellers SET is_locked = COALESCE(is_locked, FALSE)`);
   await pool.query(`UPDATE sellers SET sample_data_enabled = COALESCE(sample_data_enabled, FALSE)`);
   await pool.query(`UPDATE leads SET wants_sample_data = COALESCE(wants_sample_data, FALSE)`);
@@ -697,15 +771,15 @@ async function initializeDatabase() {
   );
 
   await pool.query(
-    `INSERT INTO plan_features (plan_id, max_users, max_quotations, max_customers, inventory_enabled, reports_enabled, gst_enabled, exports_enabled, quotation_watermark_enabled, quotation_creation_locked_after_expiry)
-     VALUES ($1, NULL, NULL, NULL, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
+    `INSERT INTO plan_features (plan_id, max_users, included_users, max_users_allowed, max_quotations, max_customers, inventory_enabled, reports_enabled, gst_enabled, exports_enabled, quotation_watermark_enabled, quotation_creation_locked_after_expiry, seat_expansion_allowed)
+     VALUES ($1, 3, 3, 3, NULL, NULL, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE)
      ON CONFLICT (plan_id) DO NOTHING`,
     [demoPlanResult.rows[0].id]
   );
 
   await pool.query(
-    `INSERT INTO plan_features (plan_id, max_users, max_quotations, max_customers, inventory_enabled, reports_enabled, gst_enabled, exports_enabled, quotation_watermark_enabled, quotation_creation_locked_after_expiry)
-     VALUES ($1, NULL, NULL, NULL, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
+    `INSERT INTO plan_features (plan_id, max_users, included_users, max_users_allowed, max_quotations, max_customers, inventory_enabled, reports_enabled, gst_enabled, exports_enabled, quotation_watermark_enabled, quotation_creation_locked_after_expiry, seat_expansion_allowed)
+     VALUES ($1, 3, 3, 3, NULL, NULL, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE)
      ON CONFLICT (plan_id) DO NOTHING`,
     [trialPlanResult.rows[0].id]
   );
@@ -789,6 +863,8 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_payments_seller_id ON payments(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_seller_id ON subscriptions(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_plan_id ON subscriptions(plan_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscription_seat_events_seller_created ON subscription_seat_events(seller_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscription_seat_requests_seller_status ON subscription_seat_requests(seller_id, status, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_seller_usage_snapshots_seller_date ON seller_usage_snapshots(seller_id, snapshot_date DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_leads_status_created ON leads(status, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_leads_assigned_user ON leads(assigned_user_id)`);

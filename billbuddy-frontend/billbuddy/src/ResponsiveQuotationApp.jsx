@@ -120,7 +120,8 @@ function createInitialDraft() {
     amounts: {
       discountAmount: "",
       advanceAmount: "",
-      deliveryDate: ""
+      deliveryDate: "",
+      referenceRequestId: ""
     },
     items: [],
     submittedQuotation: null
@@ -137,6 +138,7 @@ function hasActiveDraftContent(draft) {
     customer.name ||
     customer.mobile ||
     customer.monthlyBilling ||
+    draft.amounts?.referenceRequestId ||
     itemForm.materialName ||
     itemForm.color ||
     itemForm.otherInfo ||
@@ -288,7 +290,7 @@ function getVisibleQuotationNumber(quotation) {
 function getQuotationFileStem(quotation) {
   const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
   const version = quotation?.version_no || 1;
-  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_ver_${version}`;
+  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
 }
 
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
@@ -912,6 +914,7 @@ export default function ResponsiveQuotationApp({
           discountAmount,
           advanceAmount,
           deliveryDate: draft.amounts.deliveryDate || null,
+          referenceRequestId: String(draft.amounts.referenceRequestId || "").trim() || null,
           balanceAmount,
           paymentStatus: advanceAmount > 0 && balanceAmount > 0 ? "partial" : "pending",
           orderStatus: "NEW",
@@ -1407,6 +1410,10 @@ export default function ResponsiveQuotationApp({
               <label>
                 <span>Delivery Date</span>
                 <input type="date" value={draft.amounts.deliveryDate || ""} onChange={(e) => updateAmountField("deliveryDate", e.target.value)} />
+              </label>
+              <label>
+                <span>Reference Request ID</span>
+                <input value={draft.amounts.referenceRequestId || ""} onChange={(e) => updateAmountField("referenceRequestId", e.target.value)} placeholder="Internal reference only" />
               </label>
               <label className="rq-full">
                 <span>Balance Amount</span>

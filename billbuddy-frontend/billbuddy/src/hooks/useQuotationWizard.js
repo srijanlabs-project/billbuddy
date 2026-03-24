@@ -63,7 +63,7 @@ export default function useQuotationWizard({
   function getQuotationFileStem(quotation) {
     const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
     const version = quotation?.version_no || 1;
-    return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_ver_${version}`;
+    return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
   }
 
   function extractDownloadFilename(response, quotation) {
@@ -673,6 +673,7 @@ export default function useQuotationWizard({
           discountAmount: quotationWizardDiscountAmount,
           advanceAmount: quotationWizardAdvanceAmount,
           deliveryDate: quotationWizard.amounts.deliveryDate || null,
+          referenceRequestId: String(quotationWizard.amounts.referenceRequestId || "").trim() || null,
           balanceAmount: quotationWizardBalanceAmount,
           paymentStatus: quotationWizardAdvanceAmount > 0 && quotationWizardBalanceAmount > 0 ? "partial" : "pending",
           orderStatus: "NEW",

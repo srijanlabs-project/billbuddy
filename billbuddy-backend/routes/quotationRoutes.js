@@ -71,7 +71,12 @@ function quotationLabel(quotation) {
 function quotationFileStem(quotation) {
   const visibleNumber = getQuotationNumberValue(quotation) || "quotation";
   const version = quotation.version_no || 1;
-  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_ver_${version}`;
+  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
+}
+
+function normalizeReferenceRequestId(value) {
+  const normalized = String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  return normalized || null;
 }
 
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
@@ -3668,6 +3673,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const normalizedDeliveryType = normalizeDeliveryType(req.body.deliveryType || quotation.delivery_type || "PICKUP");
     const deliveryAddress = req.body.deliveryAddress ?? quotation.delivery_address;
     const deliveryPincode = req.body.deliveryPincode ?? quotation.delivery_pincode;
+    const normalizedReferenceRequestId = normalizeReferenceRequestId(req.body.referenceRequestId ?? quotation.reference_request_id);
 
     if (normalizedDeliveryType === "DOORSTEP" && (!deliveryAddress || !deliveryPincode)) {
       await client.query("ROLLBACK");
@@ -3762,21 +3768,22 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
            discount_amount = $6,
            advance_amount = $7,
            balance_amount = $8,
-           delivery_type = $9,
-           delivery_date = $10,
-           delivery_address = $11,
-           delivery_pincode = $12,
-           transportation_cost = $13,
-           design_cost_confirmed = $14,
-           order_status = $15,
-           payment_status = $16,
-           version_no = $17,
-           custom_quotation_number = $18,
-           approval_required = $19,
-           approval_status = $20,
+           reference_request_id = $9,
+           delivery_type = $10,
+           delivery_date = $11,
+           delivery_address = $12,
+           delivery_pincode = $13,
+           transportation_cost = $14,
+           design_cost_confirmed = $15,
+           order_status = $16,
+           payment_status = $17,
+           version_no = $18,
+           custom_quotation_number = $19,
+           approval_required = $20,
+           approval_status = $21,
            active_approval_request_id = NULL,
-           approved_for_download_at = CASE WHEN $20 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
-       WHERE id = $21 AND seller_id = $22
+           approved_for_download_at = CASE WHEN $21 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+       WHERE id = $22 AND seller_id = $23
        RETURNING *`,
       [
         totals.subtotal,
@@ -3787,6 +3794,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
         totals.discountAmount,
         totals.advanceAmount,
         totals.balanceAmount,
+        normalizedReferenceRequestId,
         normalizedDeliveryType,
         req.body.deliveryDate ?? quotation.delivery_date,
         deliveryAddress || null,

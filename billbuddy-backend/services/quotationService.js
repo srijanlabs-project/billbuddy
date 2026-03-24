@@ -837,7 +837,8 @@ async function createQuotationWithItems(payload) {
     customerMonthlyBilling,
     discountAmount,
     advanceAmount,
-    customQuotationNumber
+    customQuotationNumber,
+    referenceRequestId
   } = payload;
 
   if (!sellerId) {
@@ -897,11 +898,12 @@ async function createQuotationWithItems(payload) {
     const quotationNumber = await getNextQuotationNumber(client, sellerId);
     const { sellerQuotationSerial, sellerQuotationNumber } = await getNextSellerQuotationMeta(client, sellerId);
     const normalizedCustomQuotationNumber = normalizeCustomQuotationNumber(customQuotationNumber);
+    const normalizedReferenceRequestId = String(referenceRequestId || "").trim().replace(/\s+/g, " ").slice(0, 120) || null;
 
     const quotationResult = await client.query(
       `INSERT INTO quotations
-       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, FALSE, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, reference_request_id, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, FALSE, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
        RETURNING *`,
       [
         quotationNumber,
@@ -919,6 +921,7 @@ async function createQuotationWithItems(payload) {
         discount,
         advance,
         balanceAmount,
+        normalizedReferenceRequestId,
         paymentStatus || (advance > 0 && balanceAmount > 0 ? "partial" : "pending"),
         normalizeOrderStatus(orderStatus || ORDER_STATUS.NEW),
         normalizedDeliveryType,
