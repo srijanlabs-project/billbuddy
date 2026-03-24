@@ -17,6 +17,7 @@ import NotificationsPage from "./components/NotificationsPage";
 import DashboardPage from "./components/DashboardPage";
 import HelpCenterPage from "./components/HelpCenterPage";
 import RbacMatrixPage from "./components/RbacMatrixPage";
+import GoLiveGatePage from "./components/GoLiveGatePage";
 import OrderDetailModal from "./components/OrderDetailModal";
 import SellerDetailModal from "./components/SellerDetailModal";
 import NotificationDetailModal from "./components/NotificationDetailModal";
@@ -66,6 +67,7 @@ const PLATFORM_MODULES = [
   "Dashboard",
   "Help Center",
   "Roles & Permissions",
+  "Go-Live Gate",
   "Leads",
   "Sellers",
   "Configuration Studio",
@@ -286,6 +288,7 @@ const PLATFORM_MODULE_META = {
   Dashboard: { eyebrow: "Platform", title: "Quotsy Control Plane", subtitle: "See seller growth, billing drivers, onboarding progress, and account health in one place." },
   "Help Center": { eyebrow: "Support", title: "Help Center", subtitle: "Search guides and FAQs for platform operations, seller onboarding, and product usage." },
   "Roles & Permissions": { eyebrow: "Governance", title: "Roles & Permissions", subtitle: "Review the current RBAC model, role coverage, and permission boundaries used across platform and seller scopes." },
+  "Go-Live Gate": { eyebrow: "Security", title: "Go-Live Gate Sheet", subtitle: "Track production readiness controls, owners, and closure targets before launch." },
   Leads: { eyebrow: "Pipeline", title: "Lead Management", subtitle: "Capture, qualify, and progress prospective sellers from first touch to onboarding." },
   Sellers: { eyebrow: "Tenants", title: "Seller Management", subtitle: "Create sellers, review lifecycle, and manage tenant health from a dedicated operating screen." },
   "Configuration Studio": { eyebrow: "Schema", title: "Seller Configuration Studio", subtitle: "Configure catalogue fields, quotation columns, preview, and publishing as a full workspace instead of a modal." },
@@ -2926,6 +2929,9 @@ function App() {
   const [plans, setPlans] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [goLiveGates, setGoLiveGates] = useState([]);
+  const [goLiveGatesLoading, setGoLiveGatesLoading] = useState(false);
+  const [goLiveGateSavingId, setGoLiveGateSavingId] = useState(null);
   const [leads, setLeads] = useState([]);
   const [usageOverview, setUsageOverview] = useState(null);
   const [decodeRules, setDecodeRules] = useState({
@@ -3334,13 +3340,14 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
         apiFetch("/api/leads"),
         apiFetch("/api/subscriptions"),
-        apiFetch("/api/notifications")
+        apiFetch("/api/notifications"),
+        apiFetch("/api/security-gates").catch(() => [])
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -3348,8 +3355,47 @@ function App() {
       setLeads(Array.isArray(leadRows) ? leadRows : []);
       setSubscriptions(Array.isArray(subscriptionRows) ? subscriptionRows : []);
       setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
+      setGoLiveGates(Array.isArray(gateRows) ? gateRows : []);
     } catch (err) {
       handleApiError(err);
+    }
+  }
+
+  async function refreshGoLiveGates() {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setGoLiveGatesLoading(true);
+      const gateRows = await apiFetch("/api/security-gates");
+      setGoLiveGates(Array.isArray(gateRows) ? gateRows : []);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setGoLiveGatesLoading(false);
+    }
+  }
+
+  async function handleUpdateGoLiveGate(gateId, draft) {
+    try {
+      setGoLiveGateSavingId(Number(gateId));
+      const response = await apiFetch(`/api/security-gates/${gateId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: draft.status,
+          priority: draft.priority,
+          ownerName: draft.ownerName || null,
+          targetDate: draft.targetDate || null,
+          notes: draft.notes || null,
+          evidenceLink: draft.evidenceLink || null
+        })
+      });
+      if (response?.gate) {
+        setGoLiveGates((prev) => prev.map((entry) => (Number(entry.id) === Number(response.gate.id) ? response.gate : entry)));
+      }
+      setError(response?.message || "Gate updated.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setGoLiveGateSavingId(null);
     }
   }
 
@@ -5784,6 +5830,16 @@ function App() {
             notificationForm={notificationForm}
             setNotificationForm={setNotificationForm}
             sellers={sellers}
+          />
+        ) : activeModule === "Go-Live Gate" ? (
+          <GoLiveGatePage
+            activeModule={activeModule}
+            currentModuleMeta={currentModuleMeta}
+            gates={goLiveGates}
+            loading={goLiveGatesLoading}
+            savingGateId={goLiveGateSavingId}
+            onRefresh={refreshGoLiveGates}
+            onUpdateGate={handleUpdateGoLiveGate}
           />
         ) : activeModule === "Users" ? (
           <UsersPage

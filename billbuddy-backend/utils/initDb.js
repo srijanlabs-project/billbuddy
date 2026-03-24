@@ -851,6 +851,58 @@ async function initializeDatabase() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS security_go_live_gates (
+      id SERIAL PRIMARY KEY,
+      gate_key VARCHAR(140) UNIQUE NOT NULL,
+      category VARCHAR(100) NOT NULL,
+      control_name VARCHAR(220) NOT NULL,
+      priority VARCHAR(20) DEFAULT 'high',
+      status VARCHAR(20) DEFAULT 'unknown',
+      owner_name VARCHAR(120),
+      target_date DATE,
+      notes TEXT,
+      evidence_link TEXT,
+      updated_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const defaultGoLiveGates = [
+    { gateKey: "auth-mfa-admin", category: "Auth Hardening", controlName: "MFA enabled for Platform Admin and Seller Admin", priority: "blocker", status: "fail" },
+    { gateKey: "auth-password-policy", category: "Auth Hardening", controlName: "Strong password policy enforced", priority: "high", status: "pass" },
+    { gateKey: "auth-lockout", category: "Auth Hardening", controlName: "Account lockout and cooldown after failed logins", priority: "high", status: "pass" },
+    { gateKey: "auth-session-rotation", category: "Auth Hardening", controlName: "Session expiry and token rotation policy enforced", priority: "high", status: "partial" },
+    { gateKey: "auth-mobile-immutable", category: "Auth Hardening", controlName: "Mobile login identity immutable in user edit", priority: "high", status: "pass" },
+    { gateKey: "access-rbac-deny-default", category: "Authorization", controlName: "RBAC deny-by-default on all APIs", priority: "blocker", status: "partial" },
+    { gateKey: "access-endpoint-audit", category: "Authorization", controlName: "Endpoint-level permission audit completed", priority: "high", status: "partial" },
+    { gateKey: "access-tenant-isolation", category: "Authorization", controlName: "Seller isolation validated in all data queries", priority: "blocker", status: "pass" },
+    { gateKey: "api-cors-allowlist", category: "API Security", controlName: "CORS allowlist strict per environment", priority: "high", status: "pass" },
+    { gateKey: "api-rate-limits-sensitive", category: "API Security", controlName: "Rate limiting extended to sensitive mutation endpoints", priority: "high", status: "partial" },
+    { gateKey: "api-security-headers", category: "API Security", controlName: "Security headers (HSTS, frame, content-type, referrer) enabled", priority: "high", status: "pass" },
+    { gateKey: "api-validation-unknown-fields", category: "API Security", controlName: "Request validation rejects unknown fields", priority: "medium", status: "partial" },
+    { gateKey: "finance-approval-enforcement", category: "Financial Controls", controlName: "Approval required for out-of-limit quotations", priority: "blocker", status: "pass" },
+    { gateKey: "finance-download-block", category: "Financial Controls", controlName: "Download/email blocked for pending or rejected approvals", priority: "blocker", status: "pass" },
+    { gateKey: "finance-supersede-protection", category: "Financial Controls", controlName: "Superseded approval requests cannot be incorrectly approved", priority: "high", status: "pass" },
+    { gateKey: "data-db-tls", category: "Data Protection", controlName: "Database TLS enforced in runtime", priority: "high", status: "pass" },
+    { gateKey: "data-field-encryption", category: "Data Protection", controlName: "Sensitive data fields encrypted at application layer", priority: "high", status: "fail" },
+    { gateKey: "data-uat-masking", category: "Data Protection", controlName: "UAT data masking automated and documented", priority: "medium", status: "partial" },
+    { gateKey: "ops-backup-restore", category: "Ops Resilience", controlName: "Automated backup with periodic restore drill", priority: "blocker", status: "unknown" },
+    { gateKey: "ops-waf-edge", category: "Ops Resilience", controlName: "WAF and bot protection enabled on public domains", priority: "high", status: "unknown" },
+    { gateKey: "ops-vuln-scan-ci", category: "Ops Resilience", controlName: "Dependency and image vulnerability scan in CI", priority: "high", status: "unknown" },
+    { gateKey: "ops-incident-runbook", category: "Ops Resilience", controlName: "Incident response and rollback runbook prepared", priority: "medium", status: "unknown" }
+  ];
+
+  for (const gate of defaultGoLiveGates) {
+    await pool.query(
+      `INSERT INTO security_go_live_gates (gate_key, category, control_name, priority, status)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (gate_key) DO NOTHING`,
+      [gate.gateKey, gate.category, gate.controlName, gate.priority, gate.status]
+    );
+  }
+
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_sessions_token_jti ON user_sessions(token_jti)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_otp_codes_mobile_created ON mobile_otp_codes(mobile, created_at DESC)`);
@@ -884,6 +936,8 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_actor_created ON platform_audit_logs(actor_user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_roles_scope_order ON rbac_roles(scope, display_order, id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_role_permissions_role ON rbac_role_permissions(role_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_security_go_live_gates_status ON security_go_live_gates(status)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_security_go_live_gates_priority ON security_go_live_gates(priority)`);
 
   await seedRbacRolesAndPermissions(pool);
 }
