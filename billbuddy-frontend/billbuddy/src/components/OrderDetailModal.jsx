@@ -31,6 +31,8 @@ export default function OrderDetailModal(props) {
     displayedItems,
     quotationItemFieldChanged,
     handleQuotationItemChange,
+    handleAddQuotationEditItem,
+    handleRemoveQuotationEditItem,
     getQuotationItemTitle,
     getQuotationCustomFieldEntries,
     getQuotationItemDimensionText,
@@ -196,6 +198,13 @@ export default function OrderDetailModal(props) {
               <input placeholder="Delivery address" value={quotationEditForm.deliveryAddress} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))} />
               <input placeholder="Delivery pincode" value={quotationEditForm.deliveryPincode} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryPincode: e.target.value }))} />
             </div>
+            <div className="preview-pane">
+              <h5>Edit Items</h5>
+              <span>Add or remove line items before saving the new version.</span>
+              <button type="button" className="ghost-btn" onClick={handleAddQuotationEditItem}>
+                Add Item
+              </button>
+            </div>
           </div>
         )}
 
@@ -208,13 +217,14 @@ export default function OrderDetailModal(props) {
               <th>Qty</th>
               <th>Rate</th>
               <th>Amount</th>
+              {isEditingQuotation && <th>Action</th>}
             </tr>
           </thead>
           <tbody>
             {(isEditingQuotation
               ? quotationEditForm.items
               : displayedItems || []).map((item, index) => (
-              <tr key={item.id}>
+              <tr key={item.id || item.tempId || index}>
                 <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "material_name") || quotationItemFieldChanged(item, index, "material_type") || quotationItemFieldChanged(item, index, "design_name") || quotationItemFieldChanged(item, index, "sku")) ? "change-highlight-cell" : ""}>
                   {isEditingQuotation ? (
                     <input value={item.materialName || ""} onChange={(e) => handleQuotationItemChange(index, "materialName", e.target.value)} />
@@ -262,6 +272,13 @@ export default function OrderDetailModal(props) {
                     ? formatCurrency(Number(item.quantity || 0) * Number(item.unitPrice || 0))
                     : formatCurrency(getQuotationItemTotalValue(item))}
                 </td>
+                {isEditingQuotation && (
+                  <td>
+                    <button type="button" className="ghost-btn compact" onClick={() => handleRemoveQuotationEditItem(index)}>
+                      Remove
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

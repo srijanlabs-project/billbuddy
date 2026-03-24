@@ -23,7 +23,8 @@ const {
   applyComputedQuotationFields,
   evaluateQuotationApproval,
   supersedeActiveApprovalRequest,
-  createQuotationApprovalRequest
+  createQuotationApprovalRequest,
+  applyQuotationItemDisplayConfig
 } = require("../services/quotationService");
 const {
   getQuotationCustomFieldEntries,
@@ -3686,6 +3687,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       size: item.size || null,
       quantity: toAmount(item.quantity),
       unit_price: toAmount(item.unitPrice ?? item.unit_price),
+      item_category: item.itemCategory || item.item_category || item.category || null,
       material_type: item.materialType || item.material_type || null,
       thickness: item.thickness || null,
       design_name: item.designName || item.design_name || null,
@@ -3704,9 +3706,10 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const customColumns = await getSellerCustomQuotationColumns(client, tenantId);
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
     validateCustomQuotationFields(computedItems, customColumns);
+    const displayReadyItems = await applyQuotationItemDisplayConfig(client, tenantId, computedItems);
 
     const totals = computeQuotationTotals({
-      items: computedItems,
+      items: displayReadyItems,
       gstPercent: req.body.gstPercent ?? quotation.gst_percent ?? 0,
       transportCharges: req.body.transportCharges ?? quotation.transport_charges ?? 0,
       designCharges: req.body.designCharges ?? quotation.design_charges ?? 0,
@@ -3717,7 +3720,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       sellerId: tenantId,
       requesterUserId: req.user.id,
       totalAmount: totals.totalAmount,
-      items: computedItems
+      items: displayReadyItems
     });
 
     await restoreInventoryForItems(client, tenantId, existingItems);
@@ -3728,8 +3731,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     for (const item of totals.normalizedItems) {
       await client.query(
         `INSERT INTO quotation_items
-         (quotation_id, seller_id, product_id, variant_id, size, quantity, unit_price, total_price, material_type, thickness, design_name, sku, color_name, imported_color_note, ps_included, dimension_height, dimension_width, dimension_unit, item_note, pricing_type, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, COALESCE($21::jsonb, '{}'::jsonb))`,
+         (quotation_id, seller_id, product_id, variant_id, size, quantity, unit_price, total_price, material_type, thickness, design_name, sku, color_name, imported_color_note, ps_included, dimension_height, dimension_width, dimension_unit, item_note, pricing_type, item_category, item_display_text, custom_fields)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, COALESCE($23::jsonb, '{}'::jsonb))`,
         [
           id,
           tenantId,
@@ -3751,6 +3754,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
           item.dimension_unit || null,
           item.item_note || null,
           item.pricing_type || "SFT",
+          item.item_category || null,
+          item.item_display_text || null,
           JSON.stringify(item.custom_fields || {})
         ]
       );

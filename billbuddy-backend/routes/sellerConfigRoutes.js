@@ -14,10 +14,29 @@ const DEFAULT_MODULES = {
   combineHelpingTextInItemColumn: false
 };
 
+const DEFAULT_ITEM_DISPLAY_CONFIG = {
+  defaultPattern: "",
+  categoryRules: []
+};
+
+function normalizeItemDisplayConfig(config = {}) {
+  const categoryRules = Array.isArray(config.categoryRules) ? config.categoryRules : [];
+  return {
+    defaultPattern: String(config.defaultPattern || "").trim(),
+    categoryRules: categoryRules
+      .map((rule) => ({
+        category: String(rule.category || "").trim(),
+        pattern: String(rule.pattern || "").trim()
+      }))
+      .filter((rule) => rule.category && rule.pattern)
+  };
+}
+
 function normalizeModules(modules = {}) {
   return {
     ...DEFAULT_MODULES,
-    ...(modules || {})
+    ...(modules || {}),
+    itemDisplayConfig: normalizeItemDisplayConfig(modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG)
   };
 }
 
@@ -79,6 +98,7 @@ function buildProfileResponse(profileRow, catalogueRows, quotationRows, versionR
     profileName: profileRow.profile_name,
     status: profileRow.status,
     modules: normalizeModules(profileRow.modules),
+    itemDisplayConfig: normalizeItemDisplayConfig(profileRow.modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG),
     publishedAt: profileRow.published_at || null,
     updatedAt: profileRow.updated_at || null,
     catalogueFields: catalogueRows.map((field) => ({
@@ -260,6 +280,11 @@ router.put(
     }
 
     const modules = normalizeModules(req.body.modules);
+    const itemDisplayConfig = normalizeItemDisplayConfig(req.body.itemDisplayConfig || modules.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG);
+    const persistedModules = {
+      ...modules,
+      itemDisplayConfig
+    };
     const catalogueFields = normalizeCatalogueFields(req.body.catalogueFields);
     const quotationColumns = normalizeQuotationColumns(req.body.quotationColumns);
     if (String(req.body.status || "").toLowerCase() === "published") {
@@ -293,7 +318,7 @@ router.put(
          updated_by = EXCLUDED.updated_by,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
-      [sellerId, profileName, requestedStatus, JSON.stringify(modules), req.user.id]
+      [sellerId, profileName, requestedStatus, JSON.stringify(persistedModules), req.user.id]
     );
 
     const profile = profileResult.rows[0];
@@ -376,7 +401,8 @@ router.put(
       sellerId,
       profileName,
       status: requestedStatus,
-      modules,
+      modules: persistedModules,
+      itemDisplayConfig,
       catalogueFields: catalogueFields.map(({ displayOrder, ...field }) => field),
       quotationColumns: quotationColumns.map(({ displayOrder, ...column }) => column)
     };
@@ -403,7 +429,8 @@ router.put(
           profileName,
           status: requestedStatus,
           catalogueFieldCount: catalogueFields.length,
-          quotationColumnCount: quotationColumns.length
+          quotationColumnCount: quotationColumns.length,
+          itemDisplayCategoryRuleCount: itemDisplayConfig.categoryRules.length
         })
       ]
     );
@@ -473,6 +500,7 @@ router.post("/:sellerId/publish", requirePermission(PERMISSIONS.CONFIGURATION_PU
           profileName: config.profileName,
           status: "published",
           modules: config.modules,
+          itemDisplayConfig: normalizeItemDisplayConfig(config.itemDisplayConfig || config.modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG),
           catalogueFields: config.catalogueFields,
           quotationColumns: config.quotationColumns
         }),
@@ -489,7 +517,8 @@ router.post("/:sellerId/publish", requirePermission(PERMISSIONS.CONFIGURATION_PU
         JSON.stringify({
           profileName: config.profileName,
           catalogueFieldCount: config.catalogueFields.length,
-          quotationColumnCount: config.quotationColumns.length
+          quotationColumnCount: config.quotationColumns.length,
+          itemDisplayCategoryRuleCount: normalizeItemDisplayConfig(config.itemDisplayConfig || config.modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG).categoryRules.length
         })
       ]
     );

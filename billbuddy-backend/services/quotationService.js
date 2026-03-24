@@ -1,5 +1,6 @@
 const pool = require("../db/db");
 const { assertQuotationCreationAllowed, getQuotationWatermark } = require("./subscriptionService");
+const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("./quotationViewService");
 
 const ORDER_STATUS = {
   NEW: "NEW",
@@ -134,6 +135,8 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
       dimension_width: item.dimension_width ?? item.dimensionWidth ?? null,
       dimension_unit: item.dimension_unit || item.dimensionUnit || null,
       item_note: item.item_note || item.itemNote || null,
+      item_category: item.item_category || item.itemCategory || item.category || null,
+      item_display_text: item.item_display_text || item.itemDisplayText || null,
       pricing_type: String(item.pricing_type || item.pricingType || "SFT").toUpperCase(),
       custom_fields: item.custom_fields || item.customFields || {}
     };
@@ -450,6 +453,64 @@ async function evaluateQuotationApproval(client, { sellerId, requesterUserId, to
     assignedApprover,
     reasons
   };
+}
+
+async function getPublishedItemDisplayConfig(clientOrPool, sellerId) {
+  const result = await clientOrPool.query(
+    `SELECT modules
+     FROM seller_configuration_profiles
+     WHERE seller_id = $1
+       AND status = 'published'
+     ORDER BY published_at DESC NULLS LAST, updated_at DESC, id DESC
+     LIMIT 1`,
+    [sellerId]
+  );
+
+  return normalizeItemDisplayConfig(result.rows[0]?.modules?.itemDisplayConfig || {});
+}
+
+async function applyQuotationItemDisplayConfig(clientOrPool, sellerId, items = []) {
+  const itemDisplayConfig = await getPublishedItemDisplayConfig(clientOrPool, sellerId);
+  const productIdsNeedingCategory = [...new Set(
+    (items || [])
+      .filter((item) => !String(item.item_category || item.itemCategory || item.category || "").trim() && item.product_id)
+      .map((item) => Number(item.product_id))
+      .filter((id) => Number.isFinite(id) && id > 0)
+  )];
+
+  const productCategoryMap = new Map();
+  if (productIdsNeedingCategory.length) {
+    const result = await clientOrPool.query(
+      `SELECT id, category
+       FROM products
+       WHERE seller_id = $1
+         AND id = ANY($2::int[])`,
+      [sellerId, productIdsNeedingCategory]
+    );
+    result.rows.forEach((row) => {
+      productCategoryMap.set(Number(row.id), String(row.category || "").trim());
+    });
+  }
+
+  return (items || []).map((item) => {
+    const itemCategory = String(
+      item.item_category
+      || item.itemCategory
+      || item.category
+      || productCategoryMap.get(Number(item.product_id))
+      || ""
+    ).trim() || null;
+
+    const itemWithCategory = {
+      ...item,
+      item_category: itemCategory
+    };
+
+    return {
+      ...itemWithCategory,
+      item_display_text: buildConfiguredQuotationItemTitle(itemWithCategory, itemDisplayConfig) || null
+    };
+  });
 }
 
 function getApprovalTypeSummary(reasons = []) {
@@ -886,14 +947,15 @@ async function createQuotationWithItems(payload) {
 
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
     validateCustomQuotationFields(computedItems, customColumns);
+    const displayReadyItems = await applyQuotationItemDisplayConfig(client, sellerId, computedItems);
     const approvalEvaluation = await evaluateQuotationApproval(client, {
       sellerId,
       requesterUserId: createdBy,
       totalAmount,
-      items: computedItems
+      items: displayReadyItems
     });
 
-    const inventoryWarnings = await reserveInventoryForItems(client, sellerId, computedItems, { strict: false });
+    const inventoryWarnings = await reserveInventoryForItems(client, sellerId, displayReadyItems, { strict: false });
 
     const quotationNumber = await getNextQuotationNumber(client, sellerId);
     const { sellerQuotationSerial, sellerQuotationNumber } = await getNextSellerQuotationMeta(client, sellerId);
@@ -977,11 +1039,11 @@ async function createQuotationWithItems(payload) {
       Object.assign(quotation, quotationUpdateResult.rows[0]);
     }
 
-    for (const item of computedItems) {
+    for (const item of displayReadyItems) {
       await client.query(
         `INSERT INTO quotation_items
-         (quotation_id, seller_id, product_id, variant_id, size, quantity, unit_price, total_price, material_type, thickness, design_name, sku, color_name, imported_color_note, ps_included, dimension_height, dimension_width, dimension_unit, item_note, pricing_type, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, COALESCE($21::jsonb, '{}'::jsonb))`,
+         (quotation_id, seller_id, product_id, variant_id, size, quantity, unit_price, total_price, material_type, thickness, design_name, sku, color_name, imported_color_note, ps_included, dimension_height, dimension_width, dimension_unit, item_note, pricing_type, item_category, item_display_text, custom_fields)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, COALESCE($23::jsonb, '{}'::jsonb))`,
         [
           quotation.id,
           sellerId,
@@ -1003,6 +1065,8 @@ async function createQuotationWithItems(payload) {
           item.dimension_unit || null,
           item.item_note || null,
           item.pricing_type || "SFT",
+          item.item_category || null,
+          item.item_display_text || null,
           JSON.stringify(item.custom_fields || {})
         ]
       );
@@ -1027,7 +1091,7 @@ async function createQuotationWithItems(payload) {
     await createQuotationVersionSnapshot(client, {
       sellerId,
       quotation,
-      items: computedItems,
+      items: displayReadyItems,
       actorUserId: createdBy
     });
 
@@ -1141,5 +1205,6 @@ module.exports = {
   supersedeActiveApprovalRequest,
   createQuotationApprovalRequest,
   validateCustomQuotationFields,
-  applyComputedQuotationFields
+  applyComputedQuotationFields,
+  applyQuotationItemDisplayConfig
 };

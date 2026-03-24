@@ -1064,6 +1064,10 @@ ALTER TABLE public.quotations
     ADD COLUMN IF NOT EXISTS created_under_plan_id integer,
     ADD COLUMN IF NOT EXISTS reference_request_id character varying(120);
 
+ALTER TABLE public.quotation_items
+    ADD COLUMN IF NOT EXISTS item_category character varying(120),
+    ADD COLUMN IF NOT EXISTS item_display_text text;
+
 CREATE SEQUENCE IF NOT EXISTS public.quotation_number_seq
     START WITH 1
     INCREMENT BY 1

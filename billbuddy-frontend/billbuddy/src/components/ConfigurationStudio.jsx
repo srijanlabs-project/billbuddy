@@ -1,9 +1,12 @@
+import { buildConfiguredQuotationItemTitle, humanizeQuotationFieldKey } from "../utils/quotationView";
+
 export default function ConfigurationStudio(props) {
   const {
     activeModule,
     isPlatformAdmin,
     configurationStudioSeller,
     activeSellerConfiguration,
+    products,
     sellerConfigLoading,
     currentModuleMeta,
     sellers,
@@ -25,6 +28,7 @@ export default function ConfigurationStudio(props) {
     updateQuotationColumn,
     commitQuotationColumnOptions,
     removeQuotationColumn,
+    updateItemDisplayConfig,
     sellerConfigPreviewTab,
     setSellerConfigPreviewTab,
     renderConfigurationPreviewControl,
@@ -145,6 +149,60 @@ export default function ConfigurationStudio(props) {
   }
 
   if (!configurationStudioSeller || !activeSellerConfiguration) return null;
+
+  const sellerProducts = (products || []).filter((product) => {
+    if (!configurationStudioSeller?.id) return true;
+    if (product.seller_id === undefined || product.seller_id === null) return true;
+    return Number(product.seller_id) === Number(configurationStudioSeller.id);
+  });
+  const availableCategories = [...new Set(
+    sellerProducts
+      .map((product) => String(product.category || "").trim())
+      .filter(Boolean)
+  )].sort((left, right) => left.localeCompare(right));
+  const sampleProductByCategory = Object.fromEntries(
+    availableCategories.map((category) => [
+      category,
+      sellerProducts.find((product) => String(product.category || "").trim() === category) || null
+    ])
+  );
+  const availableDisplayTokens = [
+    ...new Set([
+      "material_name",
+      "category",
+      "sku",
+      "color_name",
+      "thickness",
+      "size",
+      "quantity",
+      "rate",
+      "width",
+      "height",
+      "unit",
+      "item_note",
+      "imported_color_note",
+      ...activeSellerConfiguration.catalogueFields.map((field) => field.key),
+      ...activeSellerConfiguration.quotationColumns.map((column) => column.key)
+    ].filter(Boolean))
+  ].sort((left, right) => left.localeCompare(right));
+
+  function buildSampleItem(product, categoryOverride = "") {
+    if (!product) {
+      return {
+        material_name: "Sample Item",
+        item_category: categoryOverride || "",
+        custom_fields: {}
+      };
+    }
+    return {
+      material_name: product.material_name || "",
+      item_category: categoryOverride || product.category || "",
+      sku: product.sku || "",
+      color_name: product.color_name || "",
+      thickness: product.thickness || "",
+      custom_fields: product.custom_fields || {}
+    };
+  }
 
   return (
     <section className="module-placeholder glass-panel seller-config-workspace">
@@ -315,6 +373,130 @@ export default function ConfigurationStudio(props) {
                   </div>
                 </div>
                 <p className="muted">Dropdown columns use the `Options` field. Enter values separated by commas, for example `Matte, Glossy, Frosted`.</p>
+              </div>
+              <div className="seller-config-help-card" style={{ marginTop: "18px" }}>
+                <div className="section-head compact">
+                  <h4>Item Display Builder</h4>
+                </div>
+                <p className="muted">Define how the final Item text should appear in quotations. Use a default rule for all categories, then override specific catalogue categories where needed.</p>
+                <div className="quotation-wizard-grid two" style={{ marginTop: "14px" }}>
+                  <label className="wizard-full">
+                    <span>Default Item Pattern</span>
+                    <input
+                      disabled={!canEditConfiguration}
+                      value={activeSellerConfiguration.itemDisplayConfig?.defaultPattern || ""}
+                      onChange={(e) => updateItemDisplayConfig((current) => ({
+                        ...current,
+                        defaultPattern: e.target.value
+                      }))}
+                      placeholder="{material_name}"
+                    />
+                    <small className="muted">Example: `{'{color_name} {material_name} with {base_type}'}`</small>
+                  </label>
+                  <div className="wizard-full">
+                    <span>Available Tokens</span>
+                    <div className="seller-config-option-chips">
+                      {availableDisplayTokens.map((token) => (
+                        <span key={token} className="badge pending">{humanizeQuotationFieldKey(token)}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="seller-detail-list" style={{ marginTop: "14px" }}>
+                  <div>
+                    <span>Default Preview</span>
+                    <strong>{buildConfiguredQuotationItemTitle(buildSampleItem(sellerProducts[0] || null), activeSellerConfiguration.itemDisplayConfig) || "-"}</strong>
+                  </div>
+                </div>
+
+                <div className="section-head compact" style={{ marginTop: "18px" }}>
+                  <h4>Category Overrides</h4>
+                  {canEditConfiguration && (
+                    <button
+                      type="button"
+                      onClick={() => updateItemDisplayConfig((current) => {
+                        const usedCategories = new Set((current.categoryRules || []).map((rule) => rule.category));
+                        const nextCategory = availableCategories.find((category) => !usedCategories.has(category));
+                        if (!nextCategory) return current;
+                        return {
+                          ...current,
+                          categoryRules: [...(current.categoryRules || []), { category: nextCategory, pattern: "" }]
+                        };
+                      })}
+                    >
+                      Add Category Rule
+                    </button>
+                  )}
+                </div>
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Category</th><th>Pattern</th><th>Preview</th><th /></tr>
+                  </thead>
+                  <tbody>
+                    {(activeSellerConfiguration.itemDisplayConfig?.categoryRules || []).length === 0 ? (
+                      <tr><td colSpan="4">No category overrides yet.</td></tr>
+                    ) : (
+                      activeSellerConfiguration.itemDisplayConfig.categoryRules.map((rule, index) => {
+                        const sampleItem = buildSampleItem(sampleProductByCategory[rule.category], rule.category);
+                        const preview = buildConfiguredQuotationItemTitle(sampleItem, {
+                          defaultPattern: activeSellerConfiguration.itemDisplayConfig?.defaultPattern || "",
+                          categoryRules: [rule]
+                        });
+                        const orphaned = rule.category && !availableCategories.includes(rule.category);
+                        return (
+                          <tr key={`${rule.category}-${index}`}>
+                            <td>
+                              <select
+                                disabled={!canEditConfiguration}
+                                value={rule.category}
+                                onChange={(e) => updateItemDisplayConfig((current) => ({
+                                  ...current,
+                                  categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
+                                    entryIndex === index ? { ...entry, category: e.target.value } : entry
+                                  ))
+                                }))}
+                              >
+                                <option value="">Select category</option>
+                                {availableCategories.map((category) => (
+                                  <option key={category} value={category}>{category}</option>
+                                ))}
+                              </select>
+                              {orphaned && <div className="muted">Category no longer exists in catalogue.</div>}
+                            </td>
+                            <td>
+                              <input
+                                disabled={!canEditConfiguration}
+                                value={rule.pattern}
+                                onChange={(e) => updateItemDisplayConfig((current) => ({
+                                  ...current,
+                                  categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
+                                    entryIndex === index ? { ...entry, pattern: e.target.value } : entry
+                                  ))
+                                }))}
+                                placeholder="{material_name}"
+                              />
+                            </td>
+                            <td>{preview || "-"}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="ghost-btn"
+                                disabled={!canEditConfiguration}
+                                onClick={() => updateItemDisplayConfig((current) => ({
+                                  ...current,
+                                  categoryRules: (current.categoryRules || []).filter((_, entryIndex) => entryIndex !== index)
+                                }))}
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+                <p className="muted" style={{ marginTop: "12px" }}>Blank field tokens are removed automatically. If a token is missing, the immediately preceding connector text is also hidden.</p>
               </div>
               <table className="data-table">
                 <thead>

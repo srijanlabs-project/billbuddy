@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api";
 import {
+  buildConfiguredQuotationItemTitle,
   getQuotationCustomFieldEntries,
   getQuotationItemDimensionText,
   getQuotationItemQuantityValue,
@@ -743,12 +744,18 @@ export default function ResponsiveQuotationApp({
     }
 
     const rateMeta = resolveItemRate(draft.itemForm, selectedMaterialMeta);
+    const itemDisplayText = buildConfiguredQuotationItemTitle({
+      ...draft.itemForm,
+      item_category: selectedMaterialMeta.category,
+      customFields: effectiveCustomFields
+    }, currentSellerConfiguration?.itemDisplayConfig);
     const item = {
       ...draft.itemForm,
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       category: selectedMaterialMeta.category,
       customFields: effectiveCustomFields,
-      descriptor: getQuotationItemTitle(draft.itemForm),
+      itemDisplayText,
+      descriptor: itemDisplayText || getQuotationItemTitle(draft.itemForm),
       rateValue: rateMeta.value,
       rateSource: rateMeta.source,
       total: calculateItemTotal(draft.itemForm, selectedMaterialMeta)
@@ -835,6 +842,7 @@ export default function ResponsiveQuotationApp({
       const displayRate = Number(item.rateValue || 0);
       if (item.category === "Services") {
         return {
+          category: item.category || null,
           size: null,
             quantity: toAmount(item.quantity || 0),
             unitPrice: displayRate,
@@ -850,6 +858,7 @@ export default function ResponsiveQuotationApp({
 
       if (item.category === "Product") {
         return {
+            category: item.category || null,
             size: null,
             quantity: toAmount(item.quantity || 1),
             unitPrice: displayRate,
@@ -873,6 +882,7 @@ export default function ResponsiveQuotationApp({
       const effectiveQty = totalArea * enteredQuantity;
 
         return {
+          category: item.category || null,
           size: `${item.width || 0} x ${item.height || 0}`,
           quantity: enteredQuantity,
           unitPrice: displayRate,

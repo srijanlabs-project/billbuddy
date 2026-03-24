@@ -87,6 +87,7 @@ export default function useSellerConfigurationStudio({
           profileName: activeSellerConfiguration.profileName,
           status: "draft",
           modules: activeSellerConfiguration.modules,
+          itemDisplayConfig: activeSellerConfiguration.itemDisplayConfig,
           catalogueFields: activeSellerConfiguration.catalogueFields,
           quotationColumns: activeSellerConfiguration.quotationColumns
         })
@@ -250,6 +251,16 @@ export default function useSellerConfigurationStudio({
     }));
   }
 
+  function updateItemDisplayConfig(updater) {
+    if (!configurationStudioSeller?.id) return;
+    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
+      ...current,
+      itemDisplayConfig: typeof updater === "function"
+        ? updater(current.itemDisplayConfig || { defaultPattern: "", categoryRules: [] })
+        : updater
+    }));
+  }
+
   return {
     selectedSellerConfigSeller,
     setSelectedSellerConfigSeller,
@@ -274,6 +285,7 @@ export default function useSellerConfigurationStudio({
     updateQuotationColumn,
     commitQuotationColumnOptions,
     removeQuotationColumn,
-    updateSellerConfigurationModule
+    updateSellerConfigurationModule,
+    updateItemDisplayConfig
   };
 }

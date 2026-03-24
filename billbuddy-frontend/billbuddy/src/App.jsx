@@ -986,8 +986,10 @@ function buildOrderEditForm(details) {
     designCharges: String(details?.quotation?.design_charges || 0),
     items: (details?.items || []).map((item) => ({
       id: item.id,
+      tempId: `existing-${item.id}`,
       productId: item.product_id || "",
       variantId: item.variant_id || "",
+      itemCategory: item.item_category || item.category || "",
       materialName: item.material_name || item.material_type || item.design_name || item.sku || "",
       materialType: item.material_type || "",
       thickness: item.thickness || "",
@@ -996,6 +998,21 @@ function buildOrderEditForm(details) {
       unitPrice: String(item.unit_price ?? ""),
       sku: item.sku || ""
     }))
+  };
+}
+
+function createEditableQuotationItem() {
+  return {
+    tempId: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    productId: "",
+    variantId: "",
+    materialName: "",
+    materialType: "",
+    thickness: "",
+    size: "",
+    quantity: "1",
+    unitPrice: "",
+    sku: ""
   };
 }
 
@@ -1299,6 +1316,7 @@ function buildQuotationWizardPayloadItems(items) {
     if (rules.isProduct || rules.isServices) {
       return {
         product_id: item.productId ? Number(item.productId) : null,
+        category: item.category || null,
         size: item.note || "-",
         quantity: toQuotationWizardAmount(item.quantity || 0),
         unitPrice: rate,
@@ -1323,6 +1341,7 @@ function buildQuotationWizardPayloadItems(items) {
 
     return {
       product_id: item.productId ? Number(item.productId) : null,
+      category: item.category || null,
       size: `${item.width || 0} x ${item.height || 0}`,
       quantity: enteredQuantity,
       unitPrice: rate,
@@ -1461,6 +1480,10 @@ function createDefaultSellerConfiguration(seller) {
     publishedAt: null,
     updatedAt: null,
     versions: [],
+    itemDisplayConfig: {
+      defaultPattern: "",
+      categoryRules: []
+    },
       modules: {
         products: true,
         quotations: true,
@@ -1502,6 +1525,8 @@ function mapSellerConfigurationResponse(config, seller) {
   }
 
   const fallback = createDefaultSellerConfiguration(seller);
+  const rawItemDisplayConfig = config.itemDisplayConfig || config.modules?.itemDisplayConfig || {};
+  const rawCategoryRules = Array.isArray(rawItemDisplayConfig.categoryRules) ? rawItemDisplayConfig.categoryRules : [];
 
   return {
     ...fallback,
@@ -1512,6 +1537,15 @@ function mapSellerConfigurationResponse(config, seller) {
     publishedAt: config.publishedAt || null,
     updatedAt: config.updatedAt || null,
     versions: Array.isArray(config.versions) ? config.versions : [],
+    itemDisplayConfig: {
+      defaultPattern: String(rawItemDisplayConfig.defaultPattern || "").trim(),
+      categoryRules: rawCategoryRules
+        .map((rule) => ({
+          category: String(rule.category || "").trim(),
+          pattern: String(rule.pattern || "").trim()
+        }))
+        .filter((rule) => rule.category && rule.pattern)
+    },
     modules: {
       ...fallback.modules,
       ...(config.modules || {})
@@ -3698,7 +3732,8 @@ function App() {
     updateQuotationColumn,
     commitQuotationColumnOptions,
     removeQuotationColumn,
-    updateSellerConfigurationModule
+    updateSellerConfigurationModule,
+    updateItemDisplayConfig
   } = useSellerConfigurationStudio({
     isPlatformAdmin,
     seller,
@@ -3835,6 +3870,7 @@ function App() {
     calculateQuotationWizardItemTotal,
     toQuotationWizardAmount,
     buildQuotationWizardPayloadItems,
+    itemDisplayConfig: runtimeSellerConfiguration.itemDisplayConfig,
     getQuotationRateValidationMessage,
     apiFetch,
     setCustomers,
@@ -5170,6 +5206,20 @@ function App() {
     }));
   }
 
+  function handleAddQuotationEditItem() {
+    setQuotationEditForm((prev) => ({
+      ...prev,
+      items: [...prev.items, createEditableQuotationItem()]
+    }));
+  }
+
+  function handleRemoveQuotationEditItem(index) {
+    setQuotationEditForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, itemIndex) => itemIndex !== index)
+    }));
+  }
+
   async function handleSaveQuotationRevision() {
     if (!selectedOrderDetails?.quotation?.id) return;
 
@@ -5188,6 +5238,7 @@ function App() {
           items: quotationEditForm.items.map((item) => ({
             productId: item.productId ? Number(item.productId) : null,
             variantId: item.variantId ? Number(item.variantId) : null,
+            category: item.itemCategory || null,
             materialType: item.materialType || item.materialName || null,
             thickness: item.thickness || null,
             size: item.size || null,
@@ -6019,6 +6070,8 @@ function App() {
           displayedItems={displayedItems}
           quotationItemFieldChanged={quotationItemFieldChanged}
           handleQuotationItemChange={handleQuotationItemChange}
+          handleAddQuotationEditItem={handleAddQuotationEditItem}
+          handleRemoveQuotationEditItem={handleRemoveQuotationEditItem}
           getQuotationItemTitle={getQuotationItemTitle}
           getQuotationCustomFieldEntries={getQuotationCustomFieldEntries}
           getQuotationItemDimensionText={getQuotationItemDimensionText}
@@ -6052,6 +6105,7 @@ function App() {
           isPlatformAdmin={isPlatformAdmin}
           configurationStudioSeller={configurationStudioSeller}
           activeSellerConfiguration={activeSellerConfiguration}
+          products={products}
           sellerConfigLoading={sellerConfigLoading}
           currentModuleMeta={currentModuleMeta}
           sellers={sellers}
@@ -6073,6 +6127,7 @@ function App() {
           updateQuotationColumn={updateQuotationColumn}
           commitQuotationColumnOptions={commitQuotationColumnOptions}
           removeQuotationColumn={removeQuotationColumn}
+          updateItemDisplayConfig={updateItemDisplayConfig}
           sellerConfigPreviewTab={sellerConfigPreviewTab}
           setSellerConfigPreviewTab={setSellerConfigPreviewTab}
           renderConfigurationPreviewControl={renderConfigurationPreviewControl}

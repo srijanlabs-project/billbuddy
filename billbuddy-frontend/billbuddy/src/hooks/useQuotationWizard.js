@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { buildConfiguredQuotationItemTitle } from "../utils/quotationView";
 import { applyShippingAddressGstReuse, createEmptyShippingAddress, updateShippingAddressValue } from "../utils/customerShipping";
 
 const BUILT_IN_VARIANT_FIELDS = [
@@ -40,6 +41,7 @@ export default function useQuotationWizard({
   calculateQuotationWizardItemTotal,
   toQuotationWizardAmount,
   buildQuotationWizardPayloadItems,
+  itemDisplayConfig,
   getQuotationRateValidationMessage,
   apiFetch,
   setCustomers,
@@ -537,6 +539,11 @@ export default function useQuotationWizard({
     const itemToAdd = {
       ...quotationWizard.itemForm,
       customFields: effectiveCustomFields,
+      itemDisplayText: buildConfiguredQuotationItemTitle({
+        ...quotationWizard.itemForm,
+        item_category: quotationWizard.itemForm.category,
+        customFields: effectiveCustomFields
+      }, itemDisplayConfig),
       id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
     };
 

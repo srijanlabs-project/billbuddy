@@ -217,6 +217,8 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS item_note TEXT`);
   await pool.query(`ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS pricing_type VARCHAR(20) DEFAULT 'SFT'`);
   await pool.query(`ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS item_category VARCHAR(120)`);
+  await pool.query(`ALTER TABLE quotation_items ADD COLUMN IF NOT EXISTS item_display_text TEXT`);
 
   await pool.query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE ledger ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
