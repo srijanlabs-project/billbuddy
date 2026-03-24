@@ -1497,9 +1497,6 @@ export default function ResponsiveQuotationApp({
                 {String(draft.submittedQuotation.record_status || "").toLowerCase() !== "draft" && (
                   <button type="button" onClick={downloadQuotation}>Download Quotation</button>
                 )}
-                {String(draft.submittedQuotation.record_status || "").toLowerCase() !== "draft" && (
-                  <button type="button" className="ghost-btn" onClick={() => downloadRichPdfDebug()}>Rich PDF Debug</button>
-                )}
                 <button type="button" className="ghost-btn" onClick={resetDraft}>New Quotation</button>
               </>
             )}
@@ -1542,7 +1539,6 @@ export default function ResponsiveQuotationApp({
                       <span>{formatCurrency(row.balance_amount || row.total_amount || 0)}</span>
                       <button type="button" className="ghost-btn compact" onClick={() => setSelectedQuotationId(String(row.id))}>View</button>
                       <button type="button" className="ghost-btn compact" onClick={() => downloadQuotation(row.id, row)}>Download</button>
-                      <button type="button" className="ghost-btn compact" onClick={() => downloadRichPdfDebug(row.id, row)}>Rich PDF Debug</button>
                     </div>
                   </article>
                 ))

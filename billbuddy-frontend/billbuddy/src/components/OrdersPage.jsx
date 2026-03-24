@@ -71,7 +71,6 @@ export default function OrdersPage(props) {
     handleDownloadQuotationSheet,
     handleDownloadQuotation,
     handleSendQuotationEmail,
-    handleDownloadRichPdfDebug,
     renderPagination,
     canEditQuotation,
     canSendQuotation,
@@ -155,7 +154,6 @@ export default function OrdersPage(props) {
                   {canSendQuotation && (
                     <button type="button" className="ghost-btn order-action-btn" onClick={() => handleSendQuotationEmail(order.id)} title="Send Email">Email</button>
                   )}
-                  <button type="button" className="ghost-btn order-action-btn" onClick={() => handleDownloadRichPdfDebug(order.id)} title="Run Rich PDF Debug">Rich PDF Debug</button>
                 </div>
               </td>
             </tr>

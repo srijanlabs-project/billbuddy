@@ -28,7 +28,7 @@ router.get("/", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {
     if (tenantId) values.push(tenantId);
 
     const result = await pool.query(
-      `SELECT u.id, u.name, u.mobile, u.status, u.locked, u.created_by, u.created_at, u.seller_id, u.is_platform_admin, r.role_name,
+      `SELECT u.id, u.name, u.mobile, u.status, u.locked, u.created_by, u.created_at, u.seller_id, u.is_platform_admin, u.role_id, r.role_name,
               u.approval_mode, u.approval_limit_amount, u.can_approve_quotations, u.can_approve_price_exception, u.approval_priority
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
@@ -238,6 +238,191 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
       return res.status(409).json({ message: "Mobile already exists" });
     }
     res.status(500).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.patch("/:id", requirePermission(PERMISSIONS.USER_EDIT), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const tenantId = getTenantId(req);
+    const targetUserId = Number(req.params.id);
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({ message: "Valid user id is required" });
+    }
+
+    const {
+      name,
+      roleId,
+      status,
+      approvalMode,
+      approvalLimitAmount,
+      canApproveQuotations = false,
+      canApprovePriceException = false,
+      approverUserId,
+      requesterUserIds = []
+    } = req.body || {};
+
+    if (!name || !roleId) {
+      return res.status(400).json({ message: "name and roleId are required" });
+    }
+    if (!req.user.isPlatformAdmin && !tenantId) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    await client.query("BEGIN");
+
+    const scopedUserResult = await client.query(
+      req.user.isPlatformAdmin
+        ? `SELECT id, seller_id, is_platform_admin
+           FROM users
+           WHERE id = $1
+           LIMIT 1`
+        : `SELECT id, seller_id, is_platform_admin
+           FROM users
+           WHERE id = $1 AND seller_id = $2
+           LIMIT 1`,
+      req.user.isPlatformAdmin ? [targetUserId] : [targetUserId, tenantId]
+    );
+
+    if (scopedUserResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const targetUser = scopedUserResult.rows[0];
+    if (!req.user.isPlatformAdmin && targetUser.is_platform_admin) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "Platform users cannot be edited by seller users" });
+    }
+
+    const effectiveSellerId = Number(targetUser.seller_id || 0);
+    const normalizedApprovalMode = normalizeApprovalMode(approvalMode);
+    const normalizedApproverUserId = approverUserId ? Number(approverUserId) : null;
+    const normalizedRequesterUserIds = normalizeRequesterIds(requesterUserIds).filter((entry) => entry !== targetUserId);
+    const numericApprovalLimitAmount = Number(approvalLimitAmount || 0);
+
+    if ((normalizedApprovalMode === "requester" || normalizedApprovalMode === "both") && !normalizedApproverUserId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "Approver is required for requester and both approval roles" });
+    }
+    if (normalizedApproverUserId && normalizedApproverUserId === targetUserId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "A user cannot be their own approver" });
+    }
+
+    if (normalizedApproverUserId) {
+      const approverCheck = await client.query(
+        `SELECT id, approval_mode, status
+         FROM users
+         WHERE id = $1 AND seller_id = $2
+         LIMIT 1`,
+        [normalizedApproverUserId, effectiveSellerId]
+      );
+      const approver = approverCheck.rows[0];
+      if (!approver) {
+        throw new Error("Selected approver was not found for this seller");
+      }
+      if (!approver.status) {
+        throw new Error("Selected approver is inactive");
+      }
+      if (!["approver", "both"].includes(String(approver.approval_mode || "").toLowerCase())) {
+        throw new Error("Selected approver is not configured as approver or both");
+      }
+    }
+
+    if (normalizedRequesterUserIds.length > 0) {
+      const requesterCheck = await client.query(
+        `SELECT id, approval_mode
+         FROM users
+         WHERE seller_id = $1 AND id = ANY($2::int[])`,
+        [effectiveSellerId, normalizedRequesterUserIds]
+      );
+      if (requesterCheck.rowCount !== normalizedRequesterUserIds.length) {
+        throw new Error("One or more selected requesters were not found for this seller");
+      }
+      const invalidRequester = requesterCheck.rows.find((row) => !["requester", "both"].includes(String(row.approval_mode || "").toLowerCase()));
+      if (invalidRequester) {
+        throw new Error("Only requester or both-type users can be assigned as requesters");
+      }
+    }
+
+    const updatedUser = await client.query(
+      `UPDATE users
+       SET name = $1,
+           role_id = $2,
+           status = $3,
+           approval_mode = $4,
+           approval_limit_amount = $5,
+           can_approve_quotations = $6,
+           can_approve_price_exception = $7
+       WHERE id = $8
+       RETURNING id, name, mobile, status, seller_id`,
+      [
+        String(name).trim(),
+        Number(roleId),
+        Boolean(status),
+        normalizedApprovalMode,
+        Number.isFinite(numericApprovalLimitAmount) ? numericApprovalLimitAmount : 0,
+        Boolean(canApproveQuotations),
+        Boolean(canApprovePriceException),
+        targetUserId
+      ]
+    );
+
+    await client.query(
+      `UPDATE user_approval_mappings
+       SET is_active = FALSE,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE seller_id = $1 AND requester_user_id = $2`,
+      [effectiveSellerId, targetUserId]
+    );
+
+    if (normalizedApprovalMode === "requester" || normalizedApprovalMode === "both") {
+      await client.query(
+        `INSERT INTO user_approval_mappings (seller_id, requester_user_id, approver_user_id, created_by_user_id)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (requester_user_id, approver_user_id) DO UPDATE
+         SET is_active = TRUE,
+             updated_at = CURRENT_TIMESTAMP`,
+        [effectiveSellerId, targetUserId, normalizedApproverUserId, req.user.id]
+      );
+    }
+
+    await client.query(
+      `UPDATE user_approval_mappings
+       SET is_active = FALSE,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE seller_id = $1 AND approver_user_id = $2`,
+      [effectiveSellerId, targetUserId]
+    );
+
+    if (normalizedApprovalMode === "approver" || normalizedApprovalMode === "both") {
+      for (const requesterId of normalizedRequesterUserIds) {
+        await client.query(
+          `INSERT INTO user_approval_mappings (seller_id, requester_user_id, approver_user_id, created_by_user_id)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (requester_user_id, approver_user_id) DO UPDATE
+           SET is_active = TRUE,
+               updated_at = CURRENT_TIMESTAMP`,
+          [effectiveSellerId, requesterId, targetUserId, req.user.id]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
+
+    return res.json({
+      user: updatedUser.rows[0],
+      message: "User updated successfully."
+    });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Mobile already exists" });
+    }
+    return res.status(500).json({ message: error.message });
   } finally {
     client.release();
   }

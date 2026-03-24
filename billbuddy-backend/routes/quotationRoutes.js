@@ -3609,10 +3609,15 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
 router.post("/", requirePermission(PERMISSIONS.QUOTATION_CREATE), async (req, res) => {
   try {
     const tenantId = req.user.isPlatformAdmin ? Number(req.body.sellerId || getTenantId(req)) : getTenantId(req);
+    const requestedCreatedBy = Number(req.body.createdBy);
+    const effectiveCreatedBy =
+      req.user.isPlatformAdmin && Number.isInteger(requestedCreatedBy) && requestedCreatedBy > 0
+        ? requestedCreatedBy
+        : req.user.id;
     const data = await createQuotationWithItems({
       ...req.body,
       sellerId: tenantId,
-      createdBy: req.body.createdBy || req.user.id,
+      createdBy: effectiveCreatedBy,
       sourceChannel: req.body.sourceChannel || "manual"
     });
     res.status(201).json(data);

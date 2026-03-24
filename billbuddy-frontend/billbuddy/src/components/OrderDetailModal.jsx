@@ -5,7 +5,6 @@ export default function OrderDetailModal(props) {
     closeOrderDetailsModal,
     handleDownloadQuotationSheet,
     handleSendQuotationEmail,
-    handleDownloadRichPdfDebug,
     selectedVersionRecord,
     selectedVersionIndex,
     isEditingQuotation,
@@ -63,13 +62,6 @@ export default function OrderDetailModal(props) {
               onClick={() => handleSendQuotationEmail(selectedOrderDetails.quotation.id)}
             >
               Send Email
-            </button>
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => handleDownloadRichPdfDebug(selectedOrderDetails.quotation.id)}
-            >
-              Rich PDF Debug
             </button>
             <button
               type="button"

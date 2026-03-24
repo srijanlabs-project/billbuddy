@@ -189,6 +189,7 @@ function createInitialUserForm() {
     password: "",
     roleId: "",
     createdBy: "",
+    status: true,
     approvalMode: "requester",
     approvalLimitAmount: "",
     canApproveQuotations: false,
@@ -3057,6 +3058,8 @@ function App() {
   const [customerForm, setCustomerForm] = useState(createInitialCustomerForm);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showUserEditModal, setShowUserEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
   const [showProductUploadModal, setShowProductUploadModal] = useState(false);
   const [showSingleProductModal, setShowSingleProductModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -3105,6 +3108,7 @@ function App() {
   const canCreateProduct = hasPermission(PERMISSION_KEYS.productCreate);
   const canEditProduct = hasPermission(PERMISSION_KEYS.productEdit);
   const canCreateUser = hasPermission(PERMISSION_KEYS.userCreate);
+  const canEditUser = hasPermission(PERMISSION_KEYS.userEdit);
   const canViewOwnApprovals = hasPermission(PERMISSION_KEYS.approvalViewOwn);
   const canViewApprovals = hasPermission(PERMISSION_KEYS.approvalViewTeam) || hasPermission(PERMISSION_KEYS.approvalOverride);
   const canAccessApprovals = canViewApprovals || canViewOwnApprovals;
@@ -3907,6 +3911,7 @@ function App() {
     showPlanCreateModal ||
     showNotificationCreateModal ||
     showUserModal ||
+    showUserEditModal ||
     showMessageSimulatorModal ||
     showCustomerModal ||
     showProductUploadModal ||
@@ -4015,6 +4020,7 @@ function App() {
           password: userForm.password,
           roleId: Number(userForm.roleId),
           createdBy: userForm.createdBy ? Number(userForm.createdBy) : null,
+          status: Boolean(userForm.status),
           approvalMode: userForm.approvalMode,
           approvalLimitAmount: userForm.approvalLimitAmount === "" ? 0 : Number(userForm.approvalLimitAmount),
           canApproveQuotations: Boolean(userForm.canApproveQuotations),
@@ -4028,6 +4034,74 @@ function App() {
       setUsers(usersData);
       setUserForm(createInitialUserForm());
       setShowUserModal(false);
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
+  function handleOpenEditUser(user) {
+    if (!user || !canEditUser) return;
+
+    setError("");
+    setShowUserModal(false);
+    setEditingUser(user);
+    setUserForm({
+      name: user.name || "",
+      mobile: user.mobile || "",
+      password: "",
+      roleId: user.role_id ? String(user.role_id) : "",
+      createdBy: user.created_by ? String(user.created_by) : "",
+      status: Boolean(user.status),
+      approvalMode: String(user.approval_mode || "requester"),
+      approvalLimitAmount: Number(user.approval_limit_amount || 0),
+      canApproveQuotations: Boolean(user.can_approve_quotations),
+      canApprovePriceException: Boolean(user.can_approve_price_exception),
+      approverUserId: user.assigned_approver?.id ? String(user.assigned_approver.id) : "",
+      requesterUserIds: Array.isArray(user.assigned_requesters)
+        ? user.assigned_requesters.map((entry) => Number(entry.id)).filter((entry) => Number.isInteger(entry) && entry > 0)
+        : []
+    });
+    setShowUserEditModal(true);
+  }
+
+  function handleCloseEditUser() {
+    setShowUserEditModal(false);
+    setEditingUser(null);
+    setUserForm(createInitialUserForm());
+  }
+
+  async function handleUpdateUser(event) {
+    event.preventDefault();
+    setError("");
+
+    if (!canEditUser) {
+      setError("You do not have permission to edit users.");
+      return;
+    }
+    if (!editingUser?.id) {
+      setError("Select a user to edit.");
+      return;
+    }
+
+    try {
+      await apiFetch(`/api/users/${editingUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: userForm.name,
+          roleId: Number(userForm.roleId),
+          status: Boolean(userForm.status),
+          approvalMode: userForm.approvalMode,
+          approvalLimitAmount: userForm.approvalLimitAmount === "" ? 0 : Number(userForm.approvalLimitAmount),
+          canApproveQuotations: Boolean(userForm.canApproveQuotations),
+          canApprovePriceException: Boolean(userForm.canApprovePriceException),
+          approverUserId: userForm.approverUserId ? Number(userForm.approverUserId) : null,
+          requesterUserIds: userForm.requesterUserIds
+        })
+      });
+
+      const usersData = await apiFetch("/api/users");
+      setUsers(usersData);
+      handleCloseEditUser();
     } catch (err) {
       handleApiError(err);
     }
@@ -5719,6 +5793,7 @@ function App() {
             handleSeedRoles={handleSeedRoles}
             setShowUserModal={setShowUserModal}
             canCreateUser={canCreateUser}
+            canEditUser={canEditUser}
             pagedUsers={pagedUsers}
             userPage={userPage}
             PAGE_SIZE={PAGE_SIZE}
@@ -5729,7 +5804,12 @@ function App() {
             setUserPage={setUserPage}
             users={users}
             showUserModal={showUserModal}
+            showUserEditModal={showUserEditModal}
+            editingUser={editingUser}
             handleCreateUser={handleCreateUser}
+            handleOpenEditUser={handleOpenEditUser}
+            handleCloseEditUser={handleCloseEditUser}
+            handleUpdateUser={handleUpdateUser}
             error={error}
             userForm={userForm}
             setUserForm={setUserForm}
@@ -5774,7 +5854,6 @@ function App() {
             handleDownloadQuotationSheet={handleDownloadQuotationSheet}
             handleDownloadQuotation={handleDownloadQuotation}
             handleSendQuotationEmail={handleSendQuotationEmail}
-            handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
             renderPagination={renderPagination}
             canEditQuotation={canEditQuotation}
             canSendQuotation={canSendQuotation}
@@ -6044,7 +6123,6 @@ function App() {
           selectedOrderDetails={selectedOrderDetails}
           closeOrderDetailsModal={closeOrderDetailsModal}
           handleDownloadQuotationSheet={handleDownloadQuotationSheet}
-          handleDownloadRichPdfDebug={handleDownloadRichPdfDebug}
           handleSendQuotationEmail={handleSendQuotationEmail}
           selectedVersionRecord={selectedVersionRecord}
           selectedVersionIndex={selectedVersionIndex}
