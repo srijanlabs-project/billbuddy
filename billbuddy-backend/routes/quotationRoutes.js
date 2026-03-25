@@ -2124,20 +2124,39 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
         : (template?.footer_text || "")
     ).trim();
     if (footerRaw) {
-      const footerY = doc.page.height - doc.page.margins.bottom - 16;
+      const footerBaselineY = doc.page.height - doc.page.margins.bottom - 8;
       const footerImage = imageBufferFromDataUrl(footerRaw);
       if (footerImage) {
         try {
-          doc.image(footerImage, leftX, footerY - 26, { fit: [pageWidth, 22], align: "center" });
+          const imageMeta = doc.openImage(footerImage);
+          const maxFooterHeight = 56;
+          let drawWidth = pageWidth;
+          let drawHeight = Number((imageMeta.height * (drawWidth / imageMeta.width)).toFixed(2));
+
+          if (!Number.isFinite(drawHeight) || drawHeight <= 0) {
+            drawHeight = maxFooterHeight;
+          }
+
+          if (drawHeight > maxFooterHeight) {
+            drawHeight = maxFooterHeight;
+            drawWidth = Number((imageMeta.width * (drawHeight / imageMeta.height)).toFixed(2));
+          }
+
+          const drawX = leftX + Math.max(0, (pageWidth - drawWidth) / 2);
+          const drawY = footerBaselineY - drawHeight;
+          doc.image(footerImage, drawX, drawY, {
+            width: drawWidth,
+            height: drawHeight
+          });
         } catch (_error) {
-          doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerY, {
+          doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerBaselineY - 2, {
             width: pageWidth,
             align: "center",
             lineBreak: false
           });
         }
       } else {
-        doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerY, {
+        doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerBaselineY - 2, {
           width: pageWidth,
           align: "center",
           lineBreak: false
