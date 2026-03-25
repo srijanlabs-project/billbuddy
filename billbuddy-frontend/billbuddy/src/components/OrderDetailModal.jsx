@@ -1,3 +1,34 @@
+import { getItemDisplayFieldValue } from "../utils/quotationView";
+
+function normalizeColumnKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
+}
+
+function getOrderItemColumnValue(item, columnKey, {
+  getQuotationItemDimensionText,
+  getQuotationItemQuantityValue,
+  getQuotationItemRateValue,
+  getQuotationItemTotalValue
+}) {
+  const normalizedKey = normalizeColumnKey(columnKey);
+  if (normalizedKey === "amount" || normalizedKey === "total" || normalizedKey === "total_price") {
+    return getQuotationItemTotalValue(item);
+  }
+  if (normalizedKey === "rate" || normalizedKey === "unit_price") {
+    return getQuotationItemRateValue(item);
+  }
+  if (normalizedKey === "quantity" || normalizedKey === "qty") {
+    return getQuotationItemQuantityValue(item);
+  }
+  if (normalizedKey === "dimension") {
+    return getQuotationItemDimensionText(item);
+  }
+  return getItemDisplayFieldValue(item, normalizedKey);
+}
+
 export default function OrderDetailModal(props) {
   const {
     showOrderDetailsModal,
@@ -27,9 +58,12 @@ export default function OrderDetailModal(props) {
     error,
     quotationEditForm,
     setQuotationEditForm,
+    orderDetailColumns,
+    quotationEditMaterialSuggestions,
     displayedItems,
     quotationItemFieldChanged,
     handleQuotationItemChange,
+    handleQuotationEditMaterialSelect,
     handleAddQuotationEditItem,
     handleRemoveQuotationEditItem,
     getQuotationItemTitle,
@@ -190,25 +224,36 @@ export default function OrderDetailModal(props) {
               <input placeholder="Delivery address" value={quotationEditForm.deliveryAddress} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))} />
               <input placeholder="Delivery pincode" value={quotationEditForm.deliveryPincode} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryPincode: e.target.value }))} />
             </div>
-            <div className="preview-pane">
-              <h5>Edit Items</h5>
-              <span>Add or remove line items before saving the new version.</span>
-              <button type="button" className="ghost-btn" onClick={handleAddQuotationEditItem}>
-                Add Item
-              </button>
-            </div>
+          <div className="preview-pane">
+            <h5>Edit Items</h5>
+            <span>Add or remove line items before saving the new version.</span>
+            <input
+              type="number"
+              min="0"
+              placeholder="Discount"
+              value={quotationEditForm.discountAmount || ""}
+              onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, discountAmount: e.target.value }))}
+            />
+            <input
+              type="number"
+              min="0"
+              placeholder="Advance"
+              value={quotationEditForm.advanceAmount || ""}
+              onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, advanceAmount: e.target.value }))}
+            />
+            <button type="button" className="ghost-btn" onClick={handleAddQuotationEditItem}>
+              Add Item
+            </button>
           </div>
+        </div>
         )}
 
         <table className="data-table" style={{ marginTop: "14px" }}>
           <thead>
             <tr>
-              <th>Product</th>
-              <th>Material Thickness</th>
-              <th>Size</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
+              {(orderDetailColumns || []).map((column) => (
+                <th key={column.key}>{column.label || column.key}</th>
+              ))}
               {isEditingQuotation && <th>Action</th>}
             </tr>
           </thead>
@@ -217,53 +262,91 @@ export default function OrderDetailModal(props) {
               ? quotationEditForm.items
               : displayedItems || []).map((item, index) => (
               <tr key={item.id || item.tempId || index}>
-                <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "material_name") || quotationItemFieldChanged(item, index, "material_type") || quotationItemFieldChanged(item, index, "design_name") || quotationItemFieldChanged(item, index, "sku")) ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation ? (
-                    <input value={item.materialName || ""} onChange={(e) => handleQuotationItemChange(index, "materialName", e.target.value)} />
-                  ) : (
-                    <div className="quotation-item-cell">
-                      <strong>{getQuotationItemTitle(item) || "-"}</strong>
-                      {getQuotationCustomFieldEntries(item.custom_fields).length > 0 && (
-                        <div className="quotation-item-meta">
-                          {getQuotationCustomFieldEntries(item.custom_fields).map((entry) => `${entry.label}: ${entry.value}`).join(" | ")}
+                {(orderDetailColumns || []).map((column) => {
+                  const normalizedKey = normalizeColumnKey(column.key);
+                  const isFormula = String(column.type || "").toLowerCase() === "formula" || normalizedKey === "amount";
+                  const isNumber = ["number", "formula"].includes(String(column.type || "").toLowerCase()) || ["quantity", "rate", "amount", "width", "height"].includes(normalizedKey);
+                  const cellKey = `${column.key}-${index}`;
+
+                  if (isEditingQuotation) {
+                    if (normalizedKey === "material_name") {
+                      return (
+                        <td key={cellKey}>
+                          <input
+                            list="quotation-edit-material-suggestions"
+                            value={item.materialName || ""}
+                            onChange={(e) => handleQuotationItemChange(index, "material_name", e.target.value)}
+                            onBlur={(e) => handleQuotationEditMaterialSelect(index, e.target.value)}
+                          />
+                        </td>
+                      );
+                    }
+                    if (isFormula) {
+                      return (
+                        <td key={cellKey}>
+                          {formatCurrency(getQuotationItemTotalValue(item))}
+                        </td>
+                      );
+                    }
+                    if (normalizedKey === "ps") {
+                      return (
+                        <td key={cellKey}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(item.psIncluded)}
+                            onChange={(e) => handleQuotationItemChange(index, "ps", e.target.checked)}
+                          />
+                        </td>
+                      );
+                    }
+
+                    return (
+                      <td key={cellKey}>
+                        <input
+                          type={isNumber ? "number" : "text"}
+                          value={String(getOrderItemColumnValue(item, normalizedKey, {
+                            getQuotationItemDimensionText,
+                            getQuotationItemQuantityValue,
+                            getQuotationItemRateValue,
+                            getQuotationItemTotalValue
+                          }) ?? "")}
+                          onChange={(e) => handleQuotationItemChange(index, normalizedKey, e.target.value)}
+                        />
+                      </td>
+                    );
+                  }
+
+                  const compareKey = normalizedKey === "rate" ? "unit_price" : normalizedKey === "amount" ? "total_price" : normalizedKey;
+                  const changed = quotationItemFieldChanged(item, index, compareKey);
+                  const value = getOrderItemColumnValue(item, normalizedKey, {
+                    getQuotationItemDimensionText,
+                    getQuotationItemQuantityValue,
+                    getQuotationItemRateValue,
+                    getQuotationItemTotalValue
+                  });
+                  const isMoney = ["rate", "unit_price", "amount", "total", "total_price"].includes(normalizedKey);
+
+                  return (
+                    <td key={cellKey} className={changed ? "change-highlight-cell" : ""}>
+                      {normalizedKey === "material_name" ? (
+                        <div className="quotation-item-cell">
+                          <strong>{getQuotationItemTitle(item) || "-"}</strong>
+                          {getQuotationCustomFieldEntries(item.custom_fields || item.customFields || {})
+                            .filter((entry) => !(orderDetailColumns || []).some((col) => normalizeColumnKey(col.key) === normalizeColumnKey(entry.key)))
+                            .length > 0 && (
+                            <div className="quotation-item-meta">
+                              {getQuotationCustomFieldEntries(item.custom_fields || item.customFields || {})
+                                .filter((entry) => !(orderDetailColumns || []).some((col) => normalizeColumnKey(col.key) === normalizeColumnKey(entry.key)))
+                                .map((entry) => `${entry.label}: ${entry.value}`).join(" | ")}
+                            </div>
+                          )}
                         </div>
+                      ) : (
+                        isMoney ? formatCurrency(value) : (value === null || value === undefined || String(value).trim() === "" ? "-" : value)
                       )}
-                    </div>
-                  )}
-                </td>
-                <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "thickness") ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation ? (
-                    <input value={item.thickness || ""} onChange={(e) => handleQuotationItemChange(index, "thickness", e.target.value)} />
-                  ) : (
-                    item.thickness || "-"
-                  )}
-                </td>
-                <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "size") ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation ? (
-                    <input value={item.size || ""} onChange={(e) => handleQuotationItemChange(index, "size", e.target.value)} />
-                  ) : (
-                    getQuotationItemDimensionText(item)
-                  )}
-                </td>
-                <td className={!isEditingQuotation && quotationItemFieldChanged(item, index, "quantity") ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation ? (
-                    <input type="number" value={item.quantity || ""} onChange={(e) => handleQuotationItemChange(index, "quantity", e.target.value)} />
-                  ) : (
-                    getQuotationItemQuantityValue(item)
-                  )}
-                </td>
-                <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "unit_price") || quotationItemFieldChanged(item, index, "unitPrice")) ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation ? (
-                    <input type="number" value={item.unitPrice || ""} onChange={(e) => handleQuotationItemChange(index, "unitPrice", e.target.value)} />
-                  ) : (
-                    formatCurrency(getQuotationItemRateValue(item))
-                  )}
-                </td>
-                <td className={!isEditingQuotation && (quotationItemFieldChanged(item, index, "total_price") || quotationItemFieldChanged(item, index, "totalPrice")) ? "change-highlight-cell" : ""}>
-                  {isEditingQuotation
-                    ? formatCurrency(Number(item.quantity || 0) * Number(item.unitPrice || 0))
-                    : formatCurrency(getQuotationItemTotalValue(item))}
-                </td>
+                    </td>
+                  );
+                })}
                 {isEditingQuotation && (
                   <td>
                     <button type="button" className="ghost-btn compact" onClick={() => handleRemoveQuotationEditItem(index)}>
@@ -275,6 +358,11 @@ export default function OrderDetailModal(props) {
             ))}
           </tbody>
         </table>
+        <datalist id="quotation-edit-material-suggestions">
+          {(quotationEditMaterialSuggestions || []).map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </div>
     </div>
   );

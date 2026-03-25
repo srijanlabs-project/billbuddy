@@ -1009,6 +1009,8 @@ function buildOrderEditForm(details) {
     deliveryPincode: details?.quotation?.delivery_pincode || "",
     transportCharges: String(details?.quotation?.transport_charges || details?.quotation?.transportation_cost || 0),
     designCharges: String(details?.quotation?.design_charges || 0),
+    discountAmount: String(details?.quotation?.discount_amount || 0),
+    advanceAmount: String(details?.quotation?.advance_amount || 0),
     items: (details?.items || []).map((item) => ({
       id: item.id,
       tempId: `existing-${item.id}`,
@@ -1061,6 +1063,10 @@ function createEditableQuotationItem() {
     pricingType: "SFT",
     customFields: {}
   };
+}
+
+function normalizeLookupValue(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeForCompare(value) {
@@ -3131,6 +3137,8 @@ function App() {
     deliveryPincode: "",
     transportCharges: "0",
     designCharges: "0",
+    discountAmount: "0",
+    advanceAmount: "0",
     items: []
   });
   const [orderPage, setOrderPage] = useState(1);
@@ -3893,6 +3901,44 @@ function App() {
     () => sortConfigEntries(getUnsupportedQuotationColumns(runtimeSellerConfiguration)),
     [runtimeSellerConfiguration]
   );
+  const orderDetailColumns = useMemo(() => {
+    const merged = [...runtimeQuotationColumns, ...unsupportedRuntimeQuotationColumns]
+      .map((column) => ({
+        ...column,
+        key: normalizeConfigKey(column?.key)
+      }))
+      .filter((column) => column.key);
+
+    const columns = [];
+    const seen = new Set();
+
+    merged.forEach((column) => {
+      if (seen.has(column.key)) return;
+      const shouldInclude = Boolean(column.visibleInForm) || ["material_name", "quantity", "rate", "amount"].includes(column.key);
+      if (!shouldInclude) return;
+      seen.add(column.key);
+      columns.push(column);
+    });
+
+    const ensureColumn = (key, label, type = "text") => {
+      if (seen.has(key)) return;
+      seen.add(key);
+      columns.push({ key, label, type, visibleInForm: key !== "amount" });
+    };
+
+    ensureColumn("material_name", "Product");
+    ensureColumn("quantity", "Qty", "number");
+    ensureColumn("rate", "Rate", "number");
+    ensureColumn("amount", "Amount", "formula");
+
+    return columns;
+  }, [runtimeQuotationColumns, unsupportedRuntimeQuotationColumns]);
+  const quotationEditMaterialSuggestions = useMemo(() => {
+    return [...new Set((products || [])
+      .map((product) => String(product.material_name || "").trim())
+      .filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right));
+  }, [products]);
   const aiSuggestions = useMemo(() => {
     const pending = Number(dashboardData?.pendingOverall || 0);
     const walkin = Number(dashboardData?.totals?.walk_in_sales || 0);
@@ -5384,11 +5430,103 @@ function App() {
   }
 
   function handleQuotationItemChange(index, field, value) {
+    const normalizedField = normalizeConfigKey(field);
     setQuotationEditForm((prev) => ({
       ...prev,
-      items: prev.items.map((item, itemIndex) => (
-        itemIndex === index ? { ...item, [field]: value } : item
-      ))
+      items: prev.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+
+        if (field === "materialName" || normalizedField === "material_name") {
+          return {
+            ...item,
+            materialName: value,
+            materialType: value
+          };
+        }
+        if (field === "unitPrice" || normalizedField === "rate" || normalizedField === "unit_price") {
+          return { ...item, unitPrice: value };
+        }
+        if (normalizedField === "quantity") {
+          return { ...item, quantity: value };
+        }
+        if (normalizedField === "thickness") {
+          return { ...item, thickness: value };
+        }
+        if (normalizedField === "size") {
+          return { ...item, size: value };
+        }
+        if (normalizedField === "width") {
+          return { ...item, dimensionWidth: value };
+        }
+        if (normalizedField === "height") {
+          return { ...item, dimensionHeight: value };
+        }
+        if (normalizedField === "unit") {
+          return { ...item, dimensionUnit: value };
+        }
+        if (normalizedField === "category") {
+          return { ...item, itemCategory: value };
+        }
+        if (normalizedField === "note" || normalizedField === "item_note") {
+          return { ...item, itemNote: value };
+        }
+        if (normalizedField === "color_name") {
+          return { ...item, colorName: value };
+        }
+        if (normalizedField === "other_info" || normalizedField === "imported_color_note") {
+          return { ...item, importedColorNote: value };
+        }
+        if (normalizedField === "ps") {
+          return { ...item, psIncluded: Boolean(value) };
+        }
+
+        return {
+          ...item,
+          customFields: {
+            ...(item.customFields || {}),
+            [normalizedField || field]: value
+          }
+        };
+      })
+    }));
+  }
+
+  function handleQuotationEditMaterialSelect(index, materialName) {
+    const normalizedMaterial = normalizeLookupValue(materialName);
+    if (!normalizedMaterial) return;
+    const matchingProducts = (products || []).filter(
+      (product) => normalizeLookupValue(product.material_name) === normalizedMaterial
+    );
+
+    if (!matchingProducts.length) {
+      handleQuotationItemChange(index, "materialName", materialName);
+      return;
+    }
+
+    const selectedProduct = matchingProducts[0];
+    const customFieldSeedColumns = unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && String(column.type || "").toLowerCase() !== "formula");
+    setQuotationEditForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, itemIndex) => {
+        if (itemIndex !== index) return item;
+        return {
+          ...item,
+          productId: selectedProduct.id ? String(selectedProduct.id) : "",
+          materialName: selectedProduct.material_name || materialName,
+          materialType: selectedProduct.material_name || materialName,
+          itemCategory: selectedProduct.category || item.itemCategory || "",
+          thickness: selectedProduct.thickness || item.thickness || "",
+          colorName: selectedProduct.color_name || item.colorName || "",
+          sku: selectedProduct.sku || item.sku || "",
+          pricingType: selectedProduct.pricing_type || item.pricingType || "SFT",
+          unitPrice: String(item.unitPrice || selectedProduct.base_price || ""),
+          customFields: getCatalogueDrivenQuotationCustomFields(
+            selectedProduct,
+            customFieldSeedColumns,
+            item.customFields || {}
+          )
+        };
+      })
     }));
   }
 
@@ -5410,6 +5548,20 @@ function App() {
     if (!selectedOrderDetails?.quotation?.id) return;
 
     try {
+      if (!quotationEditForm.items.length) {
+        setError("Please add at least one item before saving the new version.");
+        return;
+      }
+      const invalidItemIndex = quotationEditForm.items.findIndex((item) => (
+        !String(item.materialName || "").trim()
+        || Number(item.quantity || 0) <= 0
+        || Number(item.unitPrice || 0) <= 0
+      ));
+      if (invalidItemIndex >= 0) {
+        setError(`Item ${invalidItemIndex + 1} is incomplete. Product, quantity, and rate are required.`);
+        return;
+      }
+
       const response = await apiFetch(`/api/quotations/${selectedOrderDetails.quotation.id}/revise`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -5421,6 +5573,8 @@ function App() {
           deliveryPincode: quotationEditForm.deliveryPincode || null,
           transportCharges: Number(quotationEditForm.transportCharges || 0),
           designCharges: Number(quotationEditForm.designCharges || 0),
+          discountAmount: Number(quotationEditForm.discountAmount || 0),
+          advanceAmount: Number(quotationEditForm.advanceAmount || 0),
           items: quotationEditForm.items.map((item) => ({
             productId: item.productId ? Number(item.productId) : null,
             variantId: item.variantId ? Number(item.variantId) : null,
@@ -6279,9 +6433,12 @@ function App() {
           error={error}
           quotationEditForm={quotationEditForm}
           setQuotationEditForm={setQuotationEditForm}
+          orderDetailColumns={orderDetailColumns}
+          quotationEditMaterialSuggestions={quotationEditMaterialSuggestions}
           displayedItems={displayedItems}
           quotationItemFieldChanged={quotationItemFieldChanged}
           handleQuotationItemChange={handleQuotationItemChange}
+          handleQuotationEditMaterialSelect={handleQuotationEditMaterialSelect}
           handleAddQuotationEditItem={handleAddQuotationEditItem}
           handleRemoveQuotationEditItem={handleRemoveQuotationEditItem}
           getQuotationItemTitle={getQuotationItemTitle}

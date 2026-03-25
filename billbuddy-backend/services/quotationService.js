@@ -407,6 +407,9 @@ async function evaluateQuotationApproval(client, { sellerId, requesterUserId, to
     throw new Error("Quotation requester was not found for approval evaluation");
   }
 
+  const requesterApprovalMode = String(requester.approval_mode || "").toLowerCase();
+  const requesterIsAdminRole = ["admin", "seller admin", "seller_admin"].includes(String(requester.role_name || "").toLowerCase());
+
   const priceExceptionReasons = await collectQuotationPriceExceptionReasons(client, sellerId, items);
   const reasons = [...priceExceptionReasons];
   const requesterLimit = Math.max(0, toAmount(requester.approval_limit_amount));
@@ -433,6 +436,17 @@ async function evaluateQuotationApproval(client, { sellerId, requesterUserId, to
   }
 
   const hasPriceException = reasons.some((reason) => reason.reasonType === "price_exception_below_min_rate");
+  if (requesterIsAdminRole && ["approver", "both"].includes(requesterApprovalMode) && requester.can_approve_quotations) {
+    if (!hasPriceException || requester.can_approve_price_exception) {
+      return {
+        requiresApproval: false,
+        approvalStatus: "approved",
+        assignedApprover: null,
+        reasons
+      };
+    }
+  }
+
   if (canUserApproveQuotation(requester, { totalAmount, hasPriceException })) {
     return {
       requiresApproval: false,
