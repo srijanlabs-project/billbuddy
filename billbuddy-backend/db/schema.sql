@@ -1085,6 +1085,8 @@ CREATE TABLE IF NOT EXISTS public.plans (
     is_demo_plan boolean DEFAULT false,
     trial_enabled boolean DEFAULT false,
     trial_duration_days integer,
+    plan_access_type character varying(20) NOT NULL DEFAULT 'FREE',
+    template_access_tier character varying(20) NOT NULL DEFAULT 'FREE',
     watermark_text text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
@@ -1281,6 +1283,9 @@ ALTER TABLE public.quotation_templates
 
 ALTER TABLE public.quotation_templates
     ADD COLUMN IF NOT EXISTS template_preset character varying(80) DEFAULT 'commercial_offer';
+
+ALTER TABLE public.quotation_templates
+    ADD COLUMN IF NOT EXISTS template_theme_key character varying(80) DEFAULT 'default';
 
 ALTER TABLE public.quotation_templates
     ADD COLUMN IF NOT EXISTS footer_image_data text;

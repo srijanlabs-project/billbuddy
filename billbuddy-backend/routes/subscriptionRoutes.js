@@ -31,7 +31,9 @@ router.get("/", requirePermission(PERMISSIONS.SUBSCRIPTION_VIEW), async (req, re
          p.plan_code,
          p.plan_name,
          p.is_demo_plan,
-         p.trial_enabled
+         p.trial_enabled,
+         p.plan_access_type,
+         p.template_access_tier
        FROM subscriptions s
        INNER JOIN sellers sel ON sel.id = s.seller_id
        INNER JOIN plans p ON p.id = s.plan_id

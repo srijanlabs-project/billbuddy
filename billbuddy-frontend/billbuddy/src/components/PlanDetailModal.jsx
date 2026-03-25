@@ -29,7 +29,8 @@ export default function PlanDetailModal(props) {
             <span className={`badge ${selectedPlanDetail.is_active ? "success" : "pending"}`}>
               {selectedPlanDetail.is_active ? "Active" : "Inactive"}
             </span>
-            <span className="badge pending">{selectedPlanDetail.is_demo_plan ? "Demo plan" : "Standard plan"}</span>
+            <span className="badge pending">{selectedPlanDetail.is_demo_plan ? "Demo plan" : `${selectedPlanDetail.plan_access_type || "FREE"} plan`}</span>
+            <span className="badge neutral">{selectedPlanDetail.template_access_tier || (selectedPlanDetail.is_demo_plan ? "FREE" : "PAID")} templates</span>
           </div>
         </section>
 
@@ -53,6 +54,22 @@ export default function PlanDetailModal(props) {
                 <span>Billing Cycle</span>
                 <select value={getPlanDraft(selectedPlanDetail).billingCycle} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "billingCycle", e.target.value)}>
                   {BILLING_CYCLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Plan Access</span>
+                <select value={getPlanDraft(selectedPlanDetail).planAccessType} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planAccessType", e.target.value)}>
+                  <option value="FREE">Free</option>
+                  <option value="PAID">Paid</option>
+                </select>
+              </label>
+              <label>
+                <span>Template Tier</span>
+                <select value={getPlanDraft(selectedPlanDetail).templateAccessTier} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "templateAccessTier", e.target.value)}>
+                  <option value="FREE">Free</option>
+                  <option value="PAID">Paid</option>
+                  <option value="PREMIUM">Premium</option>
+                  <option value="NICHE">Niche</option>
                 </select>
               </label>
               <label>

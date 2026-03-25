@@ -41,6 +41,7 @@ const {
   getQuotationSummaryRows
 } = require("../services/quotationViewService");
 const { getTenantId } = require("../middleware/auth");
+const { getCurrentSubscription } = require("../services/subscriptionService");
 const { PERMISSIONS, hasPermission, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
@@ -548,6 +549,162 @@ function normalizeTemplatePreset(value) {
   if (normalized === "industrial_invoice") return "industrial_invoice";
   if (normalized === "html_puppeteer") return "html_puppeteer";
   return "commercial_offer";
+}
+
+const QUOTATION_THEME_OPTIONS = {
+  default: {
+    key: "default",
+    accessTier: "FREE",
+    accent: "#737373",
+    header: "#4B5563",
+    surface: "#F3F4F6",
+    border: "#D1D5DB",
+    text: "#111827",
+    muted: "#6B7280"
+  },
+  royal_blue: {
+    key: "royal_blue",
+    accessTier: "PAID",
+    accent: "#1D4ED8",
+    header: "#1D4ED8",
+    surface: "#DBEAFE",
+    border: "#93C5FD",
+    text: "#1E3A8A",
+    muted: "#475569"
+  },
+  slate_professional: {
+    key: "slate_professional",
+    accessTier: "PAID",
+    accent: "#374151",
+    header: "#1F2937",
+    surface: "#F3F4F6",
+    border: "#CBD5E1",
+    text: "#111827",
+    muted: "#6B7280"
+  },
+  warm_ivory: {
+    key: "warm_ivory",
+    accessTier: "PAID",
+    accent: "#0F3D56",
+    header: "#0F3D56",
+    surface: "#F8F3EC",
+    border: "#E0D4C5",
+    text: "#4B3B2F",
+    muted: "#7A6A58"
+  },
+  forest_ledger: {
+    key: "forest_ledger",
+    accessTier: "PREMIUM",
+    accent: "#166534",
+    header: "#166534",
+    surface: "#DCFCE7",
+    border: "#86EFAC",
+    text: "#14532D",
+    muted: "#4D6B57"
+  },
+  steel_grid: {
+    key: "steel_grid",
+    accessTier: "PREMIUM",
+    accent: "#334155",
+    header: "#334155",
+    surface: "#E2E8F0",
+    border: "#94A3B8",
+    text: "#1F2937",
+    muted: "#475569"
+  },
+  frosted_aura: {
+    key: "frosted_aura",
+    accessTier: "NICHE",
+    accent: "#5C7E8F",
+    header: "#5C7E8F",
+    surface: "#D4DDE2",
+    border: "#A2A2A2",
+    text: "#374151",
+    muted: "#6B7280"
+  }
+};
+
+function createFixedFreeFooterBannerDataUrl() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="120" viewBox="0 0 1600 120">
+      <defs>
+        <linearGradient id="qbg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="70%" stop-color="#f8fbff"/>
+          <stop offset="100%" stop-color="#d9e8ff"/>
+        </linearGradient>
+        <linearGradient id="qwave" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#7fb4ff" stop-opacity="0.9"/>
+        </linearGradient>
+      </defs>
+      <rect width="1600" height="120" rx="8" fill="url(#qbg)"/>
+      <rect x="0.5" y="0.5" width="1599" height="119" rx="7.5" fill="none" stroke="#d5dbe6"/>
+      <path d="M1170 120 C1290 48 1430 156 1600 26 L1600 120 Z" fill="url(#qwave)"/>
+      <path d="M1040 118 C1210 86 1355 96 1600 68" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.85"/>
+      <path d="M1100 106 C1270 80 1410 82 1600 50" fill="none" stroke="#fff7d6" stroke-width="3" opacity="0.7"/>
+      <text x="120" y="72" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#0f2a4d">Quotsy</text>
+      <text x="280" y="72" font-family="Arial, sans-serif" font-size="18" fill="#445066">Powered by Quotsy - Simplify your quoting process</text>
+      <text x="1455" y="46" font-family="Arial, sans-serif" font-size="20" fill="#d4a938">✦</text>
+      <text x="1490" y="60" font-family="Arial, sans-serif" font-size="14" fill="#e5c56a">✦</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+const FIXED_FREE_FOOTER_BANNER = createFixedFreeFooterBannerDataUrl();
+
+function normalizeTemplateThemeKey(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return QUOTATION_THEME_OPTIONS[normalized] ? normalized : "default";
+}
+
+function getQuotationThemeConfig(themeKey, accentOverride = null) {
+  const config = QUOTATION_THEME_OPTIONS[normalizeTemplateThemeKey(themeKey)] || QUOTATION_THEME_OPTIONS.default;
+  return {
+    ...config,
+    accent: accentOverride || config.accent
+  };
+}
+
+function getSubscriptionTemplateAccessTier(subscription) {
+  if (!subscription) return "FREE";
+  if (Boolean(subscription.is_demo_plan)) return "FREE";
+  const tier = String(subscription.template_access_tier || "").trim().toUpperCase();
+  return ["FREE", "PAID", "PREMIUM", "NICHE"].includes(tier) ? tier : "FREE";
+}
+
+function isThemeAccessibleForTier(themeTier, planTier) {
+  const order = { FREE: 0, PAID: 1, PREMIUM: 2, NICHE: 3 };
+  const normalizedThemeTier = order[themeTier] !== undefined ? themeTier : "FREE";
+  const normalizedPlanTier = order[planTier] !== undefined ? planTier : "FREE";
+  return order[normalizedPlanTier] >= order[normalizedThemeTier];
+}
+
+function applyTemplateAccessPolicy(template, subscription) {
+  const currentPlanTier = getSubscriptionTemplateAccessTier(subscription);
+  const requestedThemeKey = normalizeTemplateThemeKey(template?.template_theme_key);
+  const themeConfig = getQuotationThemeConfig(requestedThemeKey, template?.accent_color || null);
+  const accessible = isThemeAccessibleForTier(themeConfig.accessTier, currentPlanTier);
+
+  if (!accessible || currentPlanTier === "FREE") {
+    const freeTheme = getQuotationThemeConfig("default");
+    return {
+      ...template,
+      template_preset: "default",
+      template_theme_key: "default",
+      accent_color: freeTheme.accent,
+      footer_image_data: FIXED_FREE_FOOTER_BANNER,
+      show_footer_image: true
+    };
+  }
+
+  return {
+    ...template,
+    template_preset: normalizeTemplatePreset(template?.template_preset || "default"),
+    template_theme_key: requestedThemeKey,
+    accent_color: themeConfig.accent
+  };
 }
 
 function getPuppeteerExecutablePath() {
@@ -1867,10 +2024,13 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   doc.pipe(res);
 
   if (templatePreset === "default") {
-    const accent = template?.accent_color || "#737373";
-    const dark = "#111827";
-    const muted = "#6b7280";
-    const line = "#d1d5db";
+    const themeConfig = getQuotationThemeConfig(template?.template_theme_key, template?.accent_color || null);
+    const accent = themeConfig.accent;
+    const dark = themeConfig.text;
+    const muted = themeConfig.muted;
+    const line = themeConfig.border;
+    const surface = themeConfig.surface;
+    const headerFill = themeConfig.header;
     const borderWidth = 0.5;
     const sellerName = template?.company_name || template?.header_text || seller?.business_name || seller?.name || "Quotation";
     const pageBottom = doc.page.height - doc.page.margins.bottom;
@@ -1910,7 +2070,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     const stripHeight = 28;
     doc.lineWidth(borderWidth);
-    doc.rect(leftX, y, pageWidth, stripHeight).fillAndStroke("#f2f2f2", line);
+    doc.rect(leftX, y, pageWidth, stripHeight).fillAndStroke(surface, line);
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 9, {
       width: pageWidth * 0.42,
       lineBreak: false
@@ -1972,7 +2132,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     const drawHeaderRow = () => {
       doc.lineWidth(borderWidth);
-      doc.rect(leftX, y, pageWidth, rowHeaderHeight).fillAndStroke("#737373", line);
+      doc.rect(leftX, y, pageWidth, rowHeaderHeight).fillAndStroke(headerFill, line);
       let hx = leftX;
       tableColumns.forEach((column) => {
         doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#ffffff").text(
@@ -2053,8 +2213,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       y = doc.page.margins.top;
     }
 
-    doc.rect(leftX, y, totalsLeftWidth, totalsHeight).strokeColor(line).lineWidth(borderWidth).stroke();
-    doc.rect(totalsRightX, y, totalsRightWidth, totalsHeight).strokeColor(line).lineWidth(borderWidth).stroke();
+    doc.rect(leftX, y, totalsLeftWidth, totalsHeight).fillAndStroke("#ffffff", line);
+    doc.rect(totalsRightX, y, totalsRightWidth, totalsHeight).fillAndStroke(surface, line);
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text("Amount in words", leftX + 8, y + 8);
     doc.font("Helvetica").fontSize(9.2).fillColor(dark).text(amountInWords, leftX + 8, y + 24, { width: totalsLeftWidth - 16 });
 
@@ -2089,8 +2249,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       doc.addPage();
       y = doc.page.margins.top;
     }
-    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).strokeColor(line).lineWidth(borderWidth).stroke();
-    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).strokeColor(line).lineWidth(borderWidth).stroke();
+    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).fillAndStroke("#ffffff", line);
+    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).fillAndStroke(surface, line);
 
     doc.font("Helvetica-Bold").fontSize(9.3).fillColor(accent).text("Bank Details", leftX + 8, y + 8);
     const bankLines = [
@@ -3492,6 +3652,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
 
     const tpl = template.rows[0] || {
       template_preset: "default",
+      template_theme_key: "default",
       header_text: "Quotation",
       body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
       footer_text: "Thank you for your business.",
@@ -3508,18 +3669,20 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       notes_text: "",
       terms_text: ""
     };
+    const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
+    const effectiveTemplate = applyTemplateAccessPolicy(tpl, subscription);
     const pdfConfig = await getPublishedQuotationPdfConfiguration(pool, quotation.seller_id);
     const pdfColumns = pdfConfig.columns || [];
     debugLogger.log("pdf-columns-loaded", `count=${pdfColumns.length} combineHelping=${Boolean(pdfConfig.modules?.combineHelpingTextInItemColumn)}`);
 
-    const templatePreset = normalizeTemplatePreset(tpl.template_preset);
+    const templatePreset = normalizeTemplatePreset(effectiveTemplate.template_preset);
     if (useSimplePdf || templatePreset === "default") {
       debugLogger.log("simple-pdf-start");
       pdfRenderer = "pdfkit_simple";
       buildSimpleQuotationPdf({
         quotation,
         items: itemsForPdf,
-        template: tpl,
+        template: effectiveTemplate,
         seller: sellerRow,
         pdfColumns,
         allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
@@ -3536,7 +3699,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
         await buildHtmlPuppeteerPdf({
           quotation,
           items: itemsForPdf,
-          template: tpl,
+          template: effectiveTemplate,
           seller: sellerRow,
           pdfColumns,
           allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
@@ -3551,7 +3714,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
         buildSimpleQuotationPdf({
           quotation,
           items: itemsForPdf,
-          template: tpl,
+          template: effectiveTemplate,
           seller: sellerRow,
           pdfColumns,
           allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
@@ -3565,9 +3728,9 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     try {
       pdfRenderer = "pdfkit_rich";
       buildQuotationPdf({
-        quotation,
-        items: itemsForPdf,
-        template: tpl,
+          quotation,
+          items: itemsForPdf,
+          template: effectiveTemplate,
         pdfColumns,
         pdfModules: pdfConfig.modules || {},
         res,
@@ -3581,7 +3744,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       buildSimpleQuotationPdf({
         quotation,
         items: itemsForPdf,
-        template: tpl,
+        template: effectiveTemplate,
         seller: sellerRow,
         pdfColumns,
         allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
@@ -3659,6 +3822,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
     const sellerRow = sellerResult.rows[0] || null;
     const template = templateResult.rows[0] || {
       template_preset: "default",
+      template_theme_key: "default",
       header_text: "Quotation",
       body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
       footer_text: "Thank you for your business.",
@@ -3675,6 +3839,8 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       notes_text: "",
       terms_text: ""
     };
+    const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
+    const effectiveTemplate = applyTemplateAccessPolicy(template, subscription);
     const pdfConfig = await getPublishedQuotationPdfConfiguration(pool, quotation.seller_id);
 
     const fakeResponse = new PassThrough();
@@ -3683,7 +3849,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
     buildSimpleQuotationPdf({
       quotation,
       items,
-      template,
+      template: effectiveTemplate,
       seller: sellerRow,
       pdfColumns: pdfConfig.columns || [],
       allPdfColumns: pdfConfig.allPdfColumns || pdfConfig.columns || [],
@@ -3762,8 +3928,8 @@ router.get("/templates/current", requirePermission(PERMISSIONS.SETTINGS_VIEW), a
       `SELECT * FROM quotation_templates WHERE seller_id = $1 AND template_name = 'default' LIMIT 1`,
       [tenantId]
     );
-
-    res.json(result.rows[0] || null);
+    const subscription = await getCurrentSubscription(pool, tenantId).catch(() => null);
+    res.json(result.rows[0] ? applyTemplateAccessPolicy(result.rows[0], subscription) : null);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -3778,6 +3944,7 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
 
     const {
       templatePreset,
+      templateThemeKey,
       headerText,
       bodyTemplate,
       footerText,
@@ -3797,12 +3964,26 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       whatsappEnabled
     } = req.body;
 
+    const subscription = await getCurrentSubscription(pool, tenantId).catch(() => null);
+    const planTier = getSubscriptionTemplateAccessTier(subscription);
+    const normalizedThemeKey = normalizeTemplateThemeKey(templateThemeKey);
+    const selectedTheme = getQuotationThemeConfig(normalizedThemeKey, accentColor || null);
+    if (!isThemeAccessibleForTier(selectedTheme.accessTier, planTier)) {
+      return res.status(403).json({ message: "This quotation theme requires a higher plan. Please contact the sales team." });
+    }
+
+    const effectiveThemeKey = planTier === "FREE" ? "default" : normalizedThemeKey;
+    const effectiveTheme = getQuotationThemeConfig(effectiveThemeKey, accentColor || null);
+    const effectiveFooterImageData = planTier === "FREE" ? FIXED_FREE_FOOTER_BANNER : (footerImageData || null);
+    const effectiveShowFooterImage = planTier === "FREE" ? true : Boolean(showFooterImage);
+
     const result = await pool.query(
-      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, footer_image_data, show_footer_image, accent_color, notes_text, terms_text, email_enabled, whatsapp_enabled)
-       VALUES ($1, 'default', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, template_theme_key, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, footer_image_data, show_footer_image, accent_color, notes_text, terms_text, email_enabled, whatsapp_enabled)
+       VALUES ($1, 'default', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
        ON CONFLICT (seller_id, template_name)
        DO UPDATE SET
           template_preset = EXCLUDED.template_preset,
+          template_theme_key = EXCLUDED.template_theme_key,
           header_text = EXCLUDED.header_text,
           body_template = EXCLUDED.body_template,
           footer_text = EXCLUDED.footer_text,
@@ -3824,7 +4005,8 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
        RETURNING *`,
       [
         tenantId,
-        normalizeTemplatePreset(templatePreset),
+        normalizeTemplatePreset(templatePreset || "default"),
+        effectiveThemeKey,
         headerText || null,
         bodyTemplate || null,
         footerText || null,
@@ -3835,9 +4017,9 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
         Boolean(showHeaderImage),
         logoImageData || null,
         Boolean(showLogoOnly),
-        footerImageData || null,
-        Boolean(showFooterImage),
-        accentColor || "#2563eb",
+        effectiveFooterImageData,
+        effectiveShowFooterImage,
+        effectiveTheme.accent,
         notesText || null,
         termsText || null,
         Boolean(emailEnabled),
@@ -3845,7 +4027,7 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       ]
     );
 
-    res.json(result.rows[0]);
+    res.json(applyTemplateAccessPolicy(result.rows[0], subscription));
   } catch (error) {
     res.status(400).json({ message: error.message });
   }

@@ -242,68 +242,136 @@ const QUOTATION_TEMPLATE_PRESETS = {
       notes_text: "",
       terms_text: ""
     }
-  },
-  commercial_offer: {
-    label: "Commercial Offer",
-    description: "Offer-style quotation with softer narrative copy.",
-    defaults: {
-      header_text: "Commercial Offer",
-      body_template: "Dear {{customer_name}}, thank you for your enquiry. Please find our offer for quotation {{quotation_number}}.",
-      footer_text: "We look forward to working with you.",
-      accent_color: "#2563eb",
-      notes_text: "Delivery and installation charges are extra unless mentioned.",
-      terms_text: "Payment terms and final scope will be confirmed at quotation stage."
-    }
-  },
-  invoice_classic: {
-    label: "Invoice Classic",
-    description: "Structured invoice-like layout with logo, company block, and compact commercial summary.",
-    defaults: {
-      header_text: "Quotation",
-      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
-      footer_text: "Thank you for the opportunity to serve you.",
-      accent_color: "#0f4c81",
-      notes_text: "Freight, unloading, and site execution are extra unless specifically included.",
-      terms_text: "Rates are exclusive of applicable taxes unless otherwise stated. Validity and payment terms will apply as per final quotation confirmation."
-    }
-  },
-  executive_boardroom: {
-    label: "Executive Boardroom",
-    description: "Formal, boardroom-style quotation with sharper hierarchy, flatter layout, and a proposal-like commercial summary.",
-    defaults: {
-      header_text: "Sai Laser Pvt. Ltd.",
-      body_template: "Dear {{customer_name}}, please find our commercial quotation {{quotation_number}} for your review.",
-      footer_text: "We appreciate the opportunity to work with you.",
-      accent_color: "#111827",
-      notes_text: "Freight, unloading, and site execution are extra unless specifically included.",
-      terms_text: "Rates are exclusive of applicable taxes. Final scope, taxes, and payment terms apply as per confirmation."
-    }
-  },
-  industrial_invoice: {
-    label: "Industrial Invoice",
-    description: "Structured GST-style quotation with a hard header band, dense customer/meta grid, and strict bordered item table.",
-    defaults: {
-      header_text: "Sai Laser Pvt. Ltd.",
-      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
-      footer_text: "Manufacturing & Supply of Precision Components",
-      accent_color: "#1f2c63",
-      notes_text: "Freight, unloading, and site execution are extra unless specifically included.",
-      terms_text: "Rates are exclusive of applicable taxes. Final scope, taxes, and payment terms apply as per final confirmation."
-    }
-  },
-  html_puppeteer: {
-    label: "HTML Puppeteer",
-    description: "Browser-rendered quotation matching the structured invoice reference while preserving Quotsy logic.",
-    defaults: {
-      header_text: "Sai Laser Pvt. Ltd.",
-      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
-      footer_text: "Manufacturing & Supply of Precision Components",
-      accent_color: "#1f2c63",
-      notes_text: "Freight, unloading, and site execution are extra unless specifically included.",
-      terms_text: "Rates are exclusive of applicable taxes. Final scope, taxes, and payment terms apply as per final confirmation."
-    }
   }
 };
+
+const QUOTATION_THEME_OPTIONS = {
+  default: {
+    label: "Default",
+    accessTier: "FREE",
+    description: "Clean neutral look for demo and free access.",
+    accent: "#737373",
+    header: "#4B5563",
+    surface: "#F3F4F6",
+    border: "#D1D5DB",
+    text: "#111827",
+    muted: "#6B7280"
+  },
+  royal_blue: {
+    label: "Royal Blue",
+    accessTier: "PAID",
+    description: "Trustworthy commercial blue with clear table contrast.",
+    accent: "#1D4ED8",
+    header: "#1D4ED8",
+    surface: "#DBEAFE",
+    border: "#93C5FD",
+    text: "#1E3A8A",
+    muted: "#475569"
+  },
+  slate_professional: {
+    label: "Slate Professional",
+    accessTier: "PAID",
+    description: "Premium neutral gray for broad B2B use.",
+    accent: "#374151",
+    header: "#1F2937",
+    surface: "#F3F4F6",
+    border: "#CBD5E1",
+    text: "#111827",
+    muted: "#6B7280"
+  },
+  warm_ivory: {
+    label: "Warm Ivory",
+    accessTier: "PAID",
+    description: "Softer premium warmth without changing the layout.",
+    accent: "#0F3D56",
+    header: "#0F3D56",
+    surface: "#F8F3EC",
+    border: "#E0D4C5",
+    text: "#4B3B2F",
+    muted: "#7A6A58"
+  },
+  forest_ledger: {
+    label: "Forest Ledger",
+    accessTier: "PREMIUM",
+    description: "Grounded document feel with deep green emphasis.",
+    accent: "#166534",
+    header: "#166534",
+    surface: "#DCFCE7",
+    border: "#86EFAC",
+    text: "#14532D",
+    muted: "#4D6B57"
+  },
+  steel_grid: {
+    label: "Steel Grid",
+    accessTier: "PREMIUM",
+    description: "Technical industrial palette with stronger structure.",
+    accent: "#334155",
+    header: "#334155",
+    surface: "#E2E8F0",
+    border: "#94A3B8",
+    text: "#1F2937",
+    muted: "#475569"
+  },
+  frosted_aura: {
+    label: "Frosted Aura",
+    accessTier: "NICHE",
+    description: "Calm frosted blue-gray theme for selective premium use.",
+    accent: "#5C7E8F",
+    header: "#5C7E8F",
+    surface: "#D4DDE2",
+    border: "#A2A2A2",
+    text: "#374151",
+    muted: "#6B7280"
+  }
+};
+
+function createFixedFreeFooterBannerDataUrl() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="120" viewBox="0 0 1600 120">
+      <defs>
+        <linearGradient id="qbg" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffffff"/>
+          <stop offset="70%" stop-color="#f8fbff"/>
+          <stop offset="100%" stop-color="#d9e8ff"/>
+        </linearGradient>
+        <linearGradient id="qwave" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#7fb4ff" stop-opacity="0.9"/>
+        </linearGradient>
+      </defs>
+      <rect width="1600" height="120" rx="8" fill="url(#qbg)"/>
+      <rect x="0.5" y="0.5" width="1599" height="119" rx="7.5" fill="none" stroke="#d5dbe6"/>
+      <path d="M1170 120 C1290 48 1430 156 1600 26 L1600 120 Z" fill="url(#qwave)"/>
+      <path d="M1040 118 C1210 86 1355 96 1600 68" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.85"/>
+      <path d="M1100 106 C1270 80 1410 82 1600 50" fill="none" stroke="#fff7d6" stroke-width="3" opacity="0.7"/>
+      <text x="120" y="72" font-family="Arial, sans-serif" font-size="28" font-weight="700" fill="#0f2a4d">Quotsy</text>
+      <text x="280" y="72" font-family="Arial, sans-serif" font-size="18" fill="#445066">Powered by Quotsy - Simplify your quoting process</text>
+      <text x="1455" y="46" font-family="Arial, sans-serif" font-size="20" fill="#d4a938">✦</text>
+      <text x="1490" y="60" font-family="Arial, sans-serif" font-size="14" fill="#e5c56a">✦</text>
+    </svg>
+  `;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+const FIXED_FREE_FOOTER_BANNER = createFixedFreeFooterBannerDataUrl();
+
+function getQuotationThemeConfig(themeKey) {
+  return QUOTATION_THEME_OPTIONS[themeKey] || QUOTATION_THEME_OPTIONS.default;
+}
+
+function getPlanTemplateAccessTier(subscription) {
+  if (!subscription) return "FREE";
+  if (Boolean(subscription.is_demo_plan)) return "FREE";
+  const tier = String(subscription.template_access_tier || "").trim().toUpperCase();
+  return ["FREE", "PAID", "PREMIUM", "NICHE"].includes(tier) ? tier : "FREE";
+}
+
+function isThemeAccessibleForTier(themeTier, planTier) {
+  const order = { FREE: 0, PAID: 1, PREMIUM: 2, NICHE: 3 };
+  const normalizedThemeTier = order[themeTier] !== undefined ? themeTier : "FREE";
+  const normalizedPlanTier = order[planTier] !== undefined ? planTier : "FREE";
+  return order[normalizedPlanTier] >= order[normalizedThemeTier];
+}
 
 const PLATFORM_MODULE_META = {
   Dashboard: { eyebrow: "Platform", title: "Quotsy Control Plane", subtitle: "See seller growth, billing drivers, onboarding progress, and account health in one place." },
@@ -2993,6 +3061,7 @@ function App() {
   });
   const [quotationTemplate, setQuotationTemplate] = useState({
     template_preset: "default",
+    template_theme_key: "default",
     header_text: "Quotation",
     body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
     footer_text: "Thank you for your business.",
@@ -3083,6 +3152,8 @@ function App() {
     billingCycle: "monthly",
     isActive: true,
     isDemoPlan: false,
+    planAccessType: "FREE",
+    templateAccessTier: "FREE",
     trialEnabled: false,
     trialDurationDays: "14",
     watermarkText: "Quotsy - Trial Version",
@@ -3608,6 +3679,8 @@ function App() {
       if (shouldLoadSellerScopedData && templateData) {
         setQuotationTemplate((prev) => ({
           ...prev,
+          template_preset: "default",
+          template_theme_key: templateData.template_theme_key || prev.template_theme_key || "default",
           ...templateData
         }));
       }
@@ -4690,6 +4763,8 @@ function App() {
       billingCycle: plan.billing_cycle || "monthly",
       isActive: Boolean(plan.is_active),
       isDemoPlan: Boolean(plan.is_demo_plan),
+      planAccessType: plan.plan_access_type || (plan.is_demo_plan ? "FREE" : "PAID"),
+      templateAccessTier: plan.template_access_tier || (plan.is_demo_plan ? "FREE" : "PAID"),
       trialEnabled: Boolean(plan.trial_enabled),
       trialDurationDays: plan.trial_duration_days ? String(plan.trial_duration_days) : "",
       watermarkText: plan.watermark_text || "",
@@ -4774,6 +4849,8 @@ function App() {
         billingCycle: "monthly",
         isActive: true,
         isDemoPlan: false,
+        planAccessType: "FREE",
+        templateAccessTier: "FREE",
         trialEnabled: false,
         trialDurationDays: "14",
         watermarkText: "Quotsy - Trial Version",
@@ -5225,6 +5302,7 @@ function App() {
         method: "PUT",
         body: JSON.stringify({
           templatePreset: quotationTemplate.template_preset,
+          templateThemeKey: quotationTemplate.template_theme_key || "default",
           headerText: quotationTemplate.header_text,
           bodyTemplate: quotationTemplate.body_template,
           footerText: quotationTemplate.footer_text,
@@ -5256,6 +5334,16 @@ function App() {
       ...prev,
       template_preset: presetKey,
       ...defaults
+    }));
+  }
+
+  function applyQuotationThemeSelection(themeKey) {
+    const themeConfig = getQuotationThemeConfig(themeKey);
+    setQuotationTemplate((prev) => ({
+      ...prev,
+      template_preset: "default",
+      template_theme_key: themeKey,
+      accent_color: themeConfig.accent
     }));
   }
 
@@ -6255,7 +6343,9 @@ function App() {
             quotationTemplate={quotationTemplate}
             setQuotationTemplate={setQuotationTemplate}
             QUOTATION_TEMPLATE_PRESETS={QUOTATION_TEMPLATE_PRESETS}
+            QUOTATION_THEME_OPTIONS={QUOTATION_THEME_OPTIONS}
             applyQuotationTemplatePreset={applyQuotationTemplatePreset}
+            applyQuotationThemeSelection={applyQuotationThemeSelection}
             handleQuotationHeaderImageChange={handleQuotationHeaderImageChange}
             handleQuotationLogoImageChange={handleQuotationLogoImageChange}
             handleQuotationFooterImageChange={handleQuotationFooterImageChange}
@@ -6265,6 +6355,10 @@ function App() {
             usageOverview={usageOverview}
             setActiveModule={setActiveModule}
             canEditSettings={canEditSettings}
+            currentSellerSubscription={currentSellerSubscription}
+            getPlanTemplateAccessTier={getPlanTemplateAccessTier}
+            isThemeAccessibleForTier={isThemeAccessibleForTier}
+            fixedFreeFooterBanner={FIXED_FREE_FOOTER_BANNER}
           />
         ) : activeModule !== "Dashboard" ? (
           <section className="module-placeholder glass-panel">

@@ -50,7 +50,7 @@ export default function PlansPage(props) {
 
       <table className="data-table">
         <thead>
-          <tr><th>Plan</th><th>Price</th><th>Billing</th><th>Trial</th><th>Users</th><th>Quotations</th><th>Status</th></tr>
+          <tr><th>Plan</th><th>Access</th><th>Price</th><th>Billing</th><th>Trial</th><th>Users</th><th>Status</th></tr>
         </thead>
         <tbody>
           {filteredPlans.length === 0 ? (
@@ -62,14 +62,14 @@ export default function PlansPage(props) {
                   <strong>{plan.plan_name}</strong>
                   <div className="seller-meta-stack">
                     <span>{plan.plan_code}</span>
-                    <span>{plan.is_demo_plan ? "Demo plan" : "Paid/standard plan"}</span>
+                    <span>{plan.is_demo_plan ? "Demo plan" : `${plan.plan_access_type || "FREE"} plan`}</span>
                   </div>
                 </td>
+                <td>{plan.template_access_tier || (plan.is_demo_plan ? "FREE" : "PAID")}</td>
                 <td>{formatCurrency(plan.price || 0)}</td>
                 <td>{plan.billing_cycle || "-"}</td>
                 <td>{plan.trial_enabled ? `${plan.trial_duration_days || 0} days` : "No"}</td>
                 <td>{plan.max_users ?? "-"}</td>
-                <td>{plan.max_quotations ?? "-"}</td>
                 <td><span className={`badge ${plan.is_active ? "success" : "pending"}`}>{plan.is_active ? "Active" : "Inactive"}</span></td>
               </tr>
             ))
@@ -92,6 +92,16 @@ export default function PlansPage(props) {
                 <input placeholder="Price" type="number" min="0" step="0.01" value={planForm.price} onChange={(e) => setPlanForm((prev) => ({ ...prev, price: e.target.value }))} />
                 <select value={planForm.billingCycle} onChange={(e) => setPlanForm((prev) => ({ ...prev, billingCycle: e.target.value }))}>
                   {BILLING_CYCLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <select value={planForm.planAccessType} onChange={(e) => setPlanForm((prev) => ({ ...prev, planAccessType: e.target.value }))}>
+                  <option value="FREE">Free</option>
+                  <option value="PAID">Paid</option>
+                </select>
+                <select value={planForm.templateAccessTier} onChange={(e) => setPlanForm((prev) => ({ ...prev, templateAccessTier: e.target.value }))}>
+                  <option value="FREE">Free</option>
+                  <option value="PAID">Paid</option>
+                  <option value="PREMIUM">Premium</option>
+                  <option value="NICHE">Niche</option>
                 </select>
                 <input placeholder="Trial Days" type="number" min="0" value={planForm.trialDurationDays} onChange={(e) => setPlanForm((prev) => ({ ...prev, trialDurationDays: e.target.value }))} />
                 <input placeholder="Watermark Text" value={planForm.watermarkText} onChange={(e) => setPlanForm((prev) => ({ ...prev, watermarkText: e.target.value }))} />

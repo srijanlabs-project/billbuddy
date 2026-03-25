@@ -6,6 +6,10 @@ const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 const router = express.Router();
 
 function normalizePlanPayload(body = {}) {
+  const rawTemplateTier = String(body.templateAccessTier || body.template_access_tier || "").trim().toUpperCase();
+  const normalizedTemplateTier = ["FREE", "PAID", "PREMIUM", "NICHE"].includes(rawTemplateTier) ? rawTemplateTier : "";
+  const rawAccessType = String(body.planAccessType || body.plan_access_type || "").trim().toUpperCase();
+
   return {
     planCode: String(body.planCode || body.plan_code || "").trim().toUpperCase(),
     planName: String(body.planName || body.plan_name || "").trim(),
@@ -17,6 +21,10 @@ function normalizePlanPayload(body = {}) {
     trialDurationDays: body.trialDurationDays !== undefined && body.trialDurationDays !== null && body.trialDurationDays !== ""
       ? Number(body.trialDurationDays)
       : null,
+    planAccessType: ["FREE", "PAID"].includes(rawAccessType)
+      ? rawAccessType
+      : (normalizedTemplateTier && normalizedTemplateTier !== "FREE" ? "PAID" : "FREE"),
+    templateAccessTier: normalizedTemplateTier || (rawAccessType === "PAID" ? "PAID" : "FREE"),
     watermarkText: String(body.watermarkText || body.watermark_text || "").trim() || null,
     maxUsers: body.maxUsers !== undefined && body.maxUsers !== null && body.maxUsers !== "" ? Number(body.maxUsers) : null,
     maxQuotations: body.maxQuotations !== undefined && body.maxQuotations !== null && body.maxQuotations !== "" ? Number(body.maxQuotations) : null,
@@ -72,9 +80,9 @@ router.post("/", requirePermission(PERMISSIONS.PLAN_CREATE), async (req, res) =>
 
     const planResult = await client.query(
       `INSERT INTO plans (
-         plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, watermark_text
+         plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, plan_access_type, template_access_tier, watermark_text
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         payload.planCode,
@@ -85,6 +93,8 @@ router.post("/", requirePermission(PERMISSIONS.PLAN_CREATE), async (req, res) =>
         payload.isDemoPlan,
         payload.trialEnabled,
         payload.trialDurationDays,
+        payload.planAccessType,
+        payload.templateAccessTier,
         payload.watermarkText
       ]
     );
@@ -166,9 +176,11 @@ router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) 
            is_demo_plan = COALESCE($6, is_demo_plan),
            trial_enabled = COALESCE($7, trial_enabled),
            trial_duration_days = $8,
-           watermark_text = $9,
+           plan_access_type = COALESCE($9, plan_access_type),
+           template_access_tier = COALESCE($10, template_access_tier),
+           watermark_text = $11,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10
+       WHERE id = $12
        RETURNING *`,
       [
         payload.planCode || null,
@@ -179,6 +191,8 @@ router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) 
         payload.isDemoPlan,
         payload.trialEnabled,
         payload.trialDurationDays,
+        payload.planAccessType || null,
+        payload.templateAccessTier || null,
         payload.watermarkText,
         Number(id)
       ]

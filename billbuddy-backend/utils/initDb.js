@@ -239,6 +239,7 @@ async function initializeDatabase() {
       logo_image_data TEXT,
       show_logo_only BOOLEAN DEFAULT FALSE,
       template_preset VARCHAR(80) DEFAULT 'commercial_offer',
+      template_theme_key VARCHAR(80) DEFAULT 'default',
       accent_color VARCHAR(20) DEFAULT '#2563eb',
       notes_text TEXT,
       terms_text TEXT,
@@ -258,6 +259,7 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS logo_image_data TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_logo_only BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS template_preset VARCHAR(80) DEFAULT 'commercial_offer'`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS template_theme_key VARCHAR(80) DEFAULT 'default'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20) DEFAULT '#2563eb'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS notes_text TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS terms_text TEXT`);
@@ -395,11 +397,15 @@ async function initializeDatabase() {
       is_demo_plan BOOLEAN DEFAULT FALSE,
       trial_enabled BOOLEAN DEFAULT FALSE,
       trial_duration_days INTEGER,
+      plan_access_type VARCHAR(20) NOT NULL DEFAULT 'FREE',
+      template_access_tier VARCHAR(20) NOT NULL DEFAULT 'FREE',
       watermark_text TEXT,
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS plan_access_type VARCHAR(20) NOT NULL DEFAULT 'FREE'`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS template_access_tier VARCHAR(20) NOT NULL DEFAULT 'FREE'`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS plan_features (
@@ -748,26 +754,30 @@ async function initializeDatabase() {
   await pool.query(`UPDATE leads SET wants_sample_data = COALESCE(wants_sample_data, FALSE)`);
 
   const demoPlanResult = await pool.query(
-    `INSERT INTO plans (plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, watermark_text)
-     VALUES ('DEMO', 'Demo Plan', 0, 'monthly', TRUE, TRUE, TRUE, 14, 'Quotsy - Trial Version')
+    `INSERT INTO plans (plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, plan_access_type, template_access_tier, watermark_text)
+     VALUES ('DEMO', 'Demo Plan', 0, 'monthly', TRUE, TRUE, TRUE, 14, 'FREE', 'FREE', 'Quotsy - Trial Version')
      ON CONFLICT (plan_code) DO UPDATE
        SET plan_name = EXCLUDED.plan_name,
            is_active = TRUE,
            is_demo_plan = TRUE,
            trial_enabled = TRUE,
            trial_duration_days = 14,
+           plan_access_type = 'FREE',
+           template_access_tier = 'FREE',
            watermark_text = EXCLUDED.watermark_text
      RETURNING id`
   );
 
   const trialPlanResult = await pool.query(
-    `INSERT INTO plans (plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, watermark_text)
-     VALUES ('TRIAL', 'Trial Plan', 0, 'monthly', TRUE, FALSE, TRUE, 14, 'Quotsy - Trial Version')
+    `INSERT INTO plans (plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, plan_access_type, template_access_tier, watermark_text)
+     VALUES ('TRIAL', 'Trial Plan', 0, 'monthly', TRUE, FALSE, TRUE, 14, 'FREE', 'FREE', 'Quotsy - Trial Version')
      ON CONFLICT (plan_code) DO UPDATE
        SET plan_name = EXCLUDED.plan_name,
            is_active = TRUE,
            trial_enabled = TRUE,
            trial_duration_days = 14,
+           plan_access_type = 'FREE',
+           template_access_tier = 'FREE',
            watermark_text = EXCLUDED.watermark_text
      RETURNING id`
   );

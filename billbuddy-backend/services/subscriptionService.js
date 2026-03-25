@@ -11,6 +11,8 @@ async function getCurrentSubscription(clientOrPool, sellerId) {
        p.plan_code,
        p.plan_name,
        p.is_demo_plan,
+       p.plan_access_type,
+       p.template_access_tier,
        p.trial_enabled,
        p.trial_duration_days,
        p.watermark_text,
