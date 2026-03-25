@@ -550,6 +550,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const customerName = quotation.firm_name || quotation.customer_name || "Customer";
   const quotationNo = getQuotationNumberValue(quotation) || "-";
   const headerImage = template?.show_header_image ? template?.header_image_data : null;
+  const showTextHeader = !headerImage;
   const logoImage = !headerImage && template?.show_logo_only ? template?.logo_image_data : null;
   const sellerName = String(seller?.business_name || seller?.name || "Quotation");
   const documentTitle = normalizeDocumentTitle(template?.header_text || "QUOTATION");
@@ -4036,4 +4037,3 @@ router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK
 });
 
 module.exports = router;
-  const showTextHeader = !headerImage;
