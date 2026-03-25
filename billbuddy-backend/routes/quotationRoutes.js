@@ -594,7 +594,7 @@ const QUOTATION_THEME_OPTIONS = {
   },
   forest_ledger: {
     key: "forest_ledger",
-    accessTier: "PREMIUM",
+    accessTier: "PAID",
     accent: "#166534",
     header: "#166534",
     surface: "#DCFCE7",
@@ -604,7 +604,7 @@ const QUOTATION_THEME_OPTIONS = {
   },
   steel_grid: {
     key: "steel_grid",
-    accessTier: "PREMIUM",
+    accessTier: "PAID",
     accent: "#334155",
     header: "#334155",
     surface: "#E2E8F0",
@@ -614,13 +614,83 @@ const QUOTATION_THEME_OPTIONS = {
   },
   frosted_aura: {
     key: "frosted_aura",
-    accessTier: "NICHE",
+    accessTier: "PAID",
     accent: "#5C7E8F",
     header: "#5C7E8F",
     surface: "#D4DDE2",
     border: "#A2A2A2",
     text: "#374151",
     muted: "#6B7280"
+  },
+  sorbet: {
+    key: "sorbet",
+    accessTier: "PREMIUM",
+    accent: "#BA9A91",
+    header: "#B7C396",
+    surface: "#EDECEC",
+    border: "#CCCCCC",
+    text: "#4B5563",
+    muted: "#7A6E68"
+  },
+  calcite: {
+    key: "calcite",
+    accessTier: "PREMIUM",
+    accent: "#FD7B41",
+    header: "#3C4044",
+    surface: "#EDBF9B",
+    border: "#DDDCDB",
+    text: "#3C4044",
+    muted: "#7C5E4E"
+  },
+  lapis_velvet_evening: {
+    key: "lapis_velvet_evening",
+    accessTier: "PREMIUM",
+    accent: "#893172",
+    header: "#213885",
+    surface: "#ECDFD2",
+    border: "#CCCACC",
+    text: "#213885",
+    muted: "#5B6475"
+  },
+  opaline: {
+    key: "opaline",
+    accessTier: "PREMIUM",
+    accent: "#FF634A",
+    header: "#FF634A",
+    surface: "#E7E7E7",
+    border: "#D2D2D4",
+    text: "#374151",
+    muted: "#6B7280"
+  },
+  tropical_heat: {
+    key: "tropical_heat",
+    accessTier: "NICHE",
+    accent: "#EB4203",
+    header: "#00CEC8",
+    surface: "#FCEFC3",
+    border: "#FF9C5F",
+    text: "#8A3600",
+    muted: "#0C6663"
+  },
+  honey_opal_sunset: {
+    key: "honey_opal_sunset",
+    accessTier: "NICHE",
+    accent: "#ECB914",
+    header: "#4F3D35",
+    surface: "#F6D579",
+    border: "#CBB8A0",
+    text: "#4F3D35",
+    muted: "#7C5D26"
+  },
+  seashell_garnet_afternoon: {
+    key: "seashell_garnet_afternoon",
+    accessTier: "NICHE",
+    accent: "#09A1A1",
+    header: "#30525C",
+    surface: "#ACC0D3",
+    border: "#D396A6",
+    text: "#30525C",
+    muted: "#7F4E60"
   }
 };
 
