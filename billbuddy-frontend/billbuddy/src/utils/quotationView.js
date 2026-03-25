@@ -29,6 +29,7 @@ export function getItemDisplayFieldValue(item = {}, key) {
   const normalizedKey = normalizeItemDisplayKey(key);
   if (!normalizedKey) return "";
   const customFields = item.custom_fields || item.customFields || {};
+  const customFieldEntry = Object.entries(customFields).find(([customKey]) => normalizeItemDisplayKey(customKey) === normalizedKey);
   const directValueMap = {
     material_name: item.material_name || item.materialName || item.material_type || item.materialType || item.design_name || item.designName || item.sku || "",
     category: item.item_category || item.itemCategory || item.category || "",
@@ -47,7 +48,7 @@ export function getItemDisplayFieldValue(item = {}, key) {
   };
   const rawValue = Object.prototype.hasOwnProperty.call(directValueMap, normalizedKey)
     ? directValueMap[normalizedKey]
-    : customFields[normalizedKey];
+    : (customFields[normalizedKey] ?? (customFieldEntry ? customFieldEntry[1] : undefined));
   if (rawValue === undefined || rawValue === null) return "";
   if (typeof rawValue === "boolean") return rawValue ? "Yes" : "";
   return String(rawValue).trim();
@@ -66,14 +67,14 @@ export function buildConfiguredQuotationItemTitle(item = {}, config = {}) {
   }
 
   const tokens = [];
-  const tokenRegex = /\{([^}]+)\}/g;
+  const tokenRegex = /\{([^{}\[\]]+)\}|\[([^[\]{}]+)\]/g;
   let cursor = 0;
   let match = tokenRegex.exec(pattern);
   while (match) {
     if (match.index > cursor) {
       tokens.push({ type: "text", value: pattern.slice(cursor, match.index) });
     }
-    tokens.push({ type: "field", value: match[1].trim() });
+    tokens.push({ type: "field", value: (match[1] || match[2] || "").trim() });
     cursor = match.index + match[0].length;
     match = tokenRegex.exec(pattern);
   }
