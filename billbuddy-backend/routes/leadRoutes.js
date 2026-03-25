@@ -356,7 +356,7 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
          theme_key,
          brand_primary_color
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'setup', 'active', $9, 'DEMO', 'matte-blue', '#2563eb')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'setup', 'active', $10, 'DEMO', 'matte-blue', '#2563eb')
        RETURNING *`,
       [
         resolvedSellerName,
