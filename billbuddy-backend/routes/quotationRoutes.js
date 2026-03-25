@@ -773,6 +773,23 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     .num { font-weight: 700; }
     .center { text-align: center; }
     .right { text-align: right; }
+    .total-strip {
+      display: grid;
+      grid-template-columns: 1fr 180px;
+      border-left: 1px solid #c7cfdc;
+      border-right: 1px solid #c7cfdc;
+      border-bottom: 1px solid #c7cfdc;
+      background: #eaf5f5;
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .total-strip span {
+      padding: 8px 10px;
+    }
+    .total-strip span:last-child {
+      text-align: right;
+      border-left: 1px solid #c7cfdc;
+    }
     .footer-grid {
       display: grid;
       grid-template-columns: 62% 38%;
@@ -813,6 +830,18 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       font-size: 8.4px;
     }
     .kv.grand div { font-weight: 700; font-size: 8.8px; }
+    .summary-card {
+      background: #0f7f86;
+      color: #ffffff;
+      border-top: 1px solid #0f7f86;
+    }
+    .summary-card .kv div:first-child,
+    .summary-card .kv div:last-child {
+      color: #ffffff;
+    }
+    .summary-card .kv.grand div {
+      font-size: 11px;
+    }
     .terms-list { margin: 0; padding-left: 14px; }
     .terms-list li { margin: 0 0 1px; }
     .footer-note {
@@ -922,6 +951,10 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
         ${itemRows}
       </tbody>
     </table>
+    <div class="total-strip">
+      <span>TOTAL</span>
+      <span>${escapeHtml(summaryAfterTax)}</span>
+    </div>
     <div class="footer-grid">
       <div class="footer-left">
         <div class="footer-cell">
@@ -949,14 +982,14 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
         </div>
       </div>
       <div>
-        <div class="footer-cell">
+        <div class="footer-cell summary-card">
           <div class="kv"><div>Total Amount</div><div class="right">${escapeHtml(totalAmount.toLocaleString("en-IN"))}</div></div>
           <div class="kv"><div>Discount</div><div class="right">${escapeHtml(discountAmount.toLocaleString("en-IN"))}</div></div>
           <div class="kv"><div>Taxable Amount</div><div class="right">${escapeHtml(taxableAmount.toLocaleString("en-IN"))}</div></div>
           <div class="kv"><div>Add : GST</div><div class="right">${escapeHtml(taxAmount.toLocaleString("en-IN"))}</div></div>
           <div class="kv"><div>Total Tax</div><div class="right">${escapeHtml(taxAmount.toLocaleString("en-IN"))}</div></div>
           <div class="kv"><div>Advance Amount</div><div class="right">${escapeHtml(advanceAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv grand"><div>Balance Amount</div><div class="right">Rs ${escapeHtml(balanceAmount.toLocaleString("en-IN"))}</div></div>
+          <div class="kv grand"><div>Total Amount After Tax</div><div class="right">Rs ${escapeHtml(balanceAmount.toLocaleString("en-IN"))}</div></div>
         </div>
         <div class="footer-cell">
           <h4 style="text-align:left">GST Payable on Reverse Charge</h4>
