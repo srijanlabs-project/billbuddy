@@ -296,7 +296,10 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
       return item.item_note || item.itemNote || "-";
     default: {
       const customFields = item.custom_fields || item.customFields || {};
-      const raw = customFields[columnKey];
+      const normalizedKey = normalizeQuotationColumnKey(columnKey);
+      const directRaw = customFields[columnKey] ?? customFields[normalizedKey];
+      const fallbackEntry = Object.entries(customFields).find(([key]) => normalizeQuotationColumnKey(key) === normalizedKey);
+      const raw = directRaw ?? (fallbackEntry ? fallbackEntry[1] : undefined);
       if (raw === undefined || raw === null || String(raw).trim() === "") return "-";
       return typeof raw === "boolean" ? (raw ? "Yes" : "No") : String(raw);
     }
@@ -3365,7 +3368,8 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
        ORDER BY qi.id`,
       [id]
     );
-    debugLogger.log("items-loaded", `count=${itemsResult.rows.length}`);
+    const itemsForPdf = await applyQuotationItemDisplayConfig(pool, quotation.seller_id, itemsResult.rows);
+    debugLogger.log("items-loaded", `count=${itemsForPdf.length}`);
 
     const template = await pool.query(
       `SELECT *
@@ -3409,7 +3413,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       debugLogger.log("simple-pdf-start");
       buildSimpleQuotationPdf({
         quotation,
-        items: itemsResult.rows,
+        items: itemsForPdf,
         template: tpl,
         seller: sellerRow,
         pdfColumns,
@@ -3425,7 +3429,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       try {
         await buildHtmlPuppeteerPdf({
           quotation,
-          items: itemsResult.rows,
+          items: itemsForPdf,
           template: tpl,
           seller: sellerRow,
           pdfColumns,
@@ -3439,7 +3443,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
         if (res.headersSent) return;
         buildSimpleQuotationPdf({
           quotation,
-          items: itemsResult.rows,
+          items: itemsForPdf,
           template: tpl,
           seller: sellerRow,
           pdfColumns,
@@ -3454,7 +3458,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     try {
       buildQuotationPdf({
         quotation,
-        items: itemsResult.rows,
+        items: itemsForPdf,
         template: tpl,
         pdfColumns,
         pdfModules: pdfConfig.modules || {},
@@ -3467,7 +3471,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       if (res.headersSent) return;
       buildSimpleQuotationPdf({
         quotation,
-        items: itemsResult.rows,
+        items: itemsForPdf,
         template: tpl,
         seller: sellerRow,
         pdfColumns,
