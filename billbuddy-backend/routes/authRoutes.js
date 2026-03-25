@@ -303,15 +303,30 @@ router.post("/demo-signup", async (req, res) => {
 
     const demoRoleId = await findRoleId(["Admin", "Seller Admin", "Master User", "Demo User", "Seller User"]);
     const createdUser = await client.query(
-      `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status, locked, password_changed_at)
-       VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE, CURRENT_TIMESTAMP)
+      `INSERT INTO users (
+         name,
+         mobile,
+         password,
+         role_id,
+         seller_id,
+         is_platform_admin,
+         status,
+         locked,
+         password_changed_at,
+         approval_mode,
+         approval_limit_amount,
+         can_approve_quotations,
+         can_approve_price_exception
+       )
+       VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE, CURRENT_TIMESTAMP, 'both', $6, TRUE, TRUE)
        RETURNING id, name, mobile, seller_id, is_platform_admin`,
       [
         String(name).trim(),
         String(mobile).trim(),
         await hashPassword(String(password)),
         demoRoleId,
-        sellerInsert.rows[0].id
+        sellerInsert.rows[0].id,
+        99999999
       ]
     );
 

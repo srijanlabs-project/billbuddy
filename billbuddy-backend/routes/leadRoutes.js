@@ -441,8 +441,21 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
         null;
 
       const userResult = await client.query(
-        `INSERT INTO users (name, mobile, password, role_id, created_by, seller_id, status, is_platform_admin)
-         VALUES ($1, $2, $3, $4, $5, $6, TRUE, FALSE)
+        `INSERT INTO users (
+           name,
+           mobile,
+           password,
+           role_id,
+           created_by,
+           seller_id,
+           status,
+           is_platform_admin,
+           approval_mode,
+           approval_limit_amount,
+           can_approve_quotations,
+           can_approve_price_exception
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, TRUE, FALSE, 'both', $7, TRUE, TRUE)
          RETURNING id, name, mobile, seller_id`,
         [
           String(masterUserName).trim(),
@@ -450,7 +463,8 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
           await hashPassword(String(masterUserPassword).trim()),
           roleId,
           req.user.id,
-          sellerInsert.rows[0].id
+          sellerInsert.rows[0].id,
+          99999999
         ]
       );
 
