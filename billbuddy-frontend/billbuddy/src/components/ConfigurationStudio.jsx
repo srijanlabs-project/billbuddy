@@ -44,6 +44,7 @@ export default function ConfigurationStudio(props) {
   const defaultPatternInputRef = useRef(null);
   const categoryPatternInputRefs = useRef({});
   const [activePatternTarget, setActivePatternTarget] = useState({ type: "default", index: null });
+  const [quotationSeqDrafts, setQuotationSeqDrafts] = useState({});
 
   if (activeModule !== "Configuration Studio") return null;
 
@@ -237,6 +238,45 @@ export default function ConfigurationStudio(props) {
       ...current,
       defaultPattern: buildTokenInsertionValue(current.defaultPattern, token, defaultPatternInputRef.current)
     }));
+  }
+
+  function getQuotationSeqInputValue(column) {
+    if (Object.prototype.hasOwnProperty.call(quotationSeqDrafts, column.id)) {
+      return quotationSeqDrafts[column.id];
+    }
+    return column.displayOrder ?? "";
+  }
+
+  function commitQuotationSeqDraft(column) {
+    const draftValue = quotationSeqDrafts[column.id];
+    if (draftValue === undefined) return;
+    const parsed = Number(String(draftValue || "").trim());
+    if (Number.isFinite(parsed) && parsed > 0) {
+      updateQuotationColumn(column.id, "displayOrder", parsed);
+    }
+    setQuotationSeqDrafts((prev) => {
+      const next = { ...prev };
+      delete next[column.id];
+      return next;
+    });
+  }
+
+  function handleSaveConfigurationDraft() {
+    if (typeof document !== "undefined" && document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+    window.setTimeout(() => {
+      saveSellerConfigurationDraft();
+    }, 0);
+  }
+
+  function handlePublishConfiguration() {
+    if (typeof document !== "undefined" && document.activeElement && typeof document.activeElement.blur === "function") {
+      document.activeElement.blur();
+    }
+    window.setTimeout(() => {
+      publishSellerConfiguration();
+    }, 0);
   }
 
   function buildSampleItem(product, categoryOverride = "") {
@@ -621,7 +661,22 @@ export default function ConfigurationStudio(props) {
                 <tbody>
                   {sortConfigEntries(activeSellerConfiguration.quotationColumns).map((column) => (
                     <tr key={column.id}>
-                      <td><input type="number" min="1" disabled={!canEditConfiguration} value={column.displayOrder ?? ""} onChange={(e) => updateQuotationColumn(column.id, "displayOrder", Number(e.target.value || 0))} /></td>
+                      <td>
+                        <input
+                          type="number"
+                          min="1"
+                          disabled={!canEditConfiguration}
+                          value={getQuotationSeqInputValue(column)}
+                          onChange={(e) => setQuotationSeqDrafts((prev) => ({ ...prev, [column.id]: e.target.value }))}
+                          onBlur={() => commitQuotationSeqDraft(column)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.currentTarget.blur();
+                            }
+                          }}
+                        />
+                      </td>
                       <td><input disabled={!canEditConfiguration} value={column.label} onChange={(e) => updateQuotationColumn(column.id, "label", e.target.value)} /></td>
                       <td><input disabled={!canEditConfiguration} value={column.key} onChange={(e) => updateQuotationColumn(column.id, "key", e.target.value)} /></td>
                       <td>
@@ -819,10 +874,10 @@ export default function ConfigurationStudio(props) {
 
       <div className="modal-fixed-actions">
         <button type="button" className="ghost-btn" onClick={closeSellerConfigurationStudio}>{isPlatformAdmin ? "Back to Sellers" : "Back to Dashboard"}</button>
-        <button type="button" className="ghost-btn" onClick={publishSellerConfiguration} disabled={!canPublishConfiguration || sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
+        <button type="button" className="ghost-btn" onClick={handlePublishConfiguration} disabled={!canPublishConfiguration || sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
           {sellerConfigPublishing ? "Publishing..." : "Publish"}
         </button>
-        <button type="button" onClick={saveSellerConfigurationDraft} disabled={!canSaveConfigurationDraft || sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
+        <button type="button" onClick={handleSaveConfigurationDraft} disabled={!canSaveConfigurationDraft || sellerConfigLoading || sellerConfigSaving || sellerConfigPublishing}>
           {sellerConfigSaving ? "Saving..." : "Save Draft"}
         </button>
       </div>

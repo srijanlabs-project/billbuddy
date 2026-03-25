@@ -1002,10 +1002,12 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
         <tr>
           <td>${index + 1}</td>
           ${pdfColumns.map((column) => {
+            const normalizedKey = normalizeQuotationColumnKey(column.key);
             const rawValue = getQuotationPdfColumnValue(item, column.key);
-            const hiddenMeta = normalizeQuotationColumnKey(column.key) === "material_name" ? getHiddenQuotationItemMeta(item, pdfColumns) : [];
+            const hiddenMeta = normalizedKey === "material_name" ? getHiddenQuotationItemMeta(item, pdfColumns) : [];
             const metaHtml = hiddenMeta.length ? `<div class="custom-meta">${escapeHtml(hiddenMeta.map((entry) => `${entry.label}: ${entry.value}`).join(" | "))}</div>` : "";
-            return `<td><div>${escapeHtml(rawValue)}</div>${metaHtml}</td>`;
+            const cellClass = normalizedKey === "material_name" ? "item-cell" : "value-cell";
+            return `<td class="${cellClass}"><div class="cell-line">${escapeHtml(rawValue)}</div>${metaHtml}</td>`;
           }).join("")}
         </tr>
       `).join("");
@@ -1048,8 +1050,22 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
     .customer-name { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
     .body-copy { margin: 0 0 18px; line-height: 1.7; color: #314154; text-align: left; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; overflow: hidden; border-radius: 16px; }
-    thead th { background: #eaf3ff; color: #355174; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    thead th {
+      background: #eaf3ff;
+      color: #355174;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.15;
+    }
     th, td { padding: 14px 12px; border-bottom: 1px solid var(--line); text-align: left; }
+    td { font-size: 11px; font-weight: 400; line-height: 1.2; }
+    td.item-cell .cell-line { font-size: 11px; font-weight: 700; }
+    td.value-cell .cell-line { font-size: 11px; font-weight: 400; }
     tbody tr:last-child td { border-bottom: none; }
     .custom-meta { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.5; }
     .totals { margin-top: 20px; margin-left: auto; width: min(100%, 360px); }
