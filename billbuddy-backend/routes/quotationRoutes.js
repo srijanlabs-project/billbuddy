@@ -566,6 +566,14 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     { key: "rate", label: "Rate" },
     { key: "amount", label: "Amount" }
   ];
+  const getColumnWidth = (columnKey) => {
+    const key = normalizeQuotationColumnKey(columnKey);
+    if (key === "material_name") return "44%";
+    if (key === "quantity") return "6%";
+    if (key === "rate" || key === "unit_price") return "6%";
+    if (key === "thickness") return "6%";
+    return "10%";
+  };
   const visiblePdfColumns = Array.isArray(allPdfColumns) && allPdfColumns.length ? allPdfColumns : columns;
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
 
@@ -638,7 +646,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     .body-copy { font-size: 11px; color: #374151; margin: 6px 0 10px; line-height: 1.45; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     th, td { border: 1px solid #d1d5db; padding: 6px; vertical-align: top; }
-    th { font-size: 12px; font-weight: 700; background: #f3f4f6; white-space: nowrap; }
+    th { font-size: 10px; font-weight: 700; background: #f3f4f6; white-space: nowrap; }
     td { font-size: 11px; font-weight: 400; }
     td.sr { width: 38px; text-align: center; font-weight: 700; }
     td.item .cell { font-size: 11px; font-weight: 700; }
@@ -706,6 +714,10 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     ${bodyCopy ? `<div class="body-copy">${nl2br(bodyCopy)}</div>` : ""}
 
     <table>
+      <colgroup>
+        <col style="width:38px" />
+        ${columns.map((column) => `<col style="width:${getColumnWidth(column.key)}" />`).join("")}
+      </colgroup>
       <thead>
         <tr>
           <th style="width:38px">Sr</th>
