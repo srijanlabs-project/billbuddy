@@ -530,10 +530,21 @@ function nl2br(value) {
 function imageBufferFromDataUrl(dataUrl) {
   if (!dataUrl || typeof dataUrl !== "string") return null;
   if (dataUrl.length > 2_000_000) return null;
-  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-  if (!match) return null;
+  const base64Match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (base64Match) {
+    try {
+      const buffer = Buffer.from(base64Match[2], "base64");
+      if (buffer.length > 1_500_000) return null;
+      return buffer;
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  const utf8Match = dataUrl.match(/^data:(image\/svg\+xml)(?:;charset=[^;,]+)?,(.+)$/i);
+  if (!utf8Match) return null;
   try {
-    const buffer = Buffer.from(match[2], "base64");
+    const buffer = Buffer.from(decodeURIComponent(utf8Match[2]), "utf8");
     if (buffer.length > 1_500_000) return null;
     return buffer;
   } catch (_error) {

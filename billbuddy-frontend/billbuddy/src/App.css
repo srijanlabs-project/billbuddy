@@ -5501,6 +5501,70 @@ button:disabled {
   gap: 16px;
 }
 
+.settings-tab-shell {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+}
+
+.settings-tab-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.settings-tab-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.settings-tab-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.settings-tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.settings-tab {
+  border: 1px solid var(--border);
+  background: rgba(255, 251, 248, 0.9);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.settings-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #fff;
+  border-color: transparent;
+}
+
+.settings-tab-body {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-inline-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .settings-page-head p {
   max-width: 860px;
 }
@@ -5633,6 +5697,29 @@ button:disabled {
 
 .settings-theme-library-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.settings-theme-grid-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.settings-theme-controls {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-preview-sticky {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-quotation-preview-compact {
+  font-size: 11px;
 }
 
 .settings-theme-card {
@@ -5994,14 +6081,20 @@ button:disabled {
   .settings-image-grid,
   .settings-asset-preview-grid,
   .settings-usage-grid,
-  .settings-admin-actions {
+  .settings-admin-actions,
+  .settings-theme-grid-layout {
     grid-template-columns: 1fr;
+  }
+
+  .settings-preview-sticky {
+    position: static;
   }
 }
 
 @media (max-width: 760px) {
   .settings-card-head,
-  .settings-preview-hero {
+  .settings-preview-hero,
+  .settings-tab-header {
     flex-direction: column;
   }
 
@@ -6017,6 +6110,10 @@ button:disabled {
   .settings-plan-banner,
   .settings-theme-card-meta {
     grid-template-columns: 1fr;
+  }
+
+  .settings-tab-summary {
+    justify-content: flex-start;
   }
 }
 
