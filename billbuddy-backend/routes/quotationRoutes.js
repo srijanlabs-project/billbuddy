@@ -75,6 +75,13 @@ function quotationFileStem(quotation) {
   return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}-V${version}`;
 }
 
+function normalizeDocumentTitle(value) {
+  const fallback = "QUOTATION";
+  const source = String(value || "").trim() || fallback;
+  const replaced = source.replace(/invoice/ig, "Quotation");
+  return replaced || fallback;
+}
+
 function normalizeReferenceRequestId(value) {
   const normalized = String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
   return normalized || null;
@@ -548,7 +555,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const advanceAmount = Number(quotation.advance_amount || 0);
   const balanceAmount = Number(quotation.balance_amount || (taxableAmount + taxAmount - advanceAmount));
   const sellerName = String(seller?.business_name || seller?.name || template?.header_text || "Quotation");
-  const documentTitle = String(template?.header_text || "TAX INVOICE").trim() || "TAX INVOICE";
+  const documentTitle = normalizeDocumentTitle(template?.header_text || "QUOTATION");
   const sellerAddressLines = String(template?.company_address || "-").split(/\r?\n/).filter(Boolean);
   const termsLines = String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean);
   const notesLines = String(template?.notes_text || "").split(/\r?\n/).filter(Boolean);
