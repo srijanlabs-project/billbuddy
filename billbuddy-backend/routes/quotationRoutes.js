@@ -3335,27 +3335,59 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
 
     if (templatePreset === "html_puppeteer") {
       debugLogger.log("html-puppeteer-start");
-      await buildHtmlPuppeteerPdf({
+      try {
+        await buildHtmlPuppeteerPdf({
+          quotation,
+          items: itemsResult.rows,
+          template: tpl,
+          seller: sellerRow,
+          pdfColumns,
+          allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
+          res
+        });
+      } catch (richPdfError) {
+        console.error("[PDF][fallback][html_puppeteer]", richPdfError);
+        debugLogger.log("html-puppeteer-fallback", richPdfError.message || "unknown_error");
+        if (res.headersSent) return;
+        buildSimpleQuotationPdf({
+          quotation,
+          items: itemsResult.rows,
+          template: tpl,
+          seller: sellerRow,
+          pdfColumns,
+          allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
+          pdfModules: pdfConfig.modules || {},
+          res
+        });
+      }
+      return;
+    }
+
+    try {
+      buildQuotationPdf({
+        quotation,
+        items: itemsResult.rows,
+        template: tpl,
+        pdfColumns,
+        pdfModules: pdfConfig.modules || {},
+        res,
+        debugLogger
+      });
+    } catch (richPdfError) {
+      console.error("[PDF][fallback][rich_pdf]", richPdfError);
+      debugLogger.log("rich-pdf-fallback", richPdfError.message || "unknown_error");
+      if (res.headersSent) return;
+      buildSimpleQuotationPdf({
         quotation,
         items: itemsResult.rows,
         template: tpl,
         seller: sellerRow,
         pdfColumns,
         allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
+        pdfModules: pdfConfig.modules || {},
         res
       });
-      return;
     }
-
-    buildQuotationPdf({
-      quotation,
-      items: itemsResult.rows,
-      template: tpl,
-      pdfColumns,
-      pdfModules: pdfConfig.modules || {},
-      res,
-      debugLogger
-    });
   } catch (error) {
     console.error("[PDF][route-error]", error);
     if (!res.headersSent) {
