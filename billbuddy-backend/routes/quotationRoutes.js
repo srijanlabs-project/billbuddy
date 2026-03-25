@@ -579,7 +579,11 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
 
   const getCellValue = (item, columnKey, isItemColumn) => {
     const rawValue = getQuotationPdfColumnValue(item, columnKey, { combineHelpingTextInItemColumn });
-    return escapeHtml(toSingleLinePdfValue(rawValue || "-", isItemColumn ? 160 : 80));
+    if (isItemColumn) {
+      const itemValue = String(rawValue ?? "").trim();
+      return escapeHtml(itemValue || "-");
+    }
+    return escapeHtml(toSingleLinePdfValue(rawValue || "-", 80));
   };
 
   const itemRows = items.map((item, index) => {
@@ -639,6 +643,12 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     td.item .cell { font-size: 11px; font-weight: 700; }
     td.num { text-align: right; }
     .cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    td.item .cell {
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      word-break: break-word;
+    }
     .item-help { margin-top: 4px; font-size: 10px; font-style: italic; color: #4b5563; white-space: normal; }
     .summary { margin-top: 10px; margin-left: auto; width: 320px; border: 1px solid #d1d5db; }
     .summary-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
@@ -653,22 +663,24 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
 <body>
   <div class="doc">
     ${headerImage ? `<div class="header-image"><img src="${headerImage}" alt="Header" /></div>` : ""}
-    <div class="top">
-      <div>
-        <div class="seller-name">${escapeHtml(sellerName)}</div>
-        ${template?.footer_text ? `<div class="seller-sub">${escapeHtml(template.footer_text)}</div>` : ""}
-        <div class="seller-meta">
-          ${sellerAddressLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-          ${template?.company_phone ? `<div>Tel: ${escapeHtml(template.company_phone)}</div>` : ""}
-          ${template?.company_email ? `<div>Email: ${escapeHtml(template.company_email)}</div>` : ""}
+    ${showTextHeader ? `
+      <div class="top">
+        <div>
+          <div class="seller-name">${escapeHtml(sellerName)}</div>
+          ${template?.footer_text ? `<div class="seller-sub">${escapeHtml(template.footer_text)}</div>` : ""}
+          <div class="seller-meta">
+            ${sellerAddressLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+            ${template?.company_phone ? `<div>Tel: ${escapeHtml(template.company_phone)}</div>` : ""}
+            ${template?.company_email ? `<div>Email: ${escapeHtml(template.company_email)}</div>` : ""}
+          </div>
         </div>
+        <div class="logo">${logoImage ? `<img src="${logoImage}" alt="Logo" />` : ""}</div>
       </div>
-      <div class="logo">${logoImage ? `<img src="${logoImage}" alt="Logo" />` : ""}</div>
-    </div>
+    ` : ""}
 
     <div class="titlebar">
       <div class="left">GSTIN: ${escapeHtml(String(quotation.gstin || "-"))}</div>
-      <div class="center">${escapeHtml(documentTitle)}</div>
+      <div class="center">QUOTATION</div>
       <div class="right">ORIGINAL FOR RECIPIENT</div>
     </div>
 
@@ -4024,3 +4036,4 @@ router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK
 });
 
 module.exports = router;
+  const showTextHeader = !headerImage;
