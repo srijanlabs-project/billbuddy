@@ -1370,7 +1370,7 @@ function buildQuotationWizardPayloadItems(items) {
       return {
         product_id: item.productId ? Number(item.productId) : null,
         category: item.category || null,
-        size: item.note || "-",
+        size: item.customFields?.size || null,
         quantity: toQuotationWizardAmount(item.quantity || 0),
         unitPrice: rate,
         materialType: item.materialName,
@@ -3003,6 +3003,8 @@ function App() {
     show_header_image: false,
     logo_image_data: null,
     show_logo_only: false,
+    footer_image_data: null,
+    show_footer_image: false,
     accent_color: "#737373",
     notes_text: "Delivery and installation charges are extra unless mentioned.",
     terms_text: "Payment terms and final scope will be confirmed at quotation stage.",
@@ -5233,6 +5235,8 @@ function App() {
           showHeaderImage: quotationTemplate.show_header_image,
           logoImageData: quotationTemplate.logo_image_data,
           showLogoOnly: quotationTemplate.show_logo_only,
+          footerImageData: quotationTemplate.footer_image_data,
+          showFooterImage: quotationTemplate.show_footer_image,
           accentColor: quotationTemplate.accent_color,
           notesText: quotationTemplate.notes_text,
           termsText: quotationTemplate.terms_text,
@@ -5279,6 +5283,10 @@ function App() {
 
   async function handleQuotationLogoImageChange(event) {
     return handleQuotationTemplateImageChange(event, "logo_image_data", "show_logo_only");
+  }
+
+  async function handleQuotationFooterImageChange(event) {
+    return handleQuotationTemplateImageChange(event, "footer_image_data", "show_footer_image");
   }
 
   async function handleSendQuotationEmail(orderId) {
@@ -5453,7 +5461,14 @@ function App() {
           return { ...item, thickness: value };
         }
         if (normalizedField === "size") {
-          return { ...item, size: value };
+          return {
+            ...item,
+            size: value,
+            customFields: {
+              ...(item.customFields || {}),
+              size: value
+            }
+          };
         }
         if (normalizedField === "width") {
           return { ...item, dimensionWidth: value };
@@ -6243,6 +6258,7 @@ function App() {
             applyQuotationTemplatePreset={applyQuotationTemplatePreset}
             handleQuotationHeaderImageChange={handleQuotationHeaderImageChange}
             handleQuotationLogoImageChange={handleQuotationLogoImageChange}
+            handleQuotationFooterImageChange={handleQuotationFooterImageChange}
             quotationPreview={quotationPreview}
             renderTemplateText={renderTemplateText}
             handleSaveQuotationTemplate={handleSaveQuotationTemplate}

@@ -62,6 +62,7 @@ export default function SettingsPage({
   applyQuotationTemplatePreset,
   handleQuotationHeaderImageChange,
   handleQuotationLogoImageChange,
+  handleQuotationFooterImageChange,
   quotationPreview,
   renderTemplateText,
   handleSaveQuotationTemplate,
@@ -78,6 +79,7 @@ export default function SettingsPage({
   const previewFooter = renderTemplateText(quotationTemplate.footer_text, quotationPreview);
   const showHeaderImage = Boolean(quotationTemplate.show_header_image && quotationTemplate.header_image_data);
   const showLogoOnly = Boolean(!showHeaderImage && quotationTemplate.show_logo_only && quotationTemplate.logo_image_data);
+  const showFooterImage = Boolean(quotationTemplate.show_footer_image && quotationTemplate.footer_image_data);
 
   function updateTemplateField(field, value) {
     setQuotationTemplate((prev) => ({ ...prev, [field]: value }));
@@ -382,6 +384,21 @@ export default function SettingsPage({
                         <span>Best for templates where contact text should still appear beside the logo.</span>
                       </div>
                     </label>
+                    <label className="settings-field">
+                      {renderInlineHelp("Footer Image", "Upload a footer banner/signature strip. When enabled, this image is used instead of footer text in supported PDF templates.")}
+                      <input type="file" accept="image/*" onChange={handleQuotationFooterImageChange} />
+                    </label>
+                    <label className="settings-inline-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(quotationTemplate.show_footer_image)}
+                        onChange={(event) => updateTemplateField("show_footer_image", event.target.checked)}
+                      />
+                      <div>
+                        <strong>Use footer image</strong>
+                        <span>When enabled, footer image is preferred over footer text.</span>
+                      </div>
+                    </label>
                   </div>
 
                   <div className="settings-asset-preview-grid">
@@ -409,6 +426,19 @@ export default function SettingsPage({
                         <img src={quotationTemplate.logo_image_data} alt="Logo preview" className="settings-asset-preview-logo" />
                       ) : (
                         <p>No logo uploaded yet.</p>
+                      )}
+                    </div>
+                    <div className="settings-asset-preview-card">
+                      <div className="settings-asset-head">
+                        <strong>Footer Preview</strong>
+                        {quotationTemplate.footer_image_data ? (
+                          <button className="text-button" type="button" onClick={() => updateTemplateField("footer_image_data", null)}>Remove</button>
+                        ) : null}
+                      </div>
+                      {quotationTemplate.footer_image_data ? (
+                        <img src={quotationTemplate.footer_image_data} alt="Footer preview" className="settings-asset-preview-image" />
+                      ) : (
+                        <p>No footer image uploaded yet.</p>
                       )}
                     </div>
                   </div>
@@ -537,7 +567,11 @@ export default function SettingsPage({
                     </div>
 
                     <div className="settings-preview-endnote">
-                      <span>{previewFooter}</span>
+                      {showFooterImage ? (
+                        <img src={quotationTemplate.footer_image_data} alt="Footer banner" className="settings-preview-footer-image" />
+                      ) : (
+                        <span>{previewFooter}</span>
+                      )}
                     </div>
                   </div>
                 </section>

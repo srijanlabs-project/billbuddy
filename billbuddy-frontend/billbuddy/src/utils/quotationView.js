@@ -30,13 +30,14 @@ export function getItemDisplayFieldValue(item = {}, key) {
   if (!normalizedKey) return "";
   const customFields = item.custom_fields || item.customFields || {};
   const customFieldEntry = Object.entries(customFields).find(([customKey]) => normalizeItemDisplayKey(customKey) === normalizedKey);
+  const customFieldValue = customFields[normalizedKey] ?? (customFieldEntry ? customFieldEntry[1] : undefined);
   const directValueMap = {
     material_name: item.material_name || item.materialName || item.material_type || item.materialType || item.design_name || item.designName || item.sku || "",
     category: item.item_category || item.itemCategory || item.category || "",
     sku: item.sku || "",
     color_name: item.color_name || item.colorName || "",
     thickness: item.thickness || "",
-    size: item.size || "",
+    size: customFieldValue ?? item.size ?? "",
     quantity: item.quantity,
     rate: item.unit_price ?? item.unitPrice ?? item.rate ?? "",
     unit_price: item.unit_price ?? item.unitPrice ?? item.rate ?? "",
@@ -48,7 +49,7 @@ export function getItemDisplayFieldValue(item = {}, key) {
   };
   const rawValue = Object.prototype.hasOwnProperty.call(directValueMap, normalizedKey)
     ? directValueMap[normalizedKey]
-    : (customFields[normalizedKey] ?? (customFieldEntry ? customFieldEntry[1] : undefined));
+    : customFieldValue;
   if (rawValue === undefined || rawValue === null) return "";
   if (typeof rawValue === "boolean") return rawValue ? "Yes" : "";
   return String(rawValue).trim();

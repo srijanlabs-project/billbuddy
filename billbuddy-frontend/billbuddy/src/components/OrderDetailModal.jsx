@@ -227,20 +227,26 @@ export default function OrderDetailModal(props) {
           <div className="preview-pane">
             <h5>Edit Items</h5>
             <span>Add or remove line items before saving the new version.</span>
-            <input
-              type="number"
-              min="0"
-              placeholder="Discount"
-              value={quotationEditForm.discountAmount || ""}
-              onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, discountAmount: e.target.value }))}
-            />
-            <input
-              type="number"
-              min="0"
-              placeholder="Advance"
-              value={quotationEditForm.advanceAmount || ""}
-              onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, advanceAmount: e.target.value }))}
-            />
+            <label className="compact-field-label">
+              <span>Discount</span>
+              <input
+                className="compact-amount-input"
+                type="number"
+                min="0"
+                value={quotationEditForm.discountAmount || ""}
+                onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, discountAmount: e.target.value }))}
+              />
+            </label>
+            <label className="compact-field-label">
+              <span>Advance</span>
+              <input
+                className="compact-amount-input"
+                type="number"
+                min="0"
+                value={quotationEditForm.advanceAmount || ""}
+                onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, advanceAmount: e.target.value }))}
+              />
+            </label>
             <button type="button" className="ghost-btn" onClick={handleAddQuotationEditItem}>
               Add Item
             </button>

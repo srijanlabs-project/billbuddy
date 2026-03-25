@@ -2118,7 +2118,11 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       align: "center"
     });
 
-    const footerRaw = String(template?.footer_text || "").trim();
+    const footerRaw = String(
+      template?.show_footer_image && template?.footer_image_data
+        ? template.footer_image_data
+        : (template?.footer_text || "")
+    ).trim();
     if (footerRaw) {
       const footerY = doc.page.height - doc.page.margins.bottom - 16;
       const footerImage = imageBufferFromDataUrl(footerRaw);
@@ -3479,6 +3483,8 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       show_header_image: false,
       logo_image_data: null,
       show_logo_only: false,
+      footer_image_data: null,
+      show_footer_image: false,
       accent_color: "#737373",
       notes_text: "",
       terms_text: ""
@@ -3640,6 +3646,12 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       company_phone: "",
       company_email: "",
       company_address: "",
+      header_image_data: null,
+      show_header_image: false,
+      logo_image_data: null,
+      show_logo_only: false,
+      footer_image_data: null,
+      show_footer_image: false,
       accent_color: "#737373",
       notes_text: "",
       terms_text: ""
@@ -3757,6 +3769,8 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       showHeaderImage,
       logoImageData,
       showLogoOnly,
+      footerImageData,
+      showFooterImage,
       accentColor,
       notesText,
       termsText,
@@ -3765,8 +3779,8 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
     } = req.body;
 
     const result = await pool.query(
-      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, accent_color, notes_text, terms_text, email_enabled, whatsapp_enabled)
-       VALUES ($1, 'default', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, footer_image_data, show_footer_image, accent_color, notes_text, terms_text, email_enabled, whatsapp_enabled)
+       VALUES ($1, 'default', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        ON CONFLICT (seller_id, template_name)
        DO UPDATE SET
           template_preset = EXCLUDED.template_preset,
@@ -3780,6 +3794,8 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
           show_header_image = EXCLUDED.show_header_image,
           logo_image_data = EXCLUDED.logo_image_data,
           show_logo_only = EXCLUDED.show_logo_only,
+          footer_image_data = EXCLUDED.footer_image_data,
+          show_footer_image = EXCLUDED.show_footer_image,
           accent_color = EXCLUDED.accent_color,
           notes_text = EXCLUDED.notes_text,
           terms_text = EXCLUDED.terms_text,
@@ -3800,6 +3816,8 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
         Boolean(showHeaderImage),
         logoImageData || null,
         Boolean(showLogoOnly),
+        footerImageData || null,
+        Boolean(showFooterImage),
         accentColor || "#2563eb",
         notesText || null,
         termsText || null,
