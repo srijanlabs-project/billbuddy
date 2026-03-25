@@ -1,6 +1,11 @@
 const express = require("express");
 const PDFDocument = require("pdfkit");
-const puppeteer = require("puppeteer-core");
+let puppeteer;
+try {
+  puppeteer = require("puppeteer");
+} catch (_error) {
+  puppeteer = require("puppeteer-core");
+}
 const { PassThrough } = require("stream");
 const fs = require("fs");
 const { spawnSync } = require("child_process");
@@ -489,6 +494,15 @@ function getPuppeteerExecutablePath() {
     if (fs.existsSync(candidate)) return candidate;
   }
 
+  try {
+    if (typeof puppeteer?.executablePath === "function") {
+      const bundledPath = String(puppeteer.executablePath() || "").trim();
+      if (bundledPath && fs.existsSync(bundledPath)) return bundledPath;
+    }
+  } catch (_error) {
+    // Ignore bundled browser path lookup failures.
+  }
+
   const candidates = [
     "/usr/bin/chromium",
     "/usr/bin/chromium-browser",
@@ -518,7 +532,7 @@ function getPuppeteerExecutablePath() {
       // Ignore lookup failures and continue checking other candidates.
     }
   }
-  throw new Error("Chrome or Edge executable not found for html_puppeteer renderer.");
+  return "";
 }
 
 function getPuppeteerLaunchArgs() {
@@ -1018,11 +1032,14 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
 
 async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {}, res }) {
   const executablePath = getPuppeteerExecutablePath();
-  const browser = await puppeteer.launch({
-    executablePath,
+  const launchOptions = {
     headless: true,
     args: getPuppeteerLaunchArgs()
-  });
+  };
+  if (executablePath) {
+    launchOptions.executablePath = executablePath;
+  }
+  const browser = await puppeteer.launch(launchOptions);
   try {
     const page = await browser.newPage();
     const html = buildHtmlPuppeteerTemplate({ quotation, items, template, seller, pdfColumns, allPdfColumns, pdfModules });
