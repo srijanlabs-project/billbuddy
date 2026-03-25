@@ -240,20 +240,67 @@ export default function ConfigurationStudio(props) {
   }
 
   function buildSampleItem(product, categoryOverride = "") {
+    const previewDefaults = {
+      material_name: "Acrylic",
+      category: "Signage",
+      sku: "SKU-001",
+      color_name: "Gold",
+      thickness: "3mm",
+      size: "4 x 2",
+      quantity: 1,
+      rate: 100,
+      width: 4,
+      height: 2,
+      unit: "ft",
+      item_note: "Matte finish",
+      imported_color_note: "Imported sheet"
+    };
+
+    const customFieldDefaults = {};
+    availableDisplayTokens.forEach((token) => {
+      const normalized = normalizeConfigKey(token);
+      if (!normalized) return;
+      if (Object.prototype.hasOwnProperty.call(previewDefaults, normalized)) return;
+      customFieldDefaults[token] = "Sample";
+    });
+
     if (!product) {
       return {
-        material_name: "Sample Item",
-        item_category: categoryOverride || "",
-        custom_fields: {}
+        material_name: previewDefaults.material_name,
+        item_category: categoryOverride || previewDefaults.category,
+        sku: previewDefaults.sku,
+        color_name: previewDefaults.color_name,
+        thickness: previewDefaults.thickness,
+        size: previewDefaults.size,
+        quantity: previewDefaults.quantity,
+        unit_price: previewDefaults.rate,
+        dimension_width: previewDefaults.width,
+        dimension_height: previewDefaults.height,
+        dimension_unit: previewDefaults.unit,
+        item_note: previewDefaults.item_note,
+        imported_color_note: previewDefaults.imported_color_note,
+        custom_fields: customFieldDefaults
       };
     }
+
+    const productCustomFields = product.custom_fields || {};
+    const mergedCustomFields = { ...customFieldDefaults, ...productCustomFields };
+
     return {
-      material_name: product.material_name || "",
-      item_category: categoryOverride || product.category || "",
-      sku: product.sku || "",
-      color_name: product.color_name || "",
-      thickness: product.thickness || "",
-      custom_fields: product.custom_fields || {}
+      material_name: product.material_name || previewDefaults.material_name,
+      item_category: categoryOverride || product.category || previewDefaults.category,
+      sku: product.sku || previewDefaults.sku,
+      color_name: product.color_name || previewDefaults.color_name,
+      thickness: product.thickness || previewDefaults.thickness,
+      size: product.size || previewDefaults.size,
+      quantity: product.quantity ?? previewDefaults.quantity,
+      unit_price: product.base_price ?? previewDefaults.rate,
+      dimension_width: product.default_width ?? previewDefaults.width,
+      dimension_height: product.default_height ?? previewDefaults.height,
+      dimension_unit: product.unit_type || previewDefaults.unit,
+      item_note: product.item_note || previewDefaults.item_note,
+      imported_color_note: product.imported_color_note || previewDefaults.imported_color_note,
+      custom_fields: mergedCustomFields
     };
   }
 
