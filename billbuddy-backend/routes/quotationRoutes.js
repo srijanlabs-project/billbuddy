@@ -551,493 +551,190 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const quotationNo = getQuotationNumberValue(quotation) || "-";
   const headerImage = template?.show_header_image ? template?.header_image_data : null;
   const logoImage = !headerImage && template?.show_logo_only ? template?.logo_image_data : null;
+  const sellerName = String(seller?.business_name || seller?.name || "Quotation");
+  const documentTitle = normalizeDocumentTitle(template?.header_text || "QUOTATION");
+  const sellerAddressLines = String(template?.company_address || "").split(/\r?\n/).filter(Boolean);
   const bodyCopy = renderTemplateText(
     template?.body_template || "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
     quotation
   );
+
   const columns = Array.isArray(pdfColumns) && pdfColumns.length ? pdfColumns : [
-    { key: "material_name", label: "Name of Product / Service" },
+    { key: "material_name", label: "Item" },
     { key: "quantity", label: "Qty" },
     { key: "rate", label: "Rate" },
-    { key: "amount", label: "Total" }
+    { key: "amount", label: "Amount" }
   ];
   const visiblePdfColumns = Array.isArray(allPdfColumns) && allPdfColumns.length ? allPdfColumns : columns;
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
-  const totalInWords = amountToWordsIndian((quotation.total_amount || 0) + Number(quotation.tax_amount || 0));
-  const summaryAfterTax = Number((quotation.total_amount || 0) + Number(quotation.tax_amount || 0)).toLocaleString("en-IN");
-  const totalAmount = Number(quotation.total_amount || 0);
-  const discountAmount = Number(quotation.discount_amount || 0);
-  const taxableAmount = Math.max(0, totalAmount - discountAmount);
-  const taxAmount = Number(quotation.tax_amount || 0);
-  const advanceAmount = Number(quotation.advance_amount || 0);
-  const balanceAmount = Number(quotation.balance_amount || (taxableAmount + taxAmount - advanceAmount));
-  const sellerName = String(seller?.business_name || seller?.name || template?.header_text || "Quotation");
-  const documentTitle = normalizeDocumentTitle(template?.header_text || "QUOTATION");
-  const sellerAddressLines = String(template?.company_address || "-").split(/\r?\n/).filter(Boolean);
-  const termsLines = String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean);
-  const notesLines = String(template?.notes_text || "").split(/\r?\n/).filter(Boolean);
+
   const getItemHelpingText = (item) => {
     if (combineHelpingTextInItemColumn) return "";
     const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn: false })
       .map((entry) => `${entry.label}: ${entry.value}`)
       .join(" | ");
     if (!helping) return "";
-    return `<div class="item-help">${escapeHtml(toSingleLinePdfValue(helping, 220))}</div>`;
+    return `<div class="item-help">${escapeHtml(helping)}</div>`;
   };
+
   const getCellValue = (item, columnKey, isItemColumn) => {
     const rawValue = getQuotationPdfColumnValue(item, columnKey, { combineHelpingTextInItemColumn });
-    const normalized = String(rawValue ?? "").trim() || "-";
-    const maxLength = isItemColumn ? 120 : 48;
-    return escapeHtml(toSingleLinePdfValue(normalized, maxLength));
+    return escapeHtml(toSingleLinePdfValue(rawValue || "-", isItemColumn ? 160 : 80));
   };
+
   const itemRows = items.map((item, index) => {
     const itemHelpingText = getItemHelpingText(item);
     return `
       <tr>
-        <td class="num center">${index + 1}</td>
+        <td class="sr">${index + 1}</td>
         ${columns.map((column) => {
           const key = normalizeQuotationColumnKey(column.key);
           const isItemColumn = key === "material_name";
           const value = getCellValue(item, column.key, isItemColumn);
-          const extra = isItemColumn ? itemHelpingText : "";
-          const numberClass = ["amount","total","total_rate","total_price","rate","unit_price","quantity"].includes(key) ? "num right" : "";
-          const className = isItemColumn ? "item-col" : `value-cell ${numberClass}`.trim();
-          return `<td class="${className}"><div class="cell-line">${value}</div>${extra}</td>`;
+          const numberClass = ["amount", "total", "total_rate", "total_price", "rate", "unit_price", "quantity"].includes(key) ? "num" : "";
+          const className = isItemColumn ? "item" : numberClass;
+          return `<td class="${className}"><div class="cell">${value}</div>${isItemColumn ? itemHelpingText : ""}</td>`;
         }).join("")}
       </tr>
     `;
   }).join("");
 
+  const summaryRows = getQuotationSummaryRows({
+    totalAmount: quotation.total_amount,
+    discountAmount: quotation.discount_amount,
+    advanceAmount: quotation.advance_amount,
+    balanceAmount: quotation.balance_amount || quotation.total_amount
+  });
+
   return `<!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <style>
-    @page { size: A4; margin: 0; }
+    @page { size: A4; margin: 14mm 10mm 12mm 10mm; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
-      color: #111827;
-      background: #fff;
-    }
-    .page {
-      width: 100%;
-      margin: 0;
-      min-height: 100vh;
-      padding: 6px;
-      border: 2px solid #2f2c72;
-    }
-    .header-image img {
-      display: block;
-      width: 100%;
-      height: auto;
-      max-height: 230px;
-      object-fit: contain;
-    }
-    .header-image {
-      line-height: 0;
-      border-bottom: 1px solid #c7cfdc;
-      margin-bottom: 8px;
-      overflow: hidden;
-      background: #fff;
-    }
-    .masthead {
-      padding: 10px 14px 6px;
-    }
-    .masthead-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 220px;
-      gap: 12px;
-      align-items: start;
-    }
-    .brand-title {
-      font-size: 52px;
-      font-weight: 900;
-      letter-spacing: 0.01em;
-      color: #1f2c63;
-      text-transform: uppercase;
-      line-height: .88;
-    }
-    .brand-band {
-      margin-top: 7px;
-      background: #0a9aa0;
-      color: #fff;
-      padding: 8px 12px;
-      font-size: 20px;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .brand-address, .brand-contact {
-      margin-top: 6px;
-      display: grid;
-      gap: 1px;
-      font-size: 9.4px;
-      line-height: 1.18;
-    }
-    .brand-contact { text-align: right; justify-items: end; }
-    .brand-contact .logo-wrap img {
-      max-width: 112px;
-      max-height: 72px;
-      object-fit: contain;
-      display: block;
-      margin-bottom: 4px;
-    }
-    .title-row {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 8px;
-      align-items: center;
-      border-bottom: 1px solid #c7cfdc;
-      padding: 6px 10px;
-      color: #1f2c63;
-      font-weight: 700;
-    }
-    .title-row span {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 10.8px;
-    }
-    .title-row strong {
-      justify-self: center;
-      font-size: 28px;
-      letter-spacing: 0.02em;
-    }
-    .title-row span:last-child {
-      justify-self: end;
-      color: #111827;
-    }
-    .info-grid {
-      display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
-      border-bottom: 1px solid #c7cfdc;
-    }
-    .customer-box {
-      border-right: 1px solid #c7cfdc;
-    }
-    .customer-head {
-      padding: 6px 10px;
-      text-align: center;
-      font-size: 9.8px;
-      font-weight: 700;
-      border-bottom: 1px solid #c7cfdc;
-    }
-    .customer-row {
-      display: grid;
-      grid-template-columns: 72px minmax(0, 1fr);
-      gap: 8px;
-      padding: 7px 10px 0;
-      font-size: 9.6px;
-      line-height: 1.05;
-    }
-    .customer-row strong, .meta-pair strong { font-weight: 700; }
-    .meta-box {
-      padding: 8px 10px 6px;
-    }
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 88px 86px 94px minmax(102px, 1fr);
-      column-gap: 8px;
-      row-gap: 10px;
-      font-size: 9.4px;
-      line-height: 1.05;
-      align-items: center;
-    }
-    .meta-grid .value { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .body-copy {
-      padding: 8px 10px 6px;
-      font-size: 10px;
-      line-height: 1.18;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-    .items-table th, .items-table td {
-      border: 1px solid #c7cfdc;
-      padding: 5px 6px;
-      font-size: 11px;
-      vertical-align: top;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .items-table th {
-      background: #fbfcfe;
-      font-weight: 700;
-      text-align: center;
-      font-size: 12px;
-      line-height: 1.1;
-    }
-    .items-table {
-      border-bottom: 1px solid #c7cfdc;
-    }
-    .items-table tbody tr:last-child td {
-      border-bottom: 1px solid #c7cfdc;
-    }
-    .items-table .item-col {
-      white-space: normal;
-    }
-    .items-table .item-col .cell-line {
-      font-size: 11px;
-      font-weight: 700;
-    }
-    .items-table .value-cell .cell-line {
-      font-size: 11px;
-      font-weight: 400;
-    }
-    .cell-line {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .item-help {
-      margin-top: 2px;
-      font-size: 10px;
-      color: #4b5563;
-      font-style: italic;
-      white-space: normal;
-      overflow: visible;
-      text-overflow: clip;
-    }
-    .num { font-weight: 700; }
-    .center { text-align: center; }
-    .right { text-align: right; }
-    .total-strip {
-      display: grid;
-      grid-template-columns: 1fr 180px;
-      border-left: 1px solid #c7cfdc;
-      border-right: 1px solid #c7cfdc;
-      border-bottom: 1px solid #c7cfdc;
-      background: #eaf5f5;
-      font-weight: 700;
-      font-size: 12px;
-    }
-    .total-strip span {
-      padding: 8px 10px;
-    }
-    .total-strip span:last-child {
-      text-align: right;
-      border-left: 1px solid #c7cfdc;
-    }
-    .footer-grid {
-      display: grid;
-      grid-template-columns: 62% 38%;
-      border-top: 1px solid #c7cfdc;
-    }
-    .footer-left { border-right: 1px solid #c7cfdc; }
-    .footer-left .footer-cell:last-child,
-    .footer-left .notes-block + .footer-cell {
-      border-bottom: 1px solid #c7cfdc;
-    }
-    .footer-cell {
-      border-top: 1px solid #c7cfdc;
-      padding: 6px 8px 7px;
-      font-size: 8.5px;
-      line-height: 1.12;
-    }
-    .footer-cell h4 {
-      margin: 0 0 6px;
-      text-align: center;
-      font-size: 9.2px;
-    }
-    .kv {
-      display: grid;
-      grid-template-columns: minmax(122px, 1.2fr) minmax(0, 1fr);
-      gap: 6px;
-      margin-bottom: 4px;
-      align-items: start;
-    }
-    .kv div:first-child {
-      font-weight: 700;
-      white-space: nowrap;
-      font-size: 7.8px;
-    }
-    .kv div:last-child {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 8.4px;
-    }
-    .kv.grand div { font-weight: 700; font-size: 8.8px; }
-    .summary-card {
-      background: #0f7f86;
-      color: #ffffff;
-      border-top: 1px solid #0f7f86;
-    }
-    .summary-card .kv div:first-child,
-    .summary-card .kv div:last-child {
-      color: #ffffff;
-    }
-    .summary-card .kv.grand div {
-      font-size: 11px;
-    }
-    .terms-list { margin: 0; padding-left: 14px; }
-    .terms-list li { margin: 0 0 1px; }
-    .footer-note {
-      text-align: center;
-      line-height: 1.12;
-      font-size: 8.2px;
-    }
-    .signatory {
-      min-height: 84px;
-      display: grid;
-      align-content: space-between;
-      justify-items: center;
-      text-align: center;
-      font-size: 8.2px;
-    }
-    .footer-bottom-line {
-      border-top: 1px solid #c7cfdc;
-      height: 0;
-      width: 100%;
-    }
-    .footer-subtext {
-      margin-top: 4px;
-      font-size: 8px;
-      line-height: 1.12;
-    }
-    .notes-block {
-      border-top: 1px solid #c7cfdc;
-      padding: 6px 8px;
-      font-size: 8.2px;
-      line-height: 1.12;
-    }
-    .notes-block strong {
-      display: block;
-      margin-bottom: 3px;
-      font-size: 9px;
-    }
+    body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; }
+    .doc { width: 100%; }
+    .header-image img { width: 100%; max-height: 120px; object-fit: contain; display: block; margin-bottom: 10px; }
+    .top { display: grid; grid-template-columns: 1fr auto; gap: 16px; border-bottom: 1px solid #d1d5db; padding-bottom: 8px; margin-bottom: 8px; }
+    .seller-name { font-size: 24px; font-weight: 800; letter-spacing: .02em; color: #1e3a8a; text-transform: uppercase; }
+    .seller-sub { font-size: 11px; color: #374151; margin-top: 4px; }
+    .seller-meta { font-size: 11px; color: #374151; margin-top: 6px; line-height: 1.35; }
+    .logo img { max-height: 72px; max-width: 140px; object-fit: contain; }
+    .titlebar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin: 8px 0 10px; border: 1px solid #d1d5db; padding: 6px 8px; }
+    .titlebar .left, .titlebar .right { font-size: 11px; color: #374151; }
+    .titlebar .right { text-align: right; }
+    .titlebar .center { font-size: 20px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border: 1px solid #d1d5db; margin-bottom: 10px; }
+    .card { padding: 8px 10px; min-height: 110px; }
+    .card + .card { border-left: 1px solid #d1d5db; }
+    .card h4 { margin: 0 0 8px; font-size: 12px; color: #111827; text-transform: uppercase; }
+    .line { font-size: 11px; line-height: 1.35; margin-bottom: 3px; }
+    .body-copy { font-size: 11px; color: #374151; margin: 6px 0 10px; line-height: 1.45; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #d1d5db; padding: 6px; vertical-align: top; }
+    th { font-size: 12px; font-weight: 700; background: #f3f4f6; white-space: nowrap; }
+    td { font-size: 11px; font-weight: 400; }
+    td.sr { width: 38px; text-align: center; font-weight: 700; }
+    td.item .cell { font-size: 11px; font-weight: 700; }
+    td.num { text-align: right; }
+    .cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-help { margin-top: 4px; font-size: 10px; font-style: italic; color: #4b5563; white-space: normal; }
+    .summary { margin-top: 10px; margin-left: auto; width: 320px; border: 1px solid #d1d5db; }
+    .summary-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
+    .summary-row:last-child { border-bottom: none; font-weight: 700; }
+    .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .footer-card { border: 1px solid #d1d5db; padding: 8px 10px; min-height: 90px; }
+    .footer-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; }
+    .footer-text { font-size: 10px; line-height: 1.4; color: #374151; }
+    .sign { margin-top: 10px; border-top: 1px solid #d1d5db; padding-top: 8px; text-align: right; font-size: 11px; color: #374151; }
   </style>
 </head>
 <body>
-  <div class="page">
-    ${headerImage ? `<div class="header-image"><img src="${headerImage}" alt="Header" /></div>` : `
-      <div class="masthead">
-        <div class="masthead-row">
-          <div>
-            <div class="brand-title">${escapeHtml(sellerName)}</div>
-            ${template?.footer_text ? `<div class="brand-band">${escapeHtml(template.footer_text)}</div>` : ""}
-            <div class="brand-address">
-              ${(sellerAddressLines.length ? sellerAddressLines : ["-"]).map((line) => `<span>${escapeHtml(line)}</span>`).join("")}
-            </div>
-          </div>
-          <div class="brand-contact">
-            ${logoImage ? `<div class="logo-wrap"><img src="${logoImage}" alt="Logo" /></div>` : ""}
-            ${template?.company_phone ? `<span>Tel : ${escapeHtml(template.company_phone)}</span>` : ""}
-            ${seller?.website ? `<span>Web : ${escapeHtml(seller.website)}</span>` : ""}
-            ${template?.company_email ? `<span>Email : ${escapeHtml(template.company_email)}</span>` : ""}
-          </div>
+  <div class="doc">
+    ${headerImage ? `<div class="header-image"><img src="${headerImage}" alt="Header" /></div>` : ""}
+    <div class="top">
+      <div>
+        <div class="seller-name">${escapeHtml(sellerName)}</div>
+        ${template?.footer_text ? `<div class="seller-sub">${escapeHtml(template.footer_text)}</div>` : ""}
+        <div class="seller-meta">
+          ${sellerAddressLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
+          ${template?.company_phone ? `<div>Tel: ${escapeHtml(template.company_phone)}</div>` : ""}
+          ${template?.company_email ? `<div>Email: ${escapeHtml(template.company_email)}</div>` : ""}
         </div>
       </div>
-    `}
-    <div class="title-row">
-      <span>GSTIN : ${escapeHtml(String(quotation.gstin || template?.gstin || "-"))}</span>
-      <strong>${escapeHtml(documentTitle)}</strong>
-      <span>ORIGINAL FOR RECIPIENT</span>
+      <div class="logo">${logoImage ? `<img src="${logoImage}" alt="Logo" />` : ""}</div>
     </div>
-    <div class="info-grid">
-      <div class="customer-box">
-        <div class="customer-head">Customer Detail</div>
-        <div class="customer-row"><strong>M/S</strong><span>${escapeHtml(customerName)}</span></div>
-        <div class="customer-row"><strong>Address</strong><span>${escapeHtml(toSingleLinePdfValue(quotation.delivery_address || "-", 56))}</span></div>
-        <div class="customer-row"><strong>Phone</strong><span>${escapeHtml(String(quotation.mobile || "-"))}</span></div>
-        <div class="customer-row"><strong>GSTIN</strong><span>${escapeHtml(String(quotation.customer_gstin || "-"))}</span></div>
-        <div class="customer-row"><strong>Place of Supply</strong><span>${escapeHtml(String(quotation.delivery_pincode || "-"))}</span></div>
+
+    <div class="titlebar">
+      <div class="left">GSTIN: ${escapeHtml(String(quotation.gstin || "-"))}</div>
+      <div class="center">${escapeHtml(documentTitle)}</div>
+      <div class="right">ORIGINAL FOR RECIPIENT</div>
+    </div>
+
+    <div class="meta">
+      <div class="card">
+        <h4>Customer Detail</h4>
+        <div class="line"><strong>M/S:</strong> ${escapeHtml(customerName)}</div>
+        <div class="line"><strong>Address:</strong> ${escapeHtml(toSingleLinePdfValue(quotation.delivery_address || "-", 120))}</div>
+        <div class="line"><strong>Phone:</strong> ${escapeHtml(String(quotation.mobile || "-"))}</div>
+        <div class="line"><strong>GSTIN:</strong> ${escapeHtml(String(quotation.customer_gstin || "-"))}</div>
       </div>
-      <div class="meta-box">
-        <div class="meta-grid">
-          <span>Quotation No.</span><span class="value">${escapeHtml(quotationNo)}</span>
-          <span>Date</span><span class="value">${escapeHtml(formatDateIST(quotation.created_at) || "-")}</span>
-          <span>Version</span><span class="value">${escapeHtml(String(quotation.version_no || 1))}</span>
-          <span>Delivery Date</span><span class="value">${escapeHtml(formatDateIST(quotation.delivery_date) || "-")}</span>
-          <span>Delivery Type</span><span class="value">${escapeHtml(String(quotation.delivery_type || "-"))}</span>
-          <span>Customer</span><span class="value">${escapeHtml(customerName)}</span>
-          <span>Pincode</span><span class="value">${escapeHtml(String(quotation.delivery_pincode || "-"))}</span>
-          <span>Mobile</span><span class="value">${escapeHtml(String(quotation.mobile || "-"))}</span>
-        </div>
+      <div class="card">
+        <h4>Quotation Info</h4>
+        <div class="line"><strong>Quotation No:</strong> ${escapeHtml(quotationNo)}</div>
+        <div class="line"><strong>Date:</strong> ${escapeHtml(formatDateIST(quotation.created_at) || "-")}</div>
+        <div class="line"><strong>Version:</strong> ${escapeHtml(String(quotation.version_no || 1))}</div>
+        <div class="line"><strong>Delivery Date:</strong> ${escapeHtml(formatDateIST(quotation.delivery_date) || "-")}</div>
+        <div class="line"><strong>Delivery Type:</strong> ${escapeHtml(String(quotation.delivery_type || "-"))}</div>
       </div>
     </div>
-    <div class="body-copy">${nl2br(bodyCopy)}</div>
-    <table class="items-table">
-      <colgroup>
-        <col style="width:38px" />
-        ${columns.map((column) => {
-          const key = normalizeQuotationColumnKey(column.key);
-          let width = "90px";
-          if (key === "material_name") width = "38%";
-          else if (["amount","total","total_rate","total_price"].includes(key)) width = "13%";
-          else if (["rate","unit_price","quantity","unit","uom","unit_type"].includes(key)) width = "10%";
-          return `<col style="width:${width}" />`;
-        }).join("")}
-      </colgroup>
+
+    ${bodyCopy ? `<div class="body-copy">${nl2br(bodyCopy)}</div>` : ""}
+
+    <table>
       <thead>
         <tr>
-          <th>Sr No.</th>
-          ${columns.map((column) => `<th>${escapeHtml(toSingleLinePdfValue(column.label || "", 28))}</th>`).join("")}
+          <th style="width:38px">Sr</th>
+          ${columns.map((column) => `<th>${escapeHtml(toSingleLinePdfValue(column.label || "", 36))}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
         ${itemRows}
       </tbody>
     </table>
-    <div class="total-strip">
-      <span>TOTAL</span>
-      <span>${escapeHtml(summaryAfterTax)}</span>
+
+    <div class="summary">
+      ${summaryRows.map((row) => `
+        <div class="summary-row">
+          <span>${escapeHtml(row.label)}</span>
+          <strong>Rs ${Number(row.value || 0).toLocaleString("en-IN")}</strong>
+        </div>
+      `).join("")}
     </div>
+
     <div class="footer-grid">
-      <div class="footer-left">
-        <div class="footer-cell">
-          <h4>Total in words</h4>
-          <div class="footer-note">${escapeHtml(totalInWords)}</div>
-        </div>
-        <div class="footer-cell">
-          <h4>Bank Details</h4>
-          <div class="kv"><div>Bank Name</div><div>${escapeHtml(seller?.bank_name || "State Bank of India")}</div></div>
-          <div class="kv"><div>Branch Name</div><div>${escapeHtml(seller?.bank_branch || "Main Branch")}</div></div>
-          <div class="kv"><div>Bank Account Number</div><div>${escapeHtml(seller?.bank_account_no || "2000000004512")}</div></div>
-          <div class="kv"><div>Bank Branch IFSC</div><div>${escapeHtml(seller?.bank_ifsc || "SBIN0000488")}</div></div>
-        </div>
-        ${notesLines.length ? `
-          <div class="notes-block">
-            <strong>Notes</strong>
-            ${notesLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-          </div>
-        ` : ""}
-        <div class="footer-cell">
-          <h4>Terms and Conditions</h4>
-          <ol class="terms-list">
-            ${(termsLines.length ? termsLines : ["-"]).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
-          </ol>
+      <div class="footer-card">
+        <h4>Amount In Words</h4>
+        <div class="footer-text">${escapeHtml(amountToWordsIndian(Number(quotation.total_amount || 0)))}</div>
+        <h4 style="margin-top:10px;">Bank Details</h4>
+        <div class="footer-text">
+          <div><strong>Bank Name:</strong> ${escapeHtml(seller?.bank_name || "-")}</div>
+          <div><strong>Branch:</strong> ${escapeHtml(seller?.bank_branch || "-")}</div>
+          <div><strong>Account No:</strong> ${escapeHtml(seller?.bank_account_no || "-")}</div>
+          <div><strong>IFSC:</strong> ${escapeHtml(seller?.bank_ifsc || "-")}</div>
         </div>
       </div>
-      <div>
-        <div class="footer-cell summary-card">
-          <div class="kv"><div>Total Amount</div><div class="right">${escapeHtml(totalAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv"><div>Discount</div><div class="right">${escapeHtml(discountAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv"><div>Taxable Amount</div><div class="right">${escapeHtml(taxableAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv"><div>Add : GST</div><div class="right">${escapeHtml(taxAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv"><div>Total Tax</div><div class="right">${escapeHtml(taxAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv"><div>Advance Amount</div><div class="right">${escapeHtml(advanceAmount.toLocaleString("en-IN"))}</div></div>
-          <div class="kv grand"><div>Total Amount After Tax</div><div class="right">Rs ${escapeHtml(balanceAmount.toLocaleString("en-IN"))}</div></div>
-        </div>
-        <div class="footer-cell">
-          <h4 style="text-align:left">GST Payable on Reverse Charge</h4>
-          <div class="kv"><div></div><div class="right"><strong>N.A.</strong></div></div>
-          <div class="footer-note">Certified that the particulars given above are true and correct.</div>
-          <div class="footer-note" style="margin-top:6px;"><strong>For ${escapeHtml(toSingleLinePdfValue(sellerName, 44))}</strong></div>
-        </div>
-        <div class="footer-cell signatory">
-          <div class="footer-note">This is computer generated quotation.<br/>No signature required.</div>
-          <strong>Authorised Signatory</strong>
-        </div>
-        <div class="footer-bottom-line"></div>
+      <div class="footer-card">
+        <h4>Terms & Conditions</h4>
+        <div class="footer-text">${nl2br(template?.terms_text || "-")}</div>
+        ${template?.notes_text ? `<h4 style="margin-top:10px;">Notes</h4><div class="footer-text">${nl2br(template.notes_text)}</div>` : ""}
       </div>
+    </div>
+
+    <div class="sign">
+      <div>For ${escapeHtml(sellerName)}</div>
+      <div style="margin-top:8px;">Authorised Signatory</div>
     </div>
   </div>
 </body>
