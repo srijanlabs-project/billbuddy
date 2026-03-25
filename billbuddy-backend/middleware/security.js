@@ -18,6 +18,7 @@ function parseAllowedOrigins() {
 function buildCorsOptions() {
   const allowedOrigins = new Set(parseAllowedOrigins());
   return {
+    exposedHeaders: ["Content-Disposition"],
     origin(origin, callback) {
       if (!origin || allowedOrigins.has(origin)) {
         return callback(null, true);

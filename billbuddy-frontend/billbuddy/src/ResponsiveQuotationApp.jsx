@@ -291,7 +291,7 @@ function getVisibleQuotationNumber(quotation) {
 function getQuotationFileStem(quotation) {
   const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
   const version = quotation?.version_no || 1;
-  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
+  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}-V${version}`;
 }
 
 const IST_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {

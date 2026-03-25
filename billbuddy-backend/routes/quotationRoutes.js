@@ -72,7 +72,7 @@ function quotationLabel(quotation) {
 function quotationFileStem(quotation) {
   const visibleNumber = getQuotationNumberValue(quotation) || "quotation";
   const version = quotation.version_no || 1;
-  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
+  return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}-V${version}`;
 }
 
 function normalizeReferenceRequestId(value) {
@@ -1048,7 +1048,7 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
     .customer-name { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
     .body-copy { margin: 0 0 18px; line-height: 1.7; color: #314154; text-align: left; }
     table { width: 100%; border-collapse: collapse; margin-top: 12px; overflow: hidden; border-radius: 16px; }
-    thead th { background: #eaf3ff; color: #355174; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    thead th { background: #eaf3ff; color: #355174; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     th, td { padding: 14px 12px; border-bottom: 1px solid var(--line); text-align: left; }
     tbody tr:last-child td { border-bottom: none; }
     .custom-meta { margin-top: 4px; font-size: 11px; color: var(--muted); line-height: 1.5; }
@@ -2577,7 +2577,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     doc.fillColor("#111827").font("Helvetica-Bold").fontSize(12).text("Items");
     doc.moveDown(0.4);
     items.forEach((item, index) => {
-      const itemTitle = getQuotationItemPrimaryName(item) || getQuotationItemTitle(item) || "-";
+      const itemTitle = getQuotationItemTitle(item) || getQuotationItemPrimaryName(item) || "-";
       const qty = Number(getQuotationItemQuantityValue(item) || 0).toLocaleString("en-IN");
       const rate = Number(getQuotationItemRateValue(item) || 0).toLocaleString("en-IN");
       const amount = Number(getQuotationItemTotalValue(item) || 0).toLocaleString("en-IN");
@@ -3264,8 +3264,9 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     const quotation = enrichQuotationTaxData(quotationResult.rows[0]);
     debugLogger.log("quotation-loaded", `seller=${quotation.seller_id}`);
     const useSimplePdf = String(req.query.simple || "") === "1";
+    const previewMode = String(req.query.preview || "") === "1";
     const normalizedApprovalStatus = String(quotation.approval_status || "not_required").toLowerCase();
-    if (!useSimplePdf && ["pending", "rejected"].includes(normalizedApprovalStatus)) {
+    if (!useSimplePdf && !previewMode && ["pending", "rejected"].includes(normalizedApprovalStatus)) {
       debugLogger.log("download-blocked", `approval=${normalizedApprovalStatus}`);
       return res.status(403).json({ message: `Quotation is ${normalizedApprovalStatus} for approval. Final download is blocked until approval is complete.` });
     }

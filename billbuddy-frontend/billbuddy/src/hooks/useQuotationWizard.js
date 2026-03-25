@@ -65,7 +65,7 @@ export default function useQuotationWizard({
   function getQuotationFileStem(quotation) {
     const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
     const version = quotation?.version_no || 1;
-    return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}_V${version}`;
+    return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}-V${version}`;
   }
 
   function extractDownloadFilename(response, quotation) {
@@ -621,7 +621,7 @@ export default function useQuotationWizard({
   async function createQuotationPreviewUrl(quotationId) {
     const token = auth?.token;
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download?simple=1`, {
+    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download?preview=1`, {
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       }
