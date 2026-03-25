@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { buildConfiguredQuotationItemTitle, humanizeQuotationFieldKey } from "../utils/quotationView";
 
 export default function ConfigurationStudio(props) {
@@ -40,6 +41,9 @@ export default function ConfigurationStudio(props) {
     canSaveConfigurationDraft,
     canPublishConfiguration
   } = props;
+  const defaultPatternInputRef = useRef(null);
+  const categoryPatternInputRefs = useRef({});
+  const [activePatternTarget, setActivePatternTarget] = useState({ type: "default", index: null });
 
   if (activeModule !== "Configuration Studio") return null;
 
@@ -185,6 +189,55 @@ export default function ConfigurationStudio(props) {
       ...activeSellerConfiguration.quotationColumns.map((column) => column.key)
     ].filter(Boolean))
   ].sort((left, right) => left.localeCompare(right));
+
+  function buildTokenInsertionValue(existingPattern, token, inputRef) {
+    const currentPattern = String(existingPattern || "");
+    const tokenText = `{${String(token || "").trim()}}`;
+    if (!tokenText || tokenText === "{}") return currentPattern;
+    if (!inputRef || typeof inputRef.selectionStart !== "number" || typeof inputRef.selectionEnd !== "number") {
+      return currentPattern ? `${currentPattern} ${tokenText}` : tokenText;
+    }
+    const start = Math.max(0, Math.min(inputRef.selectionStart, currentPattern.length));
+    const end = Math.max(start, Math.min(inputRef.selectionEnd, currentPattern.length));
+    const before = currentPattern.slice(0, start);
+    const after = currentPattern.slice(end);
+    const nextValue = `${before}${tokenText}${after}`;
+    const nextCaret = before.length + tokenText.length;
+    requestAnimationFrame(() => {
+      try {
+        inputRef.focus();
+        inputRef.setSelectionRange(nextCaret, nextCaret);
+      } catch (_error) {
+        // Ignore focus/selection failures on detached refs.
+      }
+    });
+    return nextValue;
+  }
+
+  function insertTokenIntoActivePattern(token) {
+    if (!canEditConfiguration) return;
+    if (activePatternTarget.type === "category") {
+      const categoryIndex = Number(activePatternTarget.index);
+      if (Number.isInteger(categoryIndex) && categoryIndex >= 0) {
+        updateItemDisplayConfig((current) => ({
+          ...current,
+          categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
+            entryIndex === categoryIndex
+              ? {
+                  ...entry,
+                  pattern: buildTokenInsertionValue(entry.pattern, token, categoryPatternInputRefs.current[categoryIndex])
+                }
+              : entry
+          ))
+        }));
+        return;
+      }
+    }
+    updateItemDisplayConfig((current) => ({
+      ...current,
+      defaultPattern: buildTokenInsertionValue(current.defaultPattern, token, defaultPatternInputRef.current)
+    }));
+  }
 
   function buildSampleItem(product, categoryOverride = "") {
     if (!product) {
@@ -383,12 +436,14 @@ export default function ConfigurationStudio(props) {
                   <label className="wizard-full">
                     <span>Default Item Pattern</span>
                     <input
+                      ref={defaultPatternInputRef}
                       disabled={!canEditConfiguration}
                       value={activeSellerConfiguration.itemDisplayConfig?.defaultPattern || ""}
                       onChange={(e) => updateItemDisplayConfig((current) => ({
                         ...current,
                         defaultPattern: e.target.value
                       }))}
+                      onFocus={() => setActivePatternTarget({ type: "default", index: null })}
                       placeholder="{material_name}"
                     />
                     <small className="muted">Example: `{'{color_name} {material_name} with {base_type}'}`</small>
@@ -397,7 +452,16 @@ export default function ConfigurationStudio(props) {
                     <span>Available Tokens</span>
                     <div className="seller-config-option-chips">
                       {availableDisplayTokens.map((token) => (
-                        <span key={token} className="badge pending">{humanizeQuotationFieldKey(token)}</span>
+                        <button
+                          key={token}
+                          type="button"
+                          className="badge pending"
+                          disabled={!canEditConfiguration}
+                          onClick={() => insertTokenIntoActivePattern(token)}
+                          title="Click to insert into active pattern"
+                        >
+                          {humanizeQuotationFieldKey(token)}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -465,6 +529,10 @@ export default function ConfigurationStudio(props) {
                             </td>
                             <td>
                               <input
+                                ref={(element) => {
+                                  if (!element) return;
+                                  categoryPatternInputRefs.current[index] = element;
+                                }}
                                 disabled={!canEditConfiguration}
                                 value={rule.pattern}
                                 onChange={(e) => updateItemDisplayConfig((current) => ({
@@ -473,6 +541,7 @@ export default function ConfigurationStudio(props) {
                                     entryIndex === index ? { ...entry, pattern: e.target.value } : entry
                                   ))
                                 }))}
+                                onFocus={() => setActivePatternTarget({ type: "category", index })}
                                 placeholder="{material_name}"
                               />
                             </td>
