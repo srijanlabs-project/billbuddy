@@ -231,6 +231,18 @@ const MODULE_META = {
 };
 
 const QUOTATION_TEMPLATE_PRESETS = {
+  default: {
+    label: "Default Template",
+    description: "Balanced default quotation layout with GST strip, customer/meta blocks, config-driven item table, totals, and signature panel.",
+    defaults: {
+      header_text: "Quotation",
+      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
+      footer_text: "Thank you for your business.",
+      accent_color: "#2563eb",
+      notes_text: "",
+      terms_text: ""
+    }
+  },
   commercial_offer: {
     label: "Commercial Offer",
     description: "Offer-style quotation with softer narrative copy.",
@@ -1529,7 +1541,7 @@ function createDefaultSellerConfiguration(seller) {
 }
 
 function getQuotationTemplatePresetDefaults(presetKey) {
-  return QUOTATION_TEMPLATE_PRESETS[presetKey]?.defaults || QUOTATION_TEMPLATE_PRESETS.commercial_offer.defaults;
+  return QUOTATION_TEMPLATE_PRESETS[presetKey]?.defaults || QUOTATION_TEMPLATE_PRESETS.default.defaults;
 }
 
 function mapSellerConfigurationResponse(config, seller) {
@@ -2952,10 +2964,10 @@ function App() {
     enabled: true
   });
   const [quotationTemplate, setQuotationTemplate] = useState({
-    template_preset: "commercial_offer",
-    header_text: "Commercial Offer",
-    body_template: "Dear {{customer_name}}, thank you for your enquiry. Please find our offer for quotation {{quotation_number}}.",
-    footer_text: "We look forward to working with you.",
+    template_preset: "default",
+    header_text: "Quotation",
+    body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
+    footer_text: "Thank you for your business.",
     company_phone: "",
     company_email: "",
     company_address: "",

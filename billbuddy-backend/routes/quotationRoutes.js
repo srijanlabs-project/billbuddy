@@ -324,6 +324,51 @@ function getPdfColumnAlignment(columnKey) {
   }
 }
 
+function getDefaultTemplateTableColumns(configuredColumns, tableWidth) {
+  const normalizedColumns = (Array.isArray(configuredColumns) ? configuredColumns : [])
+    .map((column) => ({
+      ...column,
+      key: normalizeQuotationColumnKey(column.key),
+      align: getPdfColumnAlignment(column.key)
+    }))
+    .filter((column) => column.key);
+
+  if (!normalizedColumns.some((column) => column.key === "material_name")) {
+    normalizedColumns.unshift({ key: "material_name", label: "Item", type: "text", align: "left" });
+  }
+
+  const srWidth = Math.max(34, Math.floor(tableWidth * 0.05));
+  const remainingAfterSr = Math.max(120, tableWidth - srWidth);
+  const materialColumnIndex = normalizedColumns.findIndex((column) => column.key === "material_name");
+  const materialColumnCount = normalizedColumns.length;
+
+  let materialWidth = Math.floor(tableWidth * 0.30);
+  if (materialColumnCount === 1) {
+    materialWidth = remainingAfterSr;
+  } else {
+    materialWidth = Math.max(120, Math.min(materialWidth, remainingAfterSr - 64 * (materialColumnCount - 1)));
+  }
+
+  const restCount = Math.max(0, materialColumnCount - 1);
+  const restWidthPool = Math.max(0, remainingAfterSr - materialWidth);
+  const eachRestWidth = restCount ? Math.floor(restWidthPool / restCount) : 0;
+
+  const tableColumns = [{ key: "sr_no", label: "Sr.", width: srWidth, align: "center" }];
+  normalizedColumns.forEach((column, index) => {
+    const isMaterial = index === materialColumnIndex;
+    tableColumns.push({
+      ...column,
+      width: isMaterial ? materialWidth : Math.max(56, eachRestWidth)
+    });
+  });
+
+  const allocated = tableColumns.reduce((sum, column) => sum + column.width, 0);
+  if (allocated !== tableWidth) {
+    tableColumns[tableColumns.length - 1].width += tableWidth - allocated;
+  }
+  return tableColumns;
+}
+
 function toSingleLinePdfValue(value, limit = 36) {
   const normalized = String(value ?? "-")
     .replace(/\s+/g, " ")
@@ -481,6 +526,7 @@ function imageBufferFromDataUrl(dataUrl) {
 
 function normalizeTemplatePreset(value) {
   const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "default" || normalized === "default_template") return "default";
   if (normalized === "invoice_classic") return "invoice_classic";
   if (normalized === "executive_boardroom") return "executive_boardroom";
   if (normalized === "industrial_invoice") return "industrial_invoice";
@@ -1804,6 +1850,263 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   res.setHeader("Content-Disposition", `attachment; filename=${quotationFileStem(quotation)}.pdf`);
   doc.pipe(res);
 
+  if (templatePreset === "default") {
+    const dark = "#111827";
+    const muted = "#6b7280";
+    const line = "#d1d5db";
+    const soft = "#f3f4f6";
+    const sellerName = template?.company_name || template?.header_text || seller?.business_name || seller?.name || "Quotation";
+    const headerTop = doc.page.margins.top;
+    let y = headerTop;
+
+    if (headerImageBuffer) {
+      try {
+        doc.image(headerImageBuffer, leftX, y, { width: pageWidth, height: fullWidthHeaderHeight || 90 });
+        y += (fullWidthHeaderHeight || 90) + 12;
+      } catch (_error) {
+        doc.font("Helvetica-Bold").fontSize(18).fillColor(dark).text(sellerName, leftX, y, { width: pageWidth * 0.65 });
+        y += 30;
+      }
+    } else {
+      doc.font("Helvetica-Bold").fontSize(18).fillColor(dark).text(sellerName, leftX, y, { width: pageWidth * 0.68 });
+      doc.font("Helvetica").fontSize(10).fillColor(muted);
+      const companyLines = [
+        template?.company_address || null,
+        template?.company_phone ? `Tel: ${template.company_phone}` : null,
+        template?.company_email ? `Email: ${template.company_email}` : null
+      ].filter(Boolean);
+      let companyY = y + 22;
+      companyLines.forEach((lineText) => {
+        doc.text(lineText, leftX, companyY, { width: pageWidth * 0.68 });
+        companyY += 13;
+      });
+      if (logoBuffer) {
+        try {
+          doc.image(logoBuffer, leftX + pageWidth - 118, y, { fit: [112, 58], align: "right" });
+        } catch (_error) {
+          // Ignore invalid logo and continue.
+        }
+      }
+      doc.font("Helvetica-Bold").fontSize(18).fillColor(dark).text(normalizeDocumentTitle("Quotation"), leftX + pageWidth - 190, y + 4, {
+        width: 180,
+        align: "right"
+      });
+      y = Math.max(companyY + 6, y + 66);
+    }
+
+    const stripHeight = 24;
+    doc.rect(leftX, y, pageWidth, stripHeight).fillAndStroke(soft, line);
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(dark).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 7, {
+      width: pageWidth * 0.38,
+      lineBreak: false
+    });
+    doc.text(`Quotation No: ${quotationNo}`, leftX + pageWidth * 0.33, y + 7, {
+      width: pageWidth * 0.34,
+      align: "center",
+      lineBreak: false
+    });
+    doc.text(`Date: ${formatDateIST(quotation.created_at) || "-"}`, leftX + pageWidth - 160, y + 7, {
+      width: 152,
+      align: "right",
+      lineBreak: false
+    });
+    y += stripHeight + 10;
+
+    const boxHeight = 116;
+    const leftBoxWidth = Math.floor(pageWidth * 0.49);
+    const rightBoxX = leftX + leftBoxWidth + 10;
+    const rightBoxWidth = pageWidth - leftBoxWidth - 10;
+    doc.rect(leftX, y, leftBoxWidth, boxHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(rightBoxX, y, rightBoxWidth, boxHeight).strokeColor(line).lineWidth(1).stroke();
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(dark).text("Customer Detail", leftX + 8, y + 8);
+    doc.font("Helvetica").fontSize(9.5).fillColor(dark);
+    const customerLines = [
+      `Name: ${customerName}`,
+      `Address: ${toSingleLinePdfValue(quotation.delivery_address || "-", 72)}`,
+      `Phone: ${quotation.mobile || "-"}`,
+      `GSTIN: ${getEffectiveCustomerGstin(quotation) || "-"}`,
+      `Place of Supply: ${toSingleLinePdfValue(quotation.delivery_address || "-", 40)}`
+    ];
+    let customerY = y + 26;
+    customerLines.forEach((lineText) => {
+      doc.text(lineText, leftX + 8, customerY, { width: leftBoxWidth - 16, lineBreak: false });
+      customerY += 16;
+    });
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(dark).text("Quotation Detail", rightBoxX + 8, y + 8);
+    doc.font("Helvetica").fontSize(9.5).fillColor(dark);
+    const detailLines = [
+      `Quotation No: ${quotationNo}`,
+      `Version: V${quotation.version_no || 1}`,
+      `Reference Request ID: ${normalizeReferenceRequestId(quotation.reference_request_id) || "-"}`,
+      `Delivery Date: ${formatDateIST(quotation.delivery_date) || "-"}`,
+      `Delivery Type: ${quotation.delivery_type || "-"}`
+    ];
+    let detailY = y + 26;
+    detailLines.forEach((lineText) => {
+      doc.text(lineText, rightBoxX + 8, detailY, { width: rightBoxWidth - 16, lineBreak: false });
+      detailY += 16;
+    });
+    y += boxHeight + 12;
+
+    const tableColumns = getDefaultTemplateTableColumns(configuredColumns, pageWidth);
+    const rowHeaderHeight = 24;
+    const rowMinHeight = 20;
+    const tableBottomGap = 220;
+
+    const drawTableHeader = () => {
+      doc.rect(leftX, y, pageWidth, rowHeaderHeight).fillAndStroke("#ffffff", line);
+      let hx = leftX;
+      tableColumns.forEach((column, columnIndex) => {
+        if (columnIndex > 0) {
+          doc.moveTo(hx, y).lineTo(hx, y + rowHeaderHeight).strokeColor(line).lineWidth(1).stroke();
+        }
+        doc.font("Helvetica-Bold").fontSize(10).fillColor(dark).text(
+          toSingleLinePdfValue(column.label || "-", 30),
+          hx + 3,
+          y + 7,
+          { width: column.width - 6, align: column.align || "left", lineBreak: false }
+        );
+        hx += column.width;
+      });
+      y += rowHeaderHeight;
+    };
+
+    drawTableHeader();
+    items.forEach((item, index) => {
+      const helpingLines = getHelpingTextEntries(item, visiblePdfColumns, {
+        combineHelpingTextInItemColumn
+      }).map((entry) => `${entry.label}: ${entry.value}`);
+      const baseRowValues = [
+        String(index + 1),
+        ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-"))
+      ];
+      const materialIdx = tableColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
+      const materialText = materialIdx >= 0 ? String(baseRowValues[materialIdx] || "-") : "";
+      const materialWidth = materialIdx >= 0 ? (tableColumns[materialIdx].width - 8) : 200;
+      const materialTextHeight = materialIdx >= 0
+        ? doc.heightOfString(materialText, { width: materialWidth, align: "left" })
+        : 0;
+      const helpingTextHeight = helpingLines.length
+        ? doc.heightOfString(helpingLines.join("\n"), { width: materialWidth, align: "left", lineGap: 1 })
+        : 0;
+      const rowHeight = Math.max(rowMinHeight, Math.ceil(materialTextHeight + (helpingTextHeight ? helpingTextHeight + 2 : 0) + 8));
+
+      if (y + rowHeight > doc.page.height - doc.page.margins.bottom - tableBottomGap) {
+        doc.addPage();
+        y = doc.page.margins.top;
+        drawTableHeader();
+      }
+
+      doc.rect(leftX, y, pageWidth, rowHeight).strokeColor(line).lineWidth(1).stroke();
+      let cx = leftX;
+      tableColumns.forEach((column, columnIndex) => {
+        if (columnIndex > 0) {
+          doc.moveTo(cx, y).lineTo(cx, y + rowHeight).strokeColor(line).lineWidth(1).stroke();
+        }
+        const cellValue = String(baseRowValues[columnIndex] || "-");
+        const isMaterial = normalizeQuotationColumnKey(column.key) === "material_name";
+        doc.font(isMaterial ? "Helvetica-Bold" : "Helvetica").fontSize(isMaterial ? 11 : 10).fillColor(dark).text(
+          isMaterial ? cellValue : toSingleLinePdfValue(cellValue, 36),
+          cx + 4,
+          y + 4,
+          { width: column.width - 8, align: column.align || "left" }
+        );
+        if (isMaterial && helpingLines.length) {
+          doc.font("Helvetica").fontSize(10).fillColor(muted).text(helpingLines.join("\n"), cx + 4, y + 18, {
+            width: column.width - 8,
+            lineGap: 1
+          });
+        }
+        cx += column.width;
+      });
+      y += rowHeight;
+    });
+
+    const subtotal = Number(quotation.subtotal || quotation.total_amount || 0);
+    const discount = Number(quotation.discount_amount || 0);
+    const taxable = Math.max(0, subtotal - discount);
+    const gst = Number(quotation.gst_amount || quotation.tax_amount || 0);
+    const grandTotal = Number(quotation.total_amount || taxable + gst);
+    const amountInWords = amountToWordsIndian(Math.max(0, grandTotal - discount));
+    y += 12;
+
+    const totalsLeftWidth = Math.floor(pageWidth * 0.58);
+    const totalsRightX = leftX + totalsLeftWidth + 10;
+    const totalsRightWidth = pageWidth - totalsLeftWidth - 10;
+    const totalsHeight = 92;
+    doc.rect(leftX, y, totalsLeftWidth, totalsHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(totalsRightX, y, totalsRightWidth, totalsHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text("Amount in words", leftX + 8, y + 8);
+    doc.font("Helvetica").fontSize(9.5).fillColor(dark).text(amountInWords, leftX + 8, y + 24, { width: totalsLeftWidth - 16 });
+
+    const totalsRows = [
+      ["Subtotal", subtotal],
+      ["Discount", -discount],
+      ["Taxable", taxable],
+      ["GST", gst],
+      ["Grand Total", grandTotal]
+    ];
+    let ty = y + 8;
+    totalsRows.forEach(([label, value], idx) => {
+      const strong = idx === totalsRows.length - 1;
+      doc.font(strong ? "Helvetica-Bold" : "Helvetica").fontSize(strong ? 10.5 : 9.5).fillColor(dark).text(label, totalsRightX + 8, ty, {
+        width: totalsRightWidth - 88,
+        lineBreak: false
+      });
+      doc.text(`Rs ${Number(value || 0).toLocaleString("en-IN")}`, totalsRightX + totalsRightWidth - 82, ty, {
+        width: 74,
+        align: "right",
+        lineBreak: false
+      });
+      ty += 16;
+    });
+    y += totalsHeight + 10;
+
+    const lowerHeight = 112;
+    const lowerLeftWidth = Math.floor(pageWidth * 0.62);
+    const lowerRightX = leftX + lowerLeftWidth + 10;
+    const lowerRightWidth = pageWidth - lowerLeftWidth - 10;
+    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).strokeColor(line).lineWidth(1).stroke();
+
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text("Bank Details", leftX + 8, y + 8);
+    const bankLines = [
+      `Bank: ${seller?.bank_name || "-"}`,
+      `Branch: ${seller?.bank_branch || "-"}`,
+      `A/C: ${seller?.bank_account_no || "-"}`,
+      `IFSC: ${seller?.bank_ifsc || "-"}`
+    ];
+    let by = y + 24;
+    bankLines.forEach((lineText) => {
+      doc.font("Helvetica").fontSize(9.2).fillColor(dark).text(lineText, leftX + 8, by, { width: lowerLeftWidth - 16, lineBreak: false });
+      by += 14;
+    });
+    if (template?.terms_text) {
+      doc.font("Helvetica-Bold").fontSize(9).fillColor(dark).text("Terms:", leftX + 8, by + 2, { width: lowerLeftWidth - 16, lineBreak: false });
+      doc.font("Helvetica").fontSize(8.7).fillColor(muted).text(String(template.terms_text), leftX + 8, by + 14, {
+        width: lowerLeftWidth - 16,
+        height: lowerHeight - (by - y) - 20
+      });
+    }
+
+    doc.font("Helvetica-Bold").fontSize(10).fillColor(dark).text(`For ${sellerName}`, lowerRightX + 8, y + 18, {
+      width: lowerRightWidth - 16,
+      align: "center"
+    });
+    doc.font("Helvetica").fontSize(8.8).fillColor(muted).text("This is computer generated quotation.", lowerRightX + 8, y + 46, {
+      width: lowerRightWidth - 16,
+      align: "center"
+    });
+    doc.font("Helvetica-Bold").fontSize(9).fillColor(dark).text("Authorised Signatory", lowerRightX + 8, y + lowerHeight - 20, {
+      width: lowerRightWidth - 16,
+      align: "center"
+    });
+    doc.end();
+    return;
+  }
+
   if (templatePreset === "executive_boardroom") {
     const dark = "#111827";
     const muted = "#667085";
@@ -3123,10 +3426,10 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     const sellerRow = sellerResult.rows[0] || null;
 
     const tpl = template.rows[0] || {
-      template_preset: "commercial_offer",
-      header_text: "Commercial Offer",
-      body_template: "Dear {{customer_name}}, thank you for your enquiry. Please find our offer for quotation {{quotation_number}}.",
-      footer_text: "We look forward to working with you.",
+      template_preset: "default",
+      header_text: "Quotation",
+      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
+      footer_text: "Thank you for your business.",
       company_phone: "",
       company_email: "",
       company_address: "",
@@ -3283,10 +3586,10 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
 
     const sellerRow = sellerResult.rows[0] || null;
     const template = templateResult.rows[0] || {
-      template_preset: "commercial_offer",
-      header_text: "Commercial Offer",
-      body_template: "Dear {{customer_name}}, thank you for your enquiry. Please find our offer for quotation {{quotation_number}}.",
-      footer_text: "We look forward to working with you.",
+      template_preset: "default",
+      header_text: "Quotation",
+      body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
+      footer_text: "Thank you for your business.",
       company_phone: "",
       company_email: "",
       company_address: "",
