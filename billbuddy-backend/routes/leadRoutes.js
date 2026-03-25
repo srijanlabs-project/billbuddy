@@ -431,11 +431,13 @@ leadRoutes.post("/:id/convert-demo", async (req, res) => {
         `SELECT id, role_name
          FROM roles
          WHERE role_name = ANY($1::text[])`,
-        [["Demo User", "Master User"]]
+        [["Admin", "Seller Admin", "Master User", "Demo User"]]
       );
       const roleId =
-        roleResult.rows.find((row) => row.role_name === "Demo User")?.id ||
+        roleResult.rows.find((row) => row.role_name === "Admin")?.id ||
+        roleResult.rows.find((row) => row.role_name === "Seller Admin")?.id ||
         roleResult.rows.find((row) => row.role_name === "Master User")?.id ||
+        roleResult.rows.find((row) => row.role_name === "Demo User")?.id ||
         null;
 
       const userResult = await client.query(

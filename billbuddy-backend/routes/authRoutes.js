@@ -301,7 +301,7 @@ router.post("/demo-signup", async (req, res) => {
       ]
     );
 
-    const demoRoleId = await findRoleId(["Demo User", "Seller User", "Master User"]);
+    const demoRoleId = await findRoleId(["Admin", "Seller Admin", "Master User", "Demo User", "Seller User"]);
     const createdUser = await client.query(
       `INSERT INTO users (name, mobile, password, role_id, seller_id, is_platform_admin, status, locked, password_changed_at)
        VALUES ($1, $2, $3, $4, $5, FALSE, TRUE, FALSE, CURRENT_TIMESTAMP)
@@ -386,7 +386,7 @@ router.post("/demo-signup", async (req, res) => {
 
     const { token, expiresAt } = await createSessionToken({
       ...createdUser.rows[0],
-      role_name: "Demo User",
+      role_name: "Admin",
       seller_id: sellerInsert.rows[0].id,
       is_platform_admin: false
     }, client);
@@ -399,7 +399,7 @@ router.post("/demo-signup", async (req, res) => {
       expiresAt,
       user: await buildAuthUserPayload({
         ...createdUser.rows[0],
-        role_name: "Demo User",
+        role_name: "Admin",
         seller_id: sellerInsert.rows[0].id,
         is_platform_admin: false
       }),

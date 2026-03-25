@@ -5575,7 +5575,7 @@ function App() {
               }}
             >
               <span className="nav-mark" aria-hidden="true" />
-              <span className="nav-label">{module}</span>
+              <span className="nav-label">{module === "Orders" ? "Quotation" : module}</span>
               {module === "Approvals" && pendingApprovalCount > 0 && (
                 <span className="notification-count-pill">{pendingApprovalCount}</span>
               )}
