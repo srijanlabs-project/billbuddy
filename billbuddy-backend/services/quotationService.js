@@ -1031,7 +1031,7 @@ async function createQuotationWithItems(payload) {
          SET approval_required = $1,
              approval_status = $2,
              active_approval_request_id = NULL,
-             approved_for_download_at = CASE WHEN $2 = 'approved' THEN CURRENT_TIMESTAMP ELSE approved_for_download_at END
+             approved_for_download_at = CASE WHEN $1 THEN CURRENT_TIMESTAMP ELSE approved_for_download_at END
          WHERE id = $3
          RETURNING *`,
         [approvalEvaluation.approvalStatus === "approved", approvalEvaluation.approvalStatus, quotation.id]

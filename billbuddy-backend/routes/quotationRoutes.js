@@ -3792,7 +3792,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
            approval_required = $20,
            approval_status = $21,
            active_approval_request_id = NULL,
-           approved_for_download_at = CASE WHEN $21 = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+           approved_for_download_at = CASE WHEN $20 THEN CURRENT_TIMESTAMP ELSE NULL END
        WHERE id = $22 AND seller_id = $23
        RETURNING *`,
       [
