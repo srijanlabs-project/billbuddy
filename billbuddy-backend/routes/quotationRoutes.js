@@ -254,7 +254,7 @@ async function getPublishedQuotationPdfConfiguration(clientOrPool, sellerId) {
 function getQuotationPdfColumnValue(item, columnKey, options = {}) {
   switch (normalizeQuotationColumnKey(columnKey)) {
     case "material_name":
-      return options.combineHelpingTextInItemColumn ? (getQuotationItemTitle(item) || "-") : (getQuotationItemPrimaryName(item) || "-");
+      return getQuotationItemTitle(item) || getQuotationItemPrimaryName(item) || "-";
     case "uom":
     case "unit":
     case "unit_type":
@@ -548,6 +548,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const advanceAmount = Number(quotation.advance_amount || 0);
   const balanceAmount = Number(quotation.balance_amount || (taxableAmount + taxAmount - advanceAmount));
   const sellerName = String(seller?.business_name || seller?.name || template?.header_text || "Quotation");
+  const documentTitle = String(template?.header_text || "TAX INVOICE").trim() || "TAX INVOICE";
   const sellerAddressLines = String(template?.company_address || "-").split(/\r?\n/).filter(Boolean);
   const termsLines = String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean);
   const notesLines = String(template?.notes_text || "").split(/\r?\n/).filter(Boolean);
@@ -590,7 +591,8 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       width: 100%;
       margin: 0;
       min-height: 100vh;
-      padding: 0;
+      padding: 6px;
+      border: 2px solid #2f2c72;
     }
     .header-image img {
       display: block;
@@ -616,19 +618,19 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       align-items: start;
     }
     .brand-title {
-      font-size: 28px;
+      font-size: 52px;
       font-weight: 900;
       letter-spacing: 0.01em;
       color: #1f2c63;
       text-transform: uppercase;
-      line-height: 1;
+      line-height: .88;
     }
     .brand-band {
       margin-top: 7px;
-      background: #0f9f9b;
+      background: #0a9aa0;
       color: #fff;
       padding: 8px 12px;
-      font-size: 10px;
+      font-size: 20px;
       font-weight: 700;
       white-space: nowrap;
       overflow: hidden;
@@ -667,7 +669,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     }
     .title-row strong {
       justify-self: center;
-      font-size: 19px;
+      font-size: 28px;
       letter-spacing: 0.02em;
     }
     .title-row span:last-child {
@@ -735,6 +737,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       font-weight: 700;
       text-align: center;
       font-size: 12px;
+      line-height: 1.1;
     }
     .items-table {
       border-bottom: 1px solid #c7cfdc;
@@ -760,12 +763,12 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     }
     .item-help {
       margin-top: 2px;
-      font-size: 7px;
+      font-size: 10px;
       color: #4b5563;
       font-style: italic;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
     }
     .num { font-weight: 700; }
     .center { text-align: center; }
@@ -871,8 +874,8 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     `}
     <div class="title-row">
       <span>GSTIN : ${escapeHtml(String(quotation.gstin || template?.gstin || "-"))}</span>
-      <strong>QUOTATION</strong>
-      <span>ORIGINAL FOR CUSTOMER</span>
+      <strong>${escapeHtml(documentTitle)}</strong>
+      <span>ORIGINAL FOR RECIPIENT</span>
     </div>
     <div class="info-grid">
       <div class="customer-box">
