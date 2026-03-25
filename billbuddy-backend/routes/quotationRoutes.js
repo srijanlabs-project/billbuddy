@@ -391,6 +391,22 @@ function createPdfDebugLogger(enabled, context = {}) {
   };
 }
 
+function createPdfPerfLogger(context = {}) {
+  const enabled = String(process.env.PDF_PERF_LOG || "1") === "1";
+  const startedAt = Date.now();
+  let finalized = false;
+  return {
+    mark(res, renderer = "unknown") {
+      if (!enabled || finalized) return;
+      finalized = true;
+      const elapsedMs = Date.now() - startedAt;
+      console.log(
+        `[PDF][perf] quotation=${context.quotationId || "-"} seller=${context.sellerId || "-"} renderer=${renderer} status=${res?.statusCode || "-"} duration_ms=${elapsedMs}`
+      );
+    }
+  };
+}
+
 function collectStreamBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -3363,6 +3379,10 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     const tenantId = getTenantId(req);
     const enablePdfDebug = String(req.query.debug || "") === "1";
     const debugLogger = createPdfDebugLogger(enablePdfDebug, { quotationId: id, sellerId: tenantId });
+    const perfLogger = createPdfPerfLogger({ quotationId: id, sellerId: tenantId });
+    let pdfRenderer = "none";
+    res.once("finish", () => perfLogger.mark(res, pdfRenderer));
+    res.once("close", () => perfLogger.mark(res, `${pdfRenderer}_close`));
     debugLogger.log("route-start", `simple=${String(req.query.simple || "") === "1"}`);
 
     const values = [id];
@@ -3448,6 +3468,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     const templatePreset = normalizeTemplatePreset(tpl.template_preset);
     if (useSimplePdf) {
       debugLogger.log("simple-pdf-start");
+      pdfRenderer = "pdfkit_simple";
       buildSimpleQuotationPdf({
         quotation,
         items: itemsForPdf,
@@ -3464,6 +3485,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     if (templatePreset === "html_puppeteer") {
       debugLogger.log("html-puppeteer-start");
       try {
+        pdfRenderer = "html_puppeteer";
         await buildHtmlPuppeteerPdf({
           quotation,
           items: itemsForPdf,
@@ -3478,6 +3500,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
         console.error("[PDF][fallback][html_puppeteer]", richPdfError);
         debugLogger.log("html-puppeteer-fallback", richPdfError.message || "unknown_error");
         if (res.headersSent) return;
+        pdfRenderer = "pdfkit_simple_fallback";
         buildSimpleQuotationPdf({
           quotation,
           items: itemsForPdf,
@@ -3493,6 +3516,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     }
 
     try {
+      pdfRenderer = "pdfkit_rich";
       buildQuotationPdf({
         quotation,
         items: itemsForPdf,
@@ -3506,6 +3530,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       console.error("[PDF][fallback][rich_pdf]", richPdfError);
       debugLogger.log("rich-pdf-fallback", richPdfError.message || "unknown_error");
       if (res.headersSent) return;
+      pdfRenderer = "pdfkit_simple_fallback";
       buildSimpleQuotationPdf({
         quotation,
         items: itemsForPdf,
