@@ -628,7 +628,8 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     * { box-sizing: border-box; }
     body { margin: 0; font-family: Arial, Helvetica, sans-serif; color: #111827; }
     .doc { width: 100%; }
-    .header-image img { width: 100%; max-height: 120px; object-fit: contain; display: block; margin-bottom: 10px; }
+    .header-image { width: 100%; margin: 0 0 10px; line-height: 0; }
+    .header-image img { width: 100%; height: auto; display: block; object-fit: cover; }
     .top { display: grid; grid-template-columns: 1fr auto; gap: 16px; border-bottom: 1px solid #d1d5db; padding-bottom: 8px; margin-bottom: 8px; }
     .seller-name { font-size: 24px; font-weight: 800; letter-spacing: .02em; color: #1e3a8a; text-transform: uppercase; }
     .seller-sub { font-size: 11px; color: #374151; margin-top: 4px; }
