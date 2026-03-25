@@ -741,7 +741,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     <div class="footer-grid">
       <div class="footer-card">
         <h4>Amount In Words</h4>
-        <div class="footer-text">${escapeHtml(amountToWordsIndian(Number(quotation.total_amount || 0)))}</div>
+        <div class="footer-text">${escapeHtml(amountToWordsIndian(Math.max(0, Number(quotation.total_amount || 0) - Number(quotation.discount_amount || 0))))}</div>
         <h4 style="margin-top:10px;">Bank Details</h4>
         <div class="footer-text">
           <div><strong>Bank Name:</strong> ${escapeHtml(seller?.bank_name || "-")}</div>
