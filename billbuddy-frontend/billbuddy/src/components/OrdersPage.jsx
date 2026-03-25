@@ -151,9 +151,6 @@ export default function OrdersPage(props) {
                   {canDownloadQuotationPdf && (
                     <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
                   )}
-                  {canSendQuotation && (
-                    <button type="button" className="ghost-btn order-action-btn" onClick={() => handleSendQuotationEmail(order.id)} title="Send Email">Email</button>
-                  )}
                 </div>
               </td>
             </tr>

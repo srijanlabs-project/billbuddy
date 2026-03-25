@@ -1871,6 +1871,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const dark = "#111827";
     const muted = "#6b7280";
     const line = "#d1d5db";
+    const borderWidth = 0.5;
     const sellerName = template?.company_name || template?.header_text || seller?.business_name || seller?.name || "Quotation";
     const pageBottom = doc.page.height - doc.page.margins.bottom;
     let y = doc.page.margins.top;
@@ -1908,8 +1909,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     }
 
     const stripHeight = 28;
-    doc.rect(leftX, y, pageWidth, stripHeight).strokeColor(line).lineWidth(1).stroke();
-    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 9, {
+    doc.lineWidth(borderWidth);
+    doc.rect(leftX, y, pageWidth, stripHeight).fillAndStroke("#f2f2f2", line);
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 9, {
       width: pageWidth * 0.42,
       lineBreak: false
     });
@@ -1918,7 +1920,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       width: 130,
       lineBreak: false
     });
-    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text(`DATE: ${formatDateIST(quotation.created_at) || "-"}`, leftX + pageWidth - 152, y + 9, {
+    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(`DATE: ${formatDateIST(quotation.created_at) || "-"}`, leftX + pageWidth - 152, y + 9, {
       width: 144,
       align: "right",
       lineBreak: false
@@ -1929,8 +1931,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const leftBoxWidth = Math.floor(pageWidth * 0.49);
     const rightBoxX = leftX + leftBoxWidth + 10;
     const rightBoxWidth = pageWidth - leftBoxWidth - 10;
-    doc.rect(leftX, y, leftBoxWidth, boxHeight).strokeColor(line).lineWidth(1).stroke();
-    doc.rect(rightBoxX, y, rightBoxWidth, boxHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(leftX, y, leftBoxWidth, boxHeight).strokeColor(line).lineWidth(borderWidth).stroke();
+    doc.rect(rightBoxX, y, rightBoxWidth, boxHeight).strokeColor(line).lineWidth(borderWidth).stroke();
 
     doc.font("Helvetica-Bold").fontSize(9.8).fillColor(accent).text("Customer Detail", leftX + 8, y + 8);
     const customerLines = [
@@ -1969,10 +1971,11 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const itemsBlockReserve = 220;
 
     const drawHeaderRow = () => {
-      doc.rect(leftX, y, pageWidth, rowHeaderHeight).strokeColor(line).lineWidth(1).stroke();
+      doc.lineWidth(borderWidth);
+      doc.rect(leftX, y, pageWidth, rowHeaderHeight).fillAndStroke("#737373", line);
       let hx = leftX;
       tableColumns.forEach((column) => {
-        doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text(
+        doc.font("Helvetica-Bold").fontSize(9.5).fillColor("#ffffff").text(
           toSingleLinePdfValue(column.label || "-", 28),
           hx + 3,
           y + 6,
@@ -2014,14 +2017,14 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       tableColumns.forEach((column, columnIndex) => {
         const value = String(rowValues[columnIndex] || "-");
         const isMaterial = normalizeQuotationColumnKey(column.key) === "material_name";
-        doc.font(isMaterial ? "Helvetica-Bold" : "Helvetica").fontSize(isMaterial ? 11 : 10).fillColor(dark).text(
+        doc.font(isMaterial ? "Helvetica-Bold" : "Helvetica").fontSize(isMaterial ? 9 : 8).fillColor(dark).text(
           isMaterial ? value : toSingleLinePdfValue(value, 34),
           cx + 3,
           y + rowPaddingY,
           { width: column.width - 6, align: column.align || "left" }
         );
         if (isMaterial && helpingLines.length) {
-          doc.font("Helvetica").fontSize(9.4).fillColor(muted).text(helpingLines.join("\n"), cx + 3, y + 15, {
+          doc.font("Helvetica").fontSize(7.4).fillColor(muted).text(helpingLines.join("\n"), cx + 3, y + 13, {
             width: column.width - 6,
             lineGap: 1
           });
@@ -2031,7 +2034,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       y += rowHeight;
     });
 
-    doc.moveTo(leftX, y + 2).lineTo(leftX + pageWidth, y + 2).strokeColor(line).lineWidth(1).stroke();
+    doc.moveTo(leftX, y + 2).lineTo(leftX + pageWidth, y + 2).strokeColor(line).lineWidth(borderWidth).stroke();
     y += 12;
 
     const subtotal = Number(quotation.subtotal || quotation.total_amount || 0);
@@ -2050,8 +2053,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       y = doc.page.margins.top;
     }
 
-    doc.rect(leftX, y, totalsLeftWidth, totalsHeight).strokeColor(line).lineWidth(1).stroke();
-    doc.rect(totalsRightX, y, totalsRightWidth, totalsHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(leftX, y, totalsLeftWidth, totalsHeight).strokeColor(line).lineWidth(borderWidth).stroke();
+    doc.rect(totalsRightX, y, totalsRightWidth, totalsHeight).strokeColor(line).lineWidth(borderWidth).stroke();
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text("Amount in words", leftX + 8, y + 8);
     doc.font("Helvetica").fontSize(9.2).fillColor(dark).text(amountInWords, leftX + 8, y + 24, { width: totalsLeftWidth - 16 });
 
@@ -2086,8 +2089,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       doc.addPage();
       y = doc.page.margins.top;
     }
-    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).strokeColor(line).lineWidth(1).stroke();
-    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).strokeColor(line).lineWidth(1).stroke();
+    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).strokeColor(line).lineWidth(borderWidth).stroke();
+    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).strokeColor(line).lineWidth(borderWidth).stroke();
 
     doc.font("Helvetica-Bold").fontSize(9.3).fillColor(accent).text("Bank Details", leftX + 8, y + 8);
     const bankLines = [
@@ -2115,14 +2118,27 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       align: "center"
     });
 
-    const footerText = String(template?.footer_text || "").trim();
-    if (footerText) {
-      const footerY = doc.page.height - doc.page.margins.bottom - 10;
-      doc.font("Helvetica").fontSize(9).fillColor(accent).text(footerText, leftX, footerY, {
-        width: pageWidth,
-        align: "center",
-        lineBreak: false
-      });
+    const footerRaw = String(template?.footer_text || "").trim();
+    if (footerRaw) {
+      const footerY = doc.page.height - doc.page.margins.bottom - 16;
+      const footerImage = imageBufferFromDataUrl(footerRaw);
+      if (footerImage) {
+        try {
+          doc.image(footerImage, leftX, footerY - 26, { fit: [pageWidth, 22], align: "center" });
+        } catch (_error) {
+          doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerY, {
+            width: pageWidth,
+            align: "center",
+            lineBreak: false
+          });
+        }
+      } else {
+        doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerY, {
+          width: pageWidth,
+          align: "center",
+          lineBreak: false
+        });
+      }
     }
 
     doc.end();
