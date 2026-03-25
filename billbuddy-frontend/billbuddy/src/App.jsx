@@ -148,6 +148,8 @@ const BUSINESS_CATEGORY_SEGMENTS = {
 
 const BUSINESS_CATEGORY_OPTIONS = Object.keys(BUSINESS_CATEGORY_SEGMENTS);
 const PERMISSION_KEYS = {
+  dashboardView: "dashboard.view",
+  quotationView: "quotation.view",
   quotationCreate: "quotation.create",
   quotationSearch: "quotation.search",
   quotationDownloadPdf: "quotation.download_pdf",
@@ -155,12 +157,19 @@ const PERMISSION_KEYS = {
   quotationRevise: "quotation.revise",
   quotationSend: "quotation.send",
   quotationMarkPaid: "quotation.mark_paid",
+  customerView: "customer.view",
   customerCreate: "customer.create",
   customerEdit: "customer.edit",
+  productView: "product.view",
   productCreate: "product.create",
   productEdit: "product.edit",
+  userView: "user.view",
   userCreate: "user.create",
   userEdit: "user.edit",
+  notificationView: "notification.view",
+  subscriptionView: "subscription.view",
+  settingsView: "settings.view",
+  configurationView: "configuration.view",
   approvalRequest: "approval.request",
   approvalViewOwn: "approval.view_own",
   approvalViewTeam: "approval.view_team",
@@ -3103,6 +3112,8 @@ function App() {
   const isSubUser = !isPlatformAdmin && auth?.user?.role === "Sub User";
   const grantedPermissions = useMemo(() => new Set(Array.isArray(auth?.user?.permissions) ? auth.user.permissions : []), [auth?.user?.permissions]);
   const hasPermission = (permissionKey) => grantedPermissions.has("*") || grantedPermissions.has(permissionKey);
+  const canViewDashboard = hasPermission(PERMISSION_KEYS.dashboardView);
+  const canViewQuotations = hasPermission(PERMISSION_KEYS.quotationView);
   const canCreateQuotation = hasPermission(PERMISSION_KEYS.quotationCreate);
   const canSearchQuotation = hasPermission(PERMISSION_KEYS.quotationSearch);
   const canDownloadQuotationPdf = hasPermission(PERMISSION_KEYS.quotationDownloadPdf);
@@ -3110,11 +3121,18 @@ function App() {
   const canReviseQuotation = hasPermission(PERMISSION_KEYS.quotationRevise);
   const canSendQuotation = hasPermission(PERMISSION_KEYS.quotationSend);
   const canMarkPaid = hasPermission(PERMISSION_KEYS.quotationMarkPaid);
+  const canViewCustomers = hasPermission(PERMISSION_KEYS.customerView);
   const canCreateCustomer = hasPermission(PERMISSION_KEYS.customerCreate);
+  const canViewProducts = hasPermission(PERMISSION_KEYS.productView);
   const canCreateProduct = hasPermission(PERMISSION_KEYS.productCreate);
   const canEditProduct = hasPermission(PERMISSION_KEYS.productEdit);
+  const canViewUsers = hasPermission(PERMISSION_KEYS.userView);
   const canCreateUser = hasPermission(PERMISSION_KEYS.userCreate);
   const canEditUser = hasPermission(PERMISSION_KEYS.userEdit);
+  const canViewNotifications = hasPermission(PERMISSION_KEYS.notificationView);
+  const canViewSubscriptions = hasPermission(PERMISSION_KEYS.subscriptionView);
+  const canViewSettings = hasPermission(PERMISSION_KEYS.settingsView);
+  const canViewConfiguration = hasPermission(PERMISSION_KEYS.configurationView);
   const canViewOwnApprovals = hasPermission(PERMISSION_KEYS.approvalViewOwn);
   const canViewApprovals = hasPermission(PERMISSION_KEYS.approvalViewTeam) || hasPermission(PERMISSION_KEYS.approvalOverride);
   const canAccessApprovals = canViewApprovals || canViewOwnApprovals;
@@ -3123,7 +3141,14 @@ function App() {
   const canEditConfiguration = hasPermission(PERMISSION_KEYS.configurationEdit);
   const canSaveConfigurationDraft = hasPermission(PERMISSION_KEYS.configurationSaveDraft);
   const canPublishConfiguration = hasPermission(PERMISSION_KEYS.configurationPublish);
-  const sellerModules = canAccessApprovals ? SELLER_MODULES : SELLER_MODULES.filter((module) => module !== "Approvals");
+  const sellerModules = SELLER_MODULES.filter((module) => {
+    if (module === "Approvals" && !canAccessApprovals) return false;
+    if (module === "Users" && !canViewUsers) return false;
+    if (module === "Subscriptions" && !canViewSubscriptions) return false;
+    if (module === "Settings" && !canViewSettings) return false;
+    if (module === "Configuration Studio" && !canViewConfiguration && !canEditConfiguration) return false;
+    return true;
+  });
   const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : sellerModules;
   const currentModuleMeta = isPlatformAdmin ? PLATFORM_MODULE_META : MODULE_META;
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
@@ -3510,19 +3535,20 @@ function App() {
     try {
       const shouldLoadSellerScopedData = !isPlatformAdmin;
       const shouldLoadApprovals = shouldLoadSellerScopedData && canAccessApprovals;
+      const shouldLoadTemplateData = shouldLoadSellerScopedData && (canViewSettings || canViewConfiguration || canEditSettings || canEditConfiguration || canSaveConfigurationDraft || canPublishConfiguration);
       const [summary, quotationRows, productRows, customerRows, rolesData, usersData, approvalsData, templateData, decodeRulesData, planRows, notificationRows, subscriptionRows] = await Promise.all([
-        apiFetch(`/api/dashboard/summary?range=${range}`),
-        apiFetch("/api/quotations"),
-        apiFetch("/api/products"),
-        apiFetch("/api/customers"),
+        canViewDashboard ? apiFetch(`/api/dashboard/summary?range=${range}`) : Promise.resolve({}),
+        canViewQuotations ? apiFetch("/api/quotations").catch(() => []) : Promise.resolve([]),
+        canViewProducts ? apiFetch("/api/products").catch(() => []) : Promise.resolve([]),
+        canViewCustomers ? apiFetch("/api/customers").catch(() => []) : Promise.resolve([]),
         apiFetch("/api/roles"),
-        apiFetch("/api/users"),
+        canViewUsers ? apiFetch("/api/users").catch(() => []) : Promise.resolve([]),
         shouldLoadApprovals ? apiFetch("/api/quotations/approvals").catch(() => []) : Promise.resolve([]),
-        shouldLoadSellerScopedData ? apiFetch("/api/quotations/templates/current").catch(() => null) : Promise.resolve(null),
-        shouldLoadSellerScopedData ? apiFetch("/api/whatsapp/decode-rules").catch(() => null) : Promise.resolve(null),
-        apiFetch("/api/plans").catch(() => []),
-        apiFetch("/api/notifications").catch(() => []),
-        apiFetch("/api/subscriptions").catch(() => [])
+        shouldLoadTemplateData ? apiFetch("/api/quotations/templates/current").catch(() => null) : Promise.resolve(null),
+        shouldLoadTemplateData ? apiFetch("/api/whatsapp/decode-rules").catch(() => null) : Promise.resolve(null),
+        isPlatformAdmin ? apiFetch("/api/plans").catch(() => []) : Promise.resolve([]),
+        canViewNotifications ? apiFetch("/api/notifications").catch(() => []) : Promise.resolve([]),
+        canViewSubscriptions ? apiFetch("/api/subscriptions").catch(() => []) : Promise.resolve([])
       ]);
 
       setDashboardData(summary);
@@ -3563,7 +3589,7 @@ function App() {
         setSelectedApprovalDetail(null);
       }
 
-      if (shouldLoadSellerScopedData) {
+      if (shouldLoadTemplateData) {
         await loadSellerSettings();
       }
       if (isPlatformAdmin) {
