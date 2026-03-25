@@ -1021,7 +1021,19 @@ function buildOrderEditForm(details) {
       size: item.size || "",
       quantity: String(item.quantity ?? ""),
       unitPrice: String(item.unit_price ?? ""),
-      sku: item.sku || ""
+      sku: item.sku || "",
+      designName: item.design_name || "",
+      colorName: item.color_name || "",
+      importedColorNote: item.imported_color_note || "",
+      psIncluded: Boolean(item.ps_included),
+      dimensionHeight: item.dimension_height ?? "",
+      dimensionWidth: item.dimension_width ?? "",
+      dimensionUnit: item.dimension_unit || "",
+      itemNote: item.item_note || "",
+      pricingType: item.pricing_type || "SFT",
+      customFields: {
+        ...(item.custom_fields || item.customFields || {})
+      }
     }))
   };
 }
@@ -1037,7 +1049,17 @@ function createEditableQuotationItem() {
     size: "",
     quantity: "1",
     unitPrice: "",
-    sku: ""
+    sku: "",
+    designName: "",
+    colorName: "",
+    importedColorNote: "",
+    psIncluded: false,
+    dimensionHeight: "",
+    dimensionWidth: "",
+    dimensionUnit: "",
+    itemNote: "",
+    pricingType: "SFT",
+    customFields: {}
   };
 }
 
@@ -5408,7 +5430,19 @@ function App() {
             size: item.size || null,
             quantity: Number(item.quantity || 0),
             unitPrice: Number(item.unitPrice || 0),
-            sku: item.sku || null
+            sku: item.sku || null,
+            designName: item.designName || null,
+            colorName: item.colorName || null,
+            importedColorNote: item.importedColorNote || null,
+            psIncluded: Boolean(item.psIncluded),
+            dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
+            dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
+            dimensionUnit: item.dimensionUnit || null,
+            itemNote: item.itemNote || null,
+            pricingType: item.pricingType || "SFT",
+            customFields: {
+              ...(item.customFields || {})
+            }
           }))
         })
       });
