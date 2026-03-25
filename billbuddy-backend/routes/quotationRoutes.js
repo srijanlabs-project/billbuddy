@@ -576,21 +576,32 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const sellerAddressLines = String(template?.company_address || "-").split(/\r?\n/).filter(Boolean);
   const termsLines = String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean);
   const notesLines = String(template?.notes_text || "").split(/\r?\n/).filter(Boolean);
-  const itemRows = items.map((item, index) => {
-    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn })
+  const getItemHelpingText = (item) => {
+    if (combineHelpingTextInItemColumn) return "";
+    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn: false })
       .map((entry) => `${entry.label}: ${entry.value}`)
       .join(" | ");
+    if (!helping) return "";
+    return `<div class="item-help">${escapeHtml(toSingleLinePdfValue(helping, 220))}</div>`;
+  };
+  const getCellValue = (item, columnKey, isItemColumn) => {
+    const rawValue = getQuotationPdfColumnValue(item, columnKey, { combineHelpingTextInItemColumn });
+    const normalized = String(rawValue ?? "").trim() || "-";
+    const maxLength = isItemColumn ? 120 : 48;
+    return escapeHtml(toSingleLinePdfValue(normalized, maxLength));
+  };
+  const itemRows = items.map((item, index) => {
+    const itemHelpingText = getItemHelpingText(item);
     return `
       <tr>
         <td class="num center">${index + 1}</td>
         ${columns.map((column) => {
           const key = normalizeQuotationColumnKey(column.key);
-          const value = escapeHtml(toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-", key === "material_name" ? 64 : 24));
-          const extra = key === "material_name" && helping
-            ? `<div class="item-help">${escapeHtml(toSingleLinePdfValue(helping, 140))}</div>`
-            : "";
+          const isItemColumn = key === "material_name";
+          const value = getCellValue(item, column.key, isItemColumn);
+          const extra = isItemColumn ? itemHelpingText : "";
           const numberClass = ["amount","total","total_rate","total_price","rate","unit_price","quantity"].includes(key) ? "num right" : "";
-          const className = key === "material_name" ? "item-col" : `value-cell ${numberClass}`.trim();
+          const className = isItemColumn ? "item-col" : `value-cell ${numberClass}`.trim();
           return `<td class="${className}"><div class="cell-line">${value}</div>${extra}</td>`;
         }).join("")}
       </tr>
