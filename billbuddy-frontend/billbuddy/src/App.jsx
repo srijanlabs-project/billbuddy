@@ -238,7 +238,7 @@ const QUOTATION_TEMPLATE_PRESETS = {
       header_text: "Quotation",
       body_template: "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
       footer_text: "Thank you for your business.",
-      accent_color: "#2563eb",
+      accent_color: "#737373",
       notes_text: "",
       terms_text: ""
     }
@@ -2975,7 +2975,7 @@ function App() {
     show_header_image: false,
     logo_image_data: null,
     show_logo_only: false,
-    accent_color: "#2563eb",
+    accent_color: "#737373",
     notes_text: "Delivery and installation charges are extra unless mentioned.",
     terms_text: "Payment terms and final scope will be confirmed at quotation stage.",
     email_enabled: false,
