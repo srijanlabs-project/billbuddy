@@ -522,7 +522,7 @@ function getPuppeteerLaunchArgs() {
   return args;
 }
 
-function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [] }) {
+function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {} }) {
   const customerName = quotation.firm_name || quotation.customer_name || "Customer";
   const quotationNo = getQuotationNumberValue(quotation) || "-";
   const headerImage = template?.show_header_image ? template?.header_image_data : null;
@@ -538,6 +538,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     { key: "amount", label: "Total" }
   ];
   const visiblePdfColumns = Array.isArray(allPdfColumns) && allPdfColumns.length ? allPdfColumns : columns;
+  const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
   const totalInWords = amountToWordsIndian((quotation.total_amount || 0) + Number(quotation.tax_amount || 0));
   const summaryAfterTax = Number((quotation.total_amount || 0) + Number(quotation.tax_amount || 0)).toLocaleString("en-IN");
   const totalAmount = Number(quotation.total_amount || 0);
@@ -551,7 +552,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const termsLines = String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean);
   const notesLines = String(template?.notes_text || "").split(/\r?\n/).filter(Boolean);
   const itemRows = items.map((item, index) => {
-    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn: false })
+    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn })
       .map((entry) => `${entry.label}: ${entry.value}`)
       .join(" | ");
     return `
@@ -559,11 +560,12 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
         <td class="num center">${index + 1}</td>
         ${columns.map((column) => {
           const key = normalizeQuotationColumnKey(column.key);
-          const value = escapeHtml(toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn: false }) || "-", key === "material_name" ? 64 : 24));
+          const value = escapeHtml(toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-", key === "material_name" ? 64 : 24));
           const extra = key === "material_name" && helping
             ? `<div class="item-help">${escapeHtml(toSingleLinePdfValue(helping, 140))}</div>`
             : "";
-          const className = key === "material_name" ? "item-col" : (["amount","total","total_rate","total_price","rate","unit_price","quantity"].includes(key) ? "num right" : "");
+          const numberClass = ["amount","total","total_rate","total_price","rate","unit_price","quantity"].includes(key) ? "num right" : "";
+          const className = key === "material_name" ? "item-col" : `value-cell ${numberClass}`.trim();
           return `<td class="${className}"><div class="cell-line">${value}</div>${extra}</td>`;
         }).join("")}
       </tr>
@@ -722,7 +724,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     .items-table th, .items-table td {
       border: 1px solid #c7cfdc;
       padding: 5px 6px;
-      font-size: 9.4px;
+      font-size: 11px;
       vertical-align: top;
       white-space: nowrap;
       overflow: hidden;
@@ -732,7 +734,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       background: #fbfcfe;
       font-weight: 700;
       text-align: center;
-      font-size: 8.2px;
+      font-size: 12px;
     }
     .items-table {
       border-bottom: 1px solid #c7cfdc;
@@ -742,6 +744,14 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     }
     .items-table .item-col {
       white-space: normal;
+    }
+    .items-table .item-col .cell-line {
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .items-table .value-cell .cell-line {
+      font-size: 11px;
+      font-weight: 400;
     }
     .cell-line {
       white-space: nowrap;
@@ -963,7 +973,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
 </html>`;
 }
 
-async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], res }) {
+async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {}, res }) {
   const executablePath = getPuppeteerExecutablePath();
   const browser = await puppeteer.launch({
     executablePath,
@@ -972,7 +982,7 @@ async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null
   });
   try {
     const page = await browser.newPage();
-    const html = buildHtmlPuppeteerTemplate({ quotation, items, template, seller, pdfColumns, allPdfColumns });
+    const html = buildHtmlPuppeteerTemplate({ quotation, items, template, seller, pdfColumns, allPdfColumns, pdfModules });
     await page.setContent(html, { waitUntil: "networkidle0" });
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -3360,6 +3370,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
           seller: sellerRow,
           pdfColumns,
           allPdfColumns: pdfConfig.allPdfColumns || pdfColumns,
+          pdfModules: pdfConfig.modules || {},
           res
         });
       } catch (richPdfError) {
