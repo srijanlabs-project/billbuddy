@@ -121,13 +121,16 @@ function normalizeQuotationItems(items = []) {
   return (items || []).map((item) => {
     const quantity = toAmount(item.quantity);
     const unitPrice = toAmount(item.unit_price ?? item.unitPrice);
-    const totalPrice = toAmount(item.total_price ?? item.totalPrice) || (quantity * unitPrice);
+    const rawTotalPrice = item.total_price ?? item.totalPrice;
+    const hasExplicitTotalPrice = rawTotalPrice !== null && rawTotalPrice !== undefined && rawTotalPrice !== "";
+    const totalPrice = hasExplicitTotalPrice ? toAmount(rawTotalPrice) : null;
 
     return {
       ...item,
       quantity,
       unitPrice,
       totalPrice,
+      hasExplicitTotalPrice,
       color_name: item.color_name || item.colorName || null,
       imported_color_note: item.imported_color_note || item.importedColorNote || null,
       ps_included: Boolean(item.ps_included ?? item.psIncluded),
@@ -153,12 +156,10 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
   const computedLineItems = normalizedItems.map((item) => {
     const quantity = toAmount(item.quantity);
     const unitPrice = toAmount(item.unitPrice);
-    const rawTotal = item.totalPrice;
-    const hasExplicitTotal = rawTotal !== null && rawTotal !== undefined && rawTotal !== "";
-    let totalPrice = hasExplicitTotal ? toAmount(rawTotal) : 0;
+    let totalPrice = item.hasExplicitTotalPrice ? toAmount(item.totalPrice) : 0;
     let usedCalcColumn = false;
 
-    if (!hasExplicitTotal && calcKeys.length) {
+    if (calcKeys.length) {
       const customFields = item.custom_fields || item.customFields || {};
       let derivedTotal = 0;
       calcKeys.forEach((key) => {
@@ -175,7 +176,11 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
       }
     }
 
-    if (!hasExplicitTotal && !usedCalcColumn) {
+    if (!usedCalcColumn && item.hasExplicitTotalPrice) {
+      totalPrice = toAmount(item.totalPrice);
+    }
+
+    if (!usedCalcColumn && !item.hasExplicitTotalPrice) {
       totalPrice = quantity * unitPrice;
     }
 
