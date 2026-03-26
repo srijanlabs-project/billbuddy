@@ -480,14 +480,12 @@ export default function SettingsPage({
                 <div className="settings-plan-banner-copy">
                   <span>Current Access</span>
                   <strong>{planName}</strong>
-                  <p>
-                    Template access: <strong>{formatTierLabel(currentPlanTier)}</strong>.
-                    {isFreePlan ? " Demo users can preview paid themes but can only save the Default theme." : " You can save themes allowed by your current plan tier."}
-                  </p>
+                  <p>Template access tier: <strong>{formatTierLabel(currentPlanTier)}</strong></p>
+                  <p>{isFreePlan ? "Demo users can preview all themes but can save only Default." : "You can save and publish themes that match your plan tier."}</p>
                 </div>
                 <div className="settings-plan-badges">
-                  <span className="badge neutral">Template: {presetMeta.label}</span>
-                  <span className={`badge ${isSelectedThemeAccessible ? "success" : "pending"}`}>Theme: {selectedTheme.label}</span>
+                  <span className="settings-plan-chip">Template: {presetMeta.label}</span>
+                  <span className={`settings-plan-chip ${isSelectedThemeAccessible ? "is-allowed" : "is-locked"}`}>Selected Theme: {selectedTheme.label}</span>
                 </div>
               </div>
 
@@ -498,15 +496,14 @@ export default function SettingsPage({
                 </div>
               ) : null}
 
-              <div className="settings-theme-grid-layout">
-                <div className="settings-theme-controls">
+              <div className="settings-theme-controls">
                   <section className="settings-panel">
                     <div className="settings-panel-head">
                       <h4>Step 1 - Select Template</h4>
                       <p>The quotation structure stays fixed as Default, while themes handle the visual look.</p>
                     </div>
                     <div className="settings-two-column settings-template-select-row">
-                      <label className="settings-field">
+                      <label className="settings-field settings-template-lock">
                         <span>Template</span>
                         <select value="default" disabled>
                           <option value="default">Default Template</option>
@@ -581,17 +578,14 @@ export default function SettingsPage({
                       })}
                     </div>
                   </section>
-                </div>
 
-                <aside className="settings-preview-sticky">
-                  <div className="settings-panel">
+                  <section className="settings-panel">
                     <div className="settings-panel-head">
                       <h4>Live Preview</h4>
                       <p>Instantly see the template with the selected theme.</p>
                     </div>
                     {renderThemePreviewBlock({ compact: true })}
-                  </div>
-                </aside>
+                  </section>
               </div>
             </form>
           ) : null}
