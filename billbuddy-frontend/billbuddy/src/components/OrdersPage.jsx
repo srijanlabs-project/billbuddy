@@ -65,7 +65,6 @@ export default function OrdersPage(props) {
   const {
     activeModule,
     quotations,
-    sellers,
     seller,
     isPlatformAdmin,
     filteredOrders,
@@ -97,7 +96,7 @@ export default function OrdersPage(props) {
   const [exportStep, setExportStep] = useState("filters");
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState("");
-  const [exportSellerId, setExportSellerId] = useState("");
+  const [exportCustomerInput, setExportCustomerInput] = useState("");
   const [exportFromDate, setExportFromDate] = useState("");
   const [exportToDate, setExportToDate] = useState("");
   const [exportMobileInput, setExportMobileInput] = useState("");
@@ -118,26 +117,42 @@ export default function OrdersPage(props) {
     return Array.from(mobileSet).slice(0, 8);
   }, [quotations, exportMobileInput]);
 
+  const customerSuggestions = useMemo(() => {
+    const term = exportCustomerInput.trim().toLowerCase();
+    if (term.length < 2) return [];
+    const customerSet = new Set(
+      (quotations || [])
+        .map((row) => row.firm_name || row.customer_name || "")
+        .map((value) => String(value || "").trim())
+        .filter((value) => value)
+        .filter((value) => value.toLowerCase().includes(term))
+    );
+    return Array.from(customerSet).slice(0, 8);
+  }, [quotations, exportCustomerInput]);
+
   const filteredExportOrders = useMemo(() => {
+    const customerTerm = exportCustomerInput.trim().toLowerCase();
     return (quotations || []).filter((row) => {
-      if (isPlatformAdmin && exportSellerId && String(row.seller_id) !== String(exportSellerId)) return false;
+      if (customerTerm.length >= 2) {
+        const customerName = String(row.firm_name || row.customer_name || "").toLowerCase();
+        if (!customerName.includes(customerTerm)) return false;
+      }
       const rowDate = toDateValue(row.created_at);
       if (exportFromDate && rowDate && rowDate < exportFromDate) return false;
       if (exportToDate && rowDate && rowDate > exportToDate) return false;
       if (exportMobileInput.trim().length >= 2 && !String(row.mobile || "").includes(exportMobileInput.trim())) return false;
       return true;
     });
-  }, [quotations, isPlatformAdmin, exportSellerId, exportFromDate, exportToDate, exportMobileInput]);
+  }, [quotations, exportCustomerInput, exportFromDate, exportToDate, exportMobileInput]);
 
   const allFilteredSelected = filteredExportOrders.length > 0
     && filteredExportOrders.every((row) => selectedQuotationIds.includes(row.id));
-  const resolvedSellerId = isPlatformAdmin ? exportSellerId : seller?.id;
 
   function resetExportModalState() {
     setExportStep("filters");
     setExportLoading(false);
     setExportError("");
-    setExportSellerId("");
+    setExportCustomerInput("");
     setExportFromDate("");
     setExportToDate("");
     setExportMobileInput("");
@@ -174,14 +189,23 @@ export default function OrdersPage(props) {
   }
 
   async function handlePrepareExportFields() {
-    if (isPlatformAdmin && !exportSellerId) {
-      setExportError("Please select a seller before preparing Excel fields.");
-      return;
-    }
     if (!selectedQuotationIds.length) {
       setExportError("Please select at least one quotation.");
       return;
     }
+    const selectedRows = (quotations || []).filter((row) => selectedQuotationIds.includes(row.id));
+    if (!selectedRows.length) {
+      setExportError("No quotations found for current selection.");
+      return;
+    }
+    const selectedSellerIds = Array.from(
+      new Set(selectedRows.map((row) => Number(row.seller_id || 0)).filter((value) => value > 0))
+    );
+    if (selectedSellerIds.length > 1) {
+      setExportError("Please select quotations from one seller account only.");
+      return;
+    }
+    const resolvedSellerId = selectedSellerIds[0] || (isPlatformAdmin ? null : Number(seller?.id || 0));
     try {
       setExportError("");
       setExportLoading(true);
@@ -326,22 +350,26 @@ export default function OrdersPage(props) {
             {exportStep === "filters" ? (
               <>
                 <div className="settings-two-column">
-                  {isPlatformAdmin ? (
-                    <label className="settings-field">
-                      <span>Seller</span>
-                      <select value={exportSellerId} onChange={(event) => setExportSellerId(event.target.value)}>
-                        <option value="">All sellers</option>
-                        {(sellers || []).map((entry) => (
-                          <option key={entry.id} value={entry.id}>{entry.business_name || entry.name || `Seller ${entry.id}`}</option>
+                  <label className="settings-field settings-field-wide">
+                    <span>Customer</span>
+                    <input
+                      type="text"
+                      value={exportCustomerInput}
+                      onChange={(event) => setExportCustomerInput(event.target.value)}
+                      placeholder="Type at least 2 characters"
+                    />
+                    {customerSuggestions.length > 0 ? (
+                      <div className="rq-suggest-list" style={{ marginTop: "6px", maxHeight: "160px" }}>
+                        {customerSuggestions.map((customerName) => (
+                          <button key={customerName} type="button" className="rq-suggest-row" onClick={() => setExportCustomerInput(customerName)}>
+                            <span className="rq-suggest-main">{customerName}</span>
+                            <span className="rq-suggest-meta">Customer match</span>
+                            <span className="rq-suggest-meta">Tap to apply</span>
+                          </button>
                         ))}
-                      </select>
-                    </label>
-                  ) : (
-                    <label className="settings-field">
-                      <span>Seller</span>
-                      <input value={seller?.business_name || seller?.name || "Current seller"} disabled />
-                    </label>
-                  )}
+                      </div>
+                    ) : null}
+                  </label>
                   <label className="settings-field">
                     <span>From Date</span>
                     <input type="date" value={exportFromDate} onChange={(event) => setExportFromDate(event.target.value)} />

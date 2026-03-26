@@ -5657,9 +5657,16 @@ function App() {
       });
     });
 
+    const visibleFieldOrder = fieldOrder.filter((key) =>
+      rows.some((row) => {
+        const value = row[key];
+        return value !== "" && value !== null && value !== undefined;
+      })
+    );
+
     return {
       rows,
-      fieldOptions: fieldOrder.map((key) => ({ key, label: formatExportColumnLabel(key) }))
+      fieldOptions: visibleFieldOrder.map((key) => ({ key, label: formatExportColumnLabel(key) }))
     };
   }
 
