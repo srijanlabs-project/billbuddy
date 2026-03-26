@@ -141,8 +141,6 @@ function normalizeQuotationItems(items = []) {
       custom_fields: item.custom_fields || item.customFields || {}
     };
   });
-
-  });
 }
 
 function computeQuotationTotals({ items, gstPercent, transportCharges, designCharges, discountAmount, advanceAmount, calculationColumns = [] }) {
