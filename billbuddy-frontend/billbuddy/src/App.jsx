@@ -5634,12 +5634,18 @@ function App() {
       .replace(/\b\w/g, (char) => char.toUpperCase());
   }
 
-  async function loadQuotationExportDraft(quotationIds = []) {
+  async function loadQuotationExportDraft(quotationIds = [], options = {}) {
     const ids = Array.from(new Set((quotationIds || []).map((value) => Number(value)).filter(Number.isFinite)));
     if (!ids.length) return { fieldOptions: [], rows: [] };
+    const scopedSellerId = options?.sellerId ? Number(options.sellerId) : null;
 
     const detailsRows = await Promise.all(ids.map((id) => apiFetch(`/api/quotations/${id}`)));
-    const rows = detailsRows.flatMap((details) => buildQuotationExportRows(details));
+    const rows = detailsRows
+      .filter((details) => {
+        if (!scopedSellerId) return true;
+        return Number(details?.quotation?.seller_id || 0) === scopedSellerId;
+      })
+      .flatMap((details) => buildQuotationExportRows(details));
     const fieldOrder = [];
     const seen = new Set();
     rows.forEach((row) => {

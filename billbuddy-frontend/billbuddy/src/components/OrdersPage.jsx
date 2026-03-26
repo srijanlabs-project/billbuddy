@@ -131,6 +131,7 @@ export default function OrdersPage(props) {
 
   const allFilteredSelected = filteredExportOrders.length > 0
     && filteredExportOrders.every((row) => selectedQuotationIds.includes(row.id));
+  const resolvedSellerId = isPlatformAdmin ? exportSellerId : seller?.id;
 
   function resetExportModalState() {
     setExportStep("filters");
@@ -173,6 +174,10 @@ export default function OrdersPage(props) {
   }
 
   async function handlePrepareExportFields() {
+    if (isPlatformAdmin && !exportSellerId) {
+      setExportError("Please select a seller before preparing Excel fields.");
+      return;
+    }
     if (!selectedQuotationIds.length) {
       setExportError("Please select at least one quotation.");
       return;
@@ -180,9 +185,13 @@ export default function OrdersPage(props) {
     try {
       setExportError("");
       setExportLoading(true);
-      const draft = await loadQuotationExportDraft(selectedQuotationIds);
+      const draft = await loadQuotationExportDraft(selectedQuotationIds, { sellerId: resolvedSellerId });
       const options = Array.isArray(draft?.fieldOptions) ? draft.fieldOptions : [];
       const rows = Array.isArray(draft?.rows) ? draft.rows : [];
+      if (!rows.length) {
+        setExportError("No export data found for the selected seller scope.");
+        return;
+      }
       setExportRows(rows);
       setExportFieldOptions(options);
       setSelectedFieldKeys(options.map((entry) => entry.key));
@@ -238,7 +247,7 @@ export default function OrdersPage(props) {
         <h3>Quotation Tracker</h3>
         <div className="toolbar-controls">
           <span>{filteredOrders.length} total</span>
-          <button type="button" className="ghost-btn" onClick={openExportModal}>Download Excel</button>
+          <button type="button" className="ghost-btn order-export-trigger-btn" onClick={openExportModal}>Download Excel</button>
         </div>
       </div>
       <table className="data-table order-table">

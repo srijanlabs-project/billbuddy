@@ -4008,6 +4008,12 @@ button:disabled {
   font-size: 12px;
 }
 
+.order-export-trigger-btn {
+  border-color: rgba(219, 39, 119, 0.32) !important;
+  background: linear-gradient(180deg, rgba(244, 114, 182, 0.92), rgba(219, 39, 119, 0.86)) !important;
+  color: #fff !important;
+}
+
 .icon-btn {
   width: 42px;
   justify-content: center;
