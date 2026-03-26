@@ -134,7 +134,13 @@ export default function QuotationWizardModal(props) {
                         type="button"
                         key={customer.id}
                         className={`quotation-customer-card ${String(quotationWizard.selectedCustomerId) === String(customer.id) ? "selected" : ""}`}
-                        onClick={() => setQuotationWizard((prev) => ({ ...prev, selectedCustomerId: String(customer.id) }))}
+                        onClick={() =>
+                          setQuotationWizard((prev) => ({
+                            ...prev,
+                            selectedCustomerId: String(customer.id),
+                            customerSearch: customer.firm_name || customer.name || customer.mobile || ""
+                          }))
+                        }
                       >
                         <span className="quotation-suggest-main">{customer.firm_name || customer.name || "-"}</span>
                         <span className="quotation-suggest-meta">{customer.name || "-"}</span>
