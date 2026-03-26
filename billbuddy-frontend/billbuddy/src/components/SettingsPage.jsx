@@ -610,23 +610,19 @@ export default function SettingsPage({
                 </div>
               ) : null}
 
-              <div className="settings-theme-grid-layout">
-                <div className="settings-theme-controls">
-                  {renderThemeTierSection("FREE", "Free Themes", "Available for every plan, including demo users.")}
-                  {renderThemeTierSection("PAID", "Paid Themes", "Professional presets for growth stage sellers. Contact sales to unlock.")}
-                  {renderThemeTierSection("PREMIUM", "Premium Themes", "Polished brand-driven themes for premium subscriptions.")}
-                  {renderThemeTierSection("NICHE", "Niche Themes", "Bold, distinctive looks reserved for niche plans.")}
-                </div>
+              <div className="settings-theme-controls">
+                {renderThemeTierSection("FREE", "Free Themes", "Available for every plan, including demo users.")}
+                {renderThemeTierSection("PAID", "Paid Themes", "Professional presets for growth stage sellers. Contact sales to unlock.")}
+                {renderThemeTierSection("PREMIUM", "Premium Themes", "Polished brand-driven themes for premium subscriptions.")}
+                {renderThemeTierSection("NICHE", "Niche Themes", "Bold, distinctive looks reserved for niche plans.")}
 
-                <aside className="settings-preview-sticky">
-                  <div className="settings-panel">
-                    <div className="settings-panel-head">
-                      <h4>Theme Preview</h4>
-                      <p>Preview the selected theme with your current content.</p>
-                    </div>
-                    {renderThemePreviewBlock({ compact: true })}
+                <section className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Theme Preview</h4>
+                    <p>Preview the selected theme with your current content.</p>
                   </div>
-                </aside>
+                  {renderThemePreviewBlock({ compact: true })}
+                </section>
               </div>
             </form>
           ) : null}
@@ -644,129 +640,125 @@ export default function SettingsPage({
                 </button>
               </div>
 
-              <div className="settings-theme-grid-layout">
-                <div className="settings-theme-controls">
-                  <section className="settings-panel">
-                    <div className="settings-panel-head">
-                      <h4>Brand Assets</h4>
-                      <p>Header image and logo stay editable. Footer banner is locked for free/demo sellers.</p>
-                    </div>
-                    <div className="settings-image-grid">
-                      <label className="settings-field">
-                        {renderInlineHelp("Header Image", "Use a full-width header image when you want the image itself to represent the quotation brand.")}
-                        <input type="file" accept="image/*" onChange={handleQuotationHeaderImageChange} />
-                      </label>
-                      <label className="settings-inline-toggle">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(quotationTemplate.show_header_image)}
-                          onChange={(event) => updateTemplateField("show_header_image", event.target.checked)}
-                        />
-                        <div>
-                          <strong>Use header image</strong>
-                          <span>Header text and logo are suppressed when a full-width image is active.</span>
-                        </div>
-                      </label>
-                      <label className="settings-field">
-                        {renderInlineHelp("Logo Image", "Use logo mode when you want a logo with text-based company details beside it.")}
-                        <input type="file" accept="image/*" onChange={handleQuotationLogoImageChange} />
-                      </label>
-                      <label className="settings-inline-toggle">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(quotationTemplate.show_logo_only)}
-                          onChange={(event) => updateTemplateField("show_logo_only", event.target.checked)}
-                        />
-                        <div>
-                          <strong>Use logo only</strong>
-                          <span>Best for a lighter header while keeping contact text visible.</span>
-                        </div>
-                      </label>
-                      {!isFreePlan ? (
-                        <>
-                          <label className="settings-field">
-                            {renderInlineHelp("Footer Image", "Upload a footer banner/signature strip for paid themes.")}
-                            <input type="file" accept="image/*" onChange={handleQuotationFooterImageChange} />
-                          </label>
-                          <label className="settings-inline-toggle">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(quotationTemplate.show_footer_image)}
-                              onChange={(event) => updateTemplateField("show_footer_image", event.target.checked)}
-                            />
-                            <div>
-                              <strong>Use footer image</strong>
-                              <span>Paid plans can override footer text with a custom banner.</span>
-                            </div>
-                          </label>
-                        </>
+              <div className="settings-theme-controls">
+                <section className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Brand Assets</h4>
+                    <p>Header image and logo stay editable. Footer banner is locked for free/demo sellers.</p>
+                  </div>
+                  <div className="settings-image-grid">
+                    <label className="settings-field">
+                      {renderInlineHelp("Header Image", "Use a full-width header image when you want the image itself to represent the quotation brand.")}
+                      <input type="file" accept="image/*" onChange={handleQuotationHeaderImageChange} />
+                    </label>
+                    <label className="settings-inline-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(quotationTemplate.show_header_image)}
+                        onChange={(event) => updateTemplateField("show_header_image", event.target.checked)}
+                      />
+                      <div>
+                        <strong>Use header image</strong>
+                        <span>Header text and logo are suppressed when a full-width image is active.</span>
+                      </div>
+                    </label>
+                    <label className="settings-field">
+                      {renderInlineHelp("Logo Image", "Use logo mode when you want a logo with text-based company details beside it.")}
+                      <input type="file" accept="image/*" onChange={handleQuotationLogoImageChange} />
+                    </label>
+                    <label className="settings-inline-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(quotationTemplate.show_logo_only)}
+                        onChange={(event) => updateTemplateField("show_logo_only", event.target.checked)}
+                      />
+                      <div>
+                        <strong>Use logo only</strong>
+                        <span>Best for a lighter header while keeping contact text visible.</span>
+                      </div>
+                    </label>
+                    {!isFreePlan ? (
+                      <>
+                        <label className="settings-field">
+                          {renderInlineHelp("Footer Image", "Upload a footer banner/signature strip for paid themes.")}
+                          <input type="file" accept="image/*" onChange={handleQuotationFooterImageChange} />
+                        </label>
+                        <label className="settings-inline-toggle">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(quotationTemplate.show_footer_image)}
+                            onChange={(event) => updateTemplateField("show_footer_image", event.target.checked)}
+                          />
+                          <div>
+                            <strong>Use footer image</strong>
+                            <span>Paid plans can override footer text with a custom banner.</span>
+                          </div>
+                        </label>
+                      </>
+                    ) : (
+                      <div className="settings-locked-footer-note">
+                        <strong>Free footer banner applied</strong>
+                        <span>The Quotsy footer banner is fixed for demo and free usage and cannot be removed.</span>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Asset Preview</h4>
+                    <p>Confirm the uploaded assets before publishing.</p>
+                  </div>
+                  <div className="settings-asset-preview-grid">
+                    <div className="settings-asset-preview-card">
+                      <div className="settings-asset-head">
+                        <strong>Header Preview</strong>
+                        {quotationTemplate.header_image_data ? (
+                          <button className="text-button" type="button" onClick={() => updateTemplateField("header_image_data", null)}>Remove</button>
+                        ) : null}
+                      </div>
+                      {quotationTemplate.header_image_data ? (
+                        <img src={quotationTemplate.header_image_data} alt="Header preview" className="settings-asset-preview-image" />
                       ) : (
-                        <div className="settings-locked-footer-note">
-                          <strong>Free footer banner applied</strong>
-                          <span>The Quotsy footer banner is fixed for demo and free usage and cannot be removed.</span>
-                        </div>
+                        <p>No header image uploaded yet.</p>
                       )}
                     </div>
-                  </section>
-
-                  <section className="settings-panel">
-                    <div className="settings-panel-head">
-                      <h4>Asset Preview</h4>
-                      <p>Confirm the uploaded assets before publishing.</p>
-                    </div>
-                    <div className="settings-asset-preview-grid">
-                      <div className="settings-asset-preview-card">
-                        <div className="settings-asset-head">
-                          <strong>Header Preview</strong>
-                          {quotationTemplate.header_image_data ? (
-                            <button className="text-button" type="button" onClick={() => updateTemplateField("header_image_data", null)}>Remove</button>
-                          ) : null}
-                        </div>
-                        {quotationTemplate.header_image_data ? (
-                          <img src={quotationTemplate.header_image_data} alt="Header preview" className="settings-asset-preview-image" />
-                        ) : (
-                          <p>No header image uploaded yet.</p>
-                        )}
-                      </div>
-                      <div className="settings-asset-preview-card">
-                        <div className="settings-asset-head">
-                          <strong>Logo Preview</strong>
-                          {quotationTemplate.logo_image_data ? (
-                            <button className="text-button" type="button" onClick={() => updateTemplateField("logo_image_data", null)}>Remove</button>
-                          ) : null}
-                        </div>
+                    <div className="settings-asset-preview-card">
+                      <div className="settings-asset-head">
+                        <strong>Logo Preview</strong>
                         {quotationTemplate.logo_image_data ? (
-                          <img src={quotationTemplate.logo_image_data} alt="Logo preview" className="settings-asset-preview-logo" />
-                        ) : (
-                          <p>No logo uploaded yet.</p>
-                        )}
+                          <button className="text-button" type="button" onClick={() => updateTemplateField("logo_image_data", null)}>Remove</button>
+                        ) : null}
                       </div>
-                      <div className="settings-asset-preview-card">
-                        <div className="settings-asset-head">
-                          <strong>Footer Preview</strong>
-                          {!isFreePlan && quotationTemplate.footer_image_data ? (
-                            <button className="text-button" type="button" onClick={() => updateTemplateField("footer_image_data", null)}>Remove</button>
-                          ) : null}
-                        </div>
-                        {previewFooterBanner ? (
-                          <img src={previewFooterBanner} alt="Footer preview" className="settings-asset-preview-image settings-asset-preview-footer-banner" />
-                        ) : (
-                          <p>No footer image uploaded yet.</p>
-                        )}
+                      {quotationTemplate.logo_image_data ? (
+                        <img src={quotationTemplate.logo_image_data} alt="Logo preview" className="settings-asset-preview-logo" />
+                      ) : (
+                        <p>No logo uploaded yet.</p>
+                      )}
+                    </div>
+                    <div className="settings-asset-preview-card">
+                      <div className="settings-asset-head">
+                        <strong>Footer Preview</strong>
+                        {!isFreePlan && quotationTemplate.footer_image_data ? (
+                          <button className="text-button" type="button" onClick={() => updateTemplateField("footer_image_data", null)}>Remove</button>
+                        ) : null}
                       </div>
+                      {previewFooterBanner ? (
+                        <img src={previewFooterBanner} alt="Footer preview" className="settings-asset-preview-image settings-asset-preview-footer-banner" />
+                      ) : (
+                        <p>No footer image uploaded yet.</p>
+                      )}
                     </div>
-                  </section>
-                </div>
-
-                <aside className="settings-preview-sticky">
-                  <div className="settings-panel">
-                    <div className="settings-panel-head">
-                      <h4>Document Preview</h4>
-                      <p>Review the branding inside the live quotation layout.</p>
-                    </div>
-                    {renderThemePreviewBlock({ compact: true })}
                   </div>
-                </aside>
+                </section>
+
+                <section className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Document Preview</h4>
+                    <p>Review the branding inside the live quotation layout.</p>
+                  </div>
+                  {renderThemePreviewBlock({ compact: true })}
+                </section>
               </div>
             </form>
           ) : null}

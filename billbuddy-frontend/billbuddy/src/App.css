@@ -450,6 +450,56 @@ button:disabled {
   margin-top: 14px;
 }
 
+.rq-suggest-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.rq-suggest-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.3fr) minmax(110px, 0.9fr) minmax(120px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #f8fafc;
+  color: #1f2937;
+  text-align: left;
+  box-shadow: none;
+}
+
+.rq-suggest-row:hover,
+.rq-suggest-row.active {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: #eff6ff;
+}
+
+.rq-suggest-main {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rq-suggest-meta {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rq-material-suggest-list .rq-suggest-row {
+  grid-template-columns: minmax(170px, 1.4fr) minmax(90px, 0.7fr) minmax(80px, 0.6fr) minmax(80px, 0.6fr);
+}
+
 .rq-result-card,
 .rq-item-card,
 .rq-preview-row {
@@ -701,6 +751,15 @@ button:disabled {
 
   .search-layout {
     grid-template-columns: 1fr;
+  }
+
+  .rq-suggest-row,
+  .rq-material-suggest-list .rq-suggest-row {
+    grid-template-columns: minmax(130px, 1.2fr) minmax(95px, 1fr);
+  }
+
+  .rq-suggest-row .rq-suggest-meta:last-child {
+    display: none;
   }
 }
 

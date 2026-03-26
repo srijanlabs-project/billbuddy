@@ -450,6 +450,7 @@ export default function ResponsiveQuotationApp({
   const [detailLoading, setDetailLoading] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [currentSellerConfiguration, setCurrentSellerConfiguration] = useState(null);
+  const [materialSearch, setMaterialSearch] = useState("");
 
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
@@ -558,6 +559,13 @@ export default function ResponsiveQuotationApp({
   }, [products]);
 
   const materialOptions = useMemo(() => materialCatalog.map((entry) => entry.materialName), [materialCatalog]);
+  const filteredMaterialOptions = useMemo(() => {
+    const term = materialSearch.trim().toLowerCase();
+    const source = term
+      ? materialCatalog.filter((entry) => entry.materialName.toLowerCase().includes(term))
+      : materialCatalog;
+    return source.slice(0, 10);
+  }, [materialCatalog, materialSearch]);
   const runtimeQuotationColumns = useMemo(
     () => getSupportedQuotationColumns(currentSellerConfiguration),
     [currentSellerConfiguration]
@@ -574,7 +582,13 @@ export default function ResponsiveQuotationApp({
       ...prev,
       itemForm: createEmptyItem(firstMaterial.materialName, firstMaterial.category)
     }));
+    setMaterialSearch(firstMaterial.materialName);
   }, [draft.itemForm.materialName, materialCatalog, materialOptions.length]);
+
+  useEffect(() => {
+    if (!draft.itemForm.materialName) return;
+    setMaterialSearch(draft.itemForm.materialName);
+  }, [draft.itemForm.materialName]);
 
   const selectedMaterialMeta = useMemo(() => {
     return materialCatalog.find((entry) => entry.materialName === draft.itemForm.materialName) || {
@@ -602,7 +616,7 @@ export default function ResponsiveQuotationApp({
       [customer.name, customer.firm_name, customer.mobile]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term))
-    ).slice(0, 8);
+    ).slice(0, 10);
   }, [customers, draft.customer.search]);
 
   const grossTotal = useMemo(
@@ -1140,11 +1154,12 @@ export default function ResponsiveQuotationApp({
             </div>
 
             {filteredCustomers.length > 0 && (
-              <div className="rq-customer-results">
+              <div className="rq-customer-results rq-suggest-list">
                 {filteredCustomers.map((customer) => (
-                  <button type="button" key={customer.id} className="rq-result-card" onClick={() => selectCustomer(customer)}>
-                    <strong>{customer.name || customer.firm_name}</strong>
-                    <span>{customer.mobile || "-"}</span>
+                  <button type="button" key={customer.id} className="rq-suggest-row" onClick={() => selectCustomer(customer)}>
+                    <span className="rq-suggest-main">{customer.name || customer.firm_name || "-"}</span>
+                    <span className="rq-suggest-meta">{customer.mobile || "-"}</span>
+                    <span className="rq-suggest-meta">{customer.firm_name || "Individual"}</span>
                   </button>
                 ))}
               </div>
@@ -1167,18 +1182,34 @@ export default function ResponsiveQuotationApp({
               <span>{draft.items.length} item(s) saved</span>
             </div>
 
-            <div className="rq-material-tabs">
-              {materialOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`rq-material-tab ${draft.itemForm.materialName === option ? "active" : ""}`}
-                  onClick={() => updateMaterial(option)}
-                >
-                  {option}
-                </button>
-              ))}
+            <div className="rq-grid one">
+              <label>
+                <span>Search material</span>
+                <input
+                  value={materialSearch}
+                  onChange={(e) => setMaterialSearch(e.target.value)}
+                  placeholder="Search by material name"
+                />
+              </label>
             </div>
+
+            {filteredMaterialOptions.length > 0 ? (
+              <div className="rq-suggest-list rq-material-suggest-list">
+                {filteredMaterialOptions.map((entry) => (
+                  <button
+                    key={entry.materialName}
+                    type="button"
+                    className={`rq-suggest-row ${draft.itemForm.materialName === entry.materialName ? "active" : ""}`}
+                    onClick={() => updateMaterial(entry.materialName)}
+                  >
+                    <span className="rq-suggest-main">{entry.materialName}</span>
+                    <span className="rq-suggest-meta">{entry.category || "-"}</span>
+                    <span className="rq-suggest-meta">Colors {entry.colors.length}</span>
+                    <span className="rq-suggest-meta">Thk {entry.thicknesses.length}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             <div className="rq-grid three">
               {runtimeQuotationColumns
