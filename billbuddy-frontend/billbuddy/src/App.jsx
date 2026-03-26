@@ -5878,69 +5878,29 @@ function App() {
           designCharges: Number(quotationEditForm.designCharges || 0),
           discountAmount: Number(quotationEditForm.discountAmount || 0),
           advanceAmount: Number(quotationEditForm.advanceAmount || 0),
-          items: quotationEditForm.items.map((item) => {
-            const pricingType = String(item.pricingType || "SFT").toUpperCase();
-            const quantity = Number(item.quantity || 0);
-            const unitPrice = Number(item.unitPrice || 0);
-            let totalPrice;
-            let totalArea;
-            let resolvedWidth = item.dimensionWidth ?? item.dimension_width;
-            let resolvedHeight = item.dimensionHeight ?? item.dimension_height;
-
-            if ((!resolvedWidth || !resolvedHeight) && item.size) {
-              const match = String(item.size || "")
-                .replace(/\s+/g, " ")
-                .match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
-              if (match) {
-                resolvedWidth = resolvedWidth || match[1];
-                resolvedHeight = resolvedHeight || match[2];
-              }
+          items: quotationEditForm.items.map((item) => ({
+            productId: item.productId ? Number(item.productId) : null,
+            variantId: item.variantId ? Number(item.variantId) : null,
+            category: item.itemCategory || null,
+            materialType: item.materialType || item.materialName || null,
+            thickness: item.thickness || null,
+            size: item.size || null,
+            quantity: Number(item.quantity || 0),
+            unitPrice: Number(item.unitPrice || 0),
+            sku: item.sku || null,
+            designName: item.designName || null,
+            colorName: item.colorName || null,
+            importedColorNote: item.importedColorNote || null,
+            psIncluded: Boolean(item.psIncluded),
+            dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
+            dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
+            dimensionUnit: item.dimensionUnit || null,
+            itemNote: item.itemNote || null,
+            pricingType: item.pricingType || "SFT",
+            customFields: {
+              ...(item.customFields || {})
             }
-
-            if (pricingType === "SFT") {
-              const unit = item.dimensionUnit || item.dimension_unit || "ft";
-              const widthFeet = quotationWizardToFeet(resolvedWidth, unit);
-              const heightFeet = quotationWizardToFeet(resolvedHeight, unit);
-              if (Number(widthFeet) && Number(heightFeet)) {
-                totalArea = Number((widthFeet * heightFeet).toFixed(2));
-                const effectiveQuantity = totalArea * quantity;
-                totalPrice = Number((effectiveQuantity * unitPrice).toFixed(2));
-              } else {
-                const fallbackArea = Number(item.customFields?.total_area ?? item.custom_fields?.total_area);
-                if (Number.isFinite(fallbackArea) && fallbackArea > 0) {
-                  totalArea = Number(fallbackArea.toFixed(2));
-                  const effectiveQuantity = totalArea * quantity;
-                  totalPrice = Number((effectiveQuantity * unitPrice).toFixed(2));
-                }
-              }
-            }
-
-            return {
-              productId: item.productId ? Number(item.productId) : null,
-              variantId: item.variantId ? Number(item.variantId) : null,
-              category: item.itemCategory || null,
-              materialType: item.materialType || item.materialName || null,
-              thickness: item.thickness || null,
-              size: item.size || null,
-              quantity,
-              unitPrice,
-              totalPrice,
-              sku: item.sku || null,
-              designName: item.designName || null,
-              colorName: item.colorName || null,
-              importedColorNote: item.importedColorNote || null,
-              psIncluded: Boolean(item.psIncluded),
-              dimensionHeight: resolvedHeight === "" ? null : resolvedHeight,
-              dimensionWidth: resolvedWidth === "" ? null : resolvedWidth,
-              dimensionUnit: item.dimensionUnit || null,
-              itemNote: item.itemNote || null,
-              pricingType: item.pricingType || "SFT",
-              customFields: {
-                ...(item.customFields || {}),
-                ...(totalArea !== undefined ? { total_area: totalArea } : {})
-              }
-            };
-          })
+          }))
         })
       });
 

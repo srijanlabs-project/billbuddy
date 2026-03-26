@@ -117,8 +117,8 @@ function normalizeDeliveryType(type) {
   return value;
 }
 
-function computeQuotationTotals({ items, gstPercent, transportCharges, designCharges, discountAmount, advanceAmount }) {
-  const normalizedItems = (items || []).map((item) => {
+function normalizeQuotationItems(items = []) {
+  return (items || []).map((item) => {
     const quantity = toAmount(item.quantity);
     const unitPrice = toAmount(item.unit_price ?? item.unitPrice);
     const totalPrice = toAmount(item.total_price ?? item.totalPrice) || (quantity * unitPrice);
@@ -142,7 +142,52 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
     };
   });
 
-  const subtotal = normalizedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  });
+}
+
+function computeQuotationTotals({ items, gstPercent, transportCharges, designCharges, discountAmount, advanceAmount, calculationColumns = [] }) {
+  const normalizedItems = normalizeQuotationItems(items);
+  const calcColumns = Array.isArray(calculationColumns)
+    ? calculationColumns.filter((column) => Boolean(column.included_in_calculation))
+    : [];
+  const calcKeys = calcColumns.map((column) => String(column.column_key || "").trim()).filter(Boolean);
+
+  const computedLineItems = normalizedItems.map((item) => {
+    const quantity = toAmount(item.quantity);
+    const unitPrice = toAmount(item.unitPrice);
+    const rawTotal = item.totalPrice;
+    const hasExplicitTotal = rawTotal !== null && rawTotal !== undefined && rawTotal !== "";
+    let totalPrice = hasExplicitTotal ? toAmount(rawTotal) : 0;
+    let usedCalcColumn = false;
+
+    if (!hasExplicitTotal && calcKeys.length) {
+      const customFields = item.custom_fields || item.customFields || {};
+      let derivedTotal = 0;
+      calcKeys.forEach((key) => {
+        const value = customFields[key];
+        if (value === undefined || value === null || value === "") return;
+        const numericValue = toAmount(value);
+        if (Number.isFinite(numericValue)) {
+          derivedTotal += numericValue;
+          usedCalcColumn = true;
+        }
+      });
+      if (usedCalcColumn) {
+        totalPrice = Number(derivedTotal.toFixed(2));
+      }
+    }
+
+    if (!hasExplicitTotal && !usedCalcColumn) {
+      totalPrice = quantity * unitPrice;
+    }
+
+    return {
+      ...item,
+      totalPrice
+    };
+  });
+
+  const subtotal = computedLineItems.reduce((sum, item) => sum + item.totalPrice, 0);
   const gstPct = toAmount(gstPercent);
   const gstAmount = subtotal * (gstPct / 100);
   const transport = toAmount(transportCharges);
@@ -153,7 +198,7 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
   const balanceAmount = Math.max(Number((totalAmount - discount - advance).toFixed(2)), 0);
 
   return {
-    normalizedItems,
+    normalizedItems: computedLineItems,
     subtotal,
     gstAmount,
     transport,
@@ -800,7 +845,7 @@ async function updateQuotationPaymentStatus(client, quotationId, sellerId) {
 
 async function getSellerCustomQuotationColumns(clientOrPool, sellerId) {
   const result = await clientOrPool.query(
-    `SELECT sqc.column_key, sqc.label, sqc.column_type, sqc.option_values, sqc.definition_text, sqc.formula_expression, sqc.required, sqc.visible_in_form
+    `SELECT sqc.column_key, sqc.label, sqc.column_type, sqc.option_values, sqc.definition_text, sqc.formula_expression, sqc.required, sqc.visible_in_form, sqc.included_in_calculation
      FROM seller_configuration_profiles scp
      INNER JOIN seller_quotation_columns sqc ON sqc.profile_id = scp.id
      WHERE scp.seller_id = $1
@@ -955,19 +1000,20 @@ async function createQuotationWithItems(payload) {
       }
     }
 
-    const { normalizedItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =
+    const normalizedItems = normalizeQuotationItems(items);
+    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
+    validateCustomQuotationFields(computedItems, customColumns);
+    const displayReadyItems = await applyQuotationItemDisplayConfig(client, sellerId, computedItems);
+    const { normalizedItems: computedLineItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =
       computeQuotationTotals({
-        items,
+        items: displayReadyItems,
         gstPercent,
         transportCharges: toAmount(transportCharges) + toAmount(transportationCost),
         designCharges,
         discountAmount,
-        advanceAmount
+        advanceAmount,
+        calculationColumns: customColumns
       });
-
-    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
-    validateCustomQuotationFields(computedItems, customColumns);
-    const displayReadyItems = await applyQuotationItemDisplayConfig(client, sellerId, computedItems);
     const approvalEvaluation = await evaluateQuotationApproval(client, {
       sellerId,
       requesterUserId: createdBy,
@@ -1059,7 +1105,7 @@ async function createQuotationWithItems(payload) {
       Object.assign(quotation, quotationUpdateResult.rows[0]);
     }
 
-    for (const item of displayReadyItems) {
+    for (const item of computedLineItems) {
       await client.query(
         `INSERT INTO quotation_items
          (quotation_id, seller_id, product_id, variant_id, size, quantity, unit_price, total_price, material_type, thickness, design_name, sku, color_name, imported_color_note, ps_included, dimension_height, dimension_width, dimension_unit, item_note, pricing_type, item_category, item_display_text, custom_fields)
