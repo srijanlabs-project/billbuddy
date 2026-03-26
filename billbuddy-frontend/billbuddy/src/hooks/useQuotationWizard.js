@@ -668,6 +668,22 @@ export default function useQuotationWizard({
     try {
       setQuotationWizardSubmitting(true);
       setError("");
+      const normalizedDeliveryType = String(quotationWizard.amounts.deliveryType || "PICKUP").toUpperCase();
+      if (normalizedDeliveryType === "DOORSTEP") {
+        const hasAddress = String(quotationWizard.amounts.deliveryAddress || "").trim();
+        const rawPincode = String(quotationWizard.amounts.deliveryPincode || "").trim();
+        const hasPincode = rawPincode;
+        if (!hasAddress || !hasPincode) {
+          setError("Delivery address and pincode are required for doorstep delivery.");
+          setQuotationWizardSubmitting(false);
+          return;
+        }
+        if (!/^\d{6}$/.test(rawPincode)) {
+          setError("Delivery pincode must be a 6-digit number.");
+          setQuotationWizardSubmitting(false);
+          return;
+        }
+      }
       const customerId = await ensureQuotationWizardCustomer();
       const response = await apiFetch("/api/quotations", {
         method: "POST",
@@ -684,7 +700,9 @@ export default function useQuotationWizard({
           balanceAmount: quotationWizardBalanceAmount,
           paymentStatus: quotationWizardAdvanceAmount > 0 && quotationWizardBalanceAmount > 0 ? "partial" : "pending",
           orderStatus: "NEW",
-          deliveryType: "PICKUP",
+          deliveryType: normalizedDeliveryType,
+          deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryAddress || "").trim() || null : null,
+          deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryPincode || "").trim() || null : null,
           sourceChannel: "seller-dashboard-modal",
           recordStatus: "submitted",
           customerMonthlyBilling: Boolean(quotationWizard.customer.monthlyBilling)

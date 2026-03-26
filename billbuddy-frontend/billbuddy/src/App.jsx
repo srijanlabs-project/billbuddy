@@ -6,6 +6,7 @@ import SettingsPage from "./components/SettingsPage";
 import ConfigurationStudio from "./components/ConfigurationStudio";
 import ProductsPage from "./components/ProductsPage";
 import OrdersPage from "./components/OrdersPage";
+import OrderDetailPage from "./components/OrderDetailPage";
 import CustomersPage from "./components/CustomersPage";
 import UsersPage from "./components/UsersPage";
 import ApprovalsPage from "./components/ApprovalsPage";
@@ -438,7 +439,7 @@ function getQuotationThemeConfig(themeKey) {
 
 function getPlanTemplateAccessTier(subscription) {
   if (!subscription) return "FREE";
-  if (Boolean(subscription.is_demo_plan)) return "FREE";
+  if (subscription.is_demo_plan) return "FREE";
   const tier = String(subscription.template_access_tier || "").trim().toUpperCase();
   return ["FREE", "PAID", "PREMIUM", "NICHE"].includes(tier) ? tier : "FREE";
 }
@@ -1380,7 +1381,10 @@ function createInitialQuotationWizardState(firstProduct = null) {
       discountAmount: "",
       advanceAmount: "",
       deliveryDate: "",
-      referenceRequestId: ""
+      referenceRequestId: "",
+      deliveryType: "PICKUP",
+      deliveryAddress: "",
+      deliveryPincode: ""
     },
     submittedQuotation: null
   };
@@ -3809,26 +3813,26 @@ function App() {
 
   useEffect(() => {
     verifySession();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (auth?.token && authReady) {
       loadDashboardData(dashboardRange);
     }
-  }, [auth?.token, authReady, dashboardRange]);
+  }, [auth?.token, authReady, dashboardRange]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!isPlatformAdmin || activeModule !== "Leads") return;
     if (selectedLeadId) return;
     if (!leads.length) return;
     openLeadDetail(leads[0].id);
-  }, [activeModule, isPlatformAdmin, leads, selectedLeadId]);
+  }, [activeModule, isPlatformAdmin, leads, selectedLeadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!auth?.token || isPlatformAdmin) return;
     if (!["Products", "Dashboard", "Configuration Studio", "Subscriptions"].includes(activeModule)) return;
     refreshCurrentSellerConfiguration();
-  }, [activeModule, auth?.token, isPlatformAdmin]);
+  }, [activeModule, auth?.token, isPlatformAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setSellerPage(1);
@@ -4042,7 +4046,7 @@ function App() {
     if (activeModule !== "Configuration Studio" || isPlatformAdmin || !seller?.id) return;
     if (selectedSellerConfigSeller?.id === seller.id) return;
     openSellerConfigurationStudio(seller);
-  }, [activeModule, isPlatformAdmin, seller?.id, selectedSellerConfigSeller?.id]);
+  }, [activeModule, isPlatformAdmin, seller?.id, selectedSellerConfigSeller?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runtimeCatalogueFields = useMemo(
     () => sortConfigEntries(getSupportedCatalogueFields(runtimeSellerConfiguration)),
@@ -4238,7 +4242,7 @@ function App() {
     showProductUploadModal ||
     showSingleProductModal ||
     showProductPreviewModal ||
-    showOrderDetailsModal ||
+    isEditingQuotation ||
     showSellerDetailModal ||
     showSubscriptionModal ||
     showPlanDetailModal ||
@@ -5521,50 +5525,6 @@ function App() {
     }
   }
 
-  async function handleDownloadRichPdfDebug(orderId) {
-    try {
-      const token = auth?.token || getStoredAuth()?.token || null;
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-      const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), 20000);
-      const response = await fetch(`${baseUrl}/api/quotations/${orderId}/download?debug=1`, {
-        signal: controller.signal,
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      });
-      window.clearTimeout(timeoutId);
-      if (!response.ok) {
-        let errorMessage = "Failed to run rich PDF debug";
-        try {
-          const errorPayload = await response.json();
-          errorMessage = errorPayload?.message || errorMessage;
-        } catch {
-          // Keep generic message if backend did not return JSON.
-        }
-        throw new Error(errorMessage);
-      }
-      const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") || "";
-      const nameMatch = disposition.match(/filename="?([^"]+)"?/i);
-      const filename = nameMatch?.[1] || `${getQuotationFileStem(selectedOrderDetails?.quotation || { id: orderId })}.pdf`;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      if (err?.name === "AbortError") {
-        setError("Rich PDF debug timed out. Please check backend logs for the last printed stage.");
-        return;
-      }
-      handleApiError(err);
-    }
-  }
-
   async function handleDownloadQuotationSheet(orderId) {
     try {
       const details = await apiFetch(`/api/quotations/${orderId}`);
@@ -5824,119 +5784,46 @@ function App() {
     setIsEditingQuotation(false);
   }
 
-  function handleQuotationItemChange(index, field, value) {
-    const normalizedField = normalizeConfigKey(field);
-    setQuotationEditForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-
-        if (field === "materialName" || normalizedField === "material_name") {
-          return {
-            ...item,
-            materialName: value,
-            materialType: value
-          };
-        }
-        if (field === "unitPrice" || normalizedField === "rate" || normalizedField === "unit_price") {
-          return { ...item, unitPrice: value };
-        }
-        if (normalizedField === "quantity") {
-          return { ...item, quantity: value };
-        }
-        if (normalizedField === "thickness") {
-          return { ...item, thickness: value };
-        }
-        if (normalizedField === "size") {
-          return {
-            ...item,
-            size: value,
-            customFields: {
-              ...(item.customFields || {}),
-              size: value
-            }
-          };
-        }
-        if (normalizedField === "width") {
-          return { ...item, dimensionWidth: value };
-        }
-        if (normalizedField === "height") {
-          return { ...item, dimensionHeight: value };
-        }
-        if (normalizedField === "unit") {
-          return { ...item, dimensionUnit: value };
-        }
-        if (normalizedField === "category") {
-          return { ...item, itemCategory: value };
-        }
-        if (normalizedField === "note" || normalizedField === "item_note") {
-          return { ...item, itemNote: value };
-        }
-        if (normalizedField === "color_name") {
-          return { ...item, colorName: value };
-        }
-        if (normalizedField === "other_info" || normalizedField === "imported_color_note") {
-          return { ...item, importedColorNote: value };
-        }
-        if (normalizedField === "ps") {
-          return { ...item, psIncluded: Boolean(value) };
-        }
-
-        return {
-          ...item,
-          customFields: {
-            ...(item.customFields || {}),
-            [normalizedField || field]: value
-          }
-        };
-      })
-    }));
-  }
-
-  function handleQuotationEditMaterialSelect(index, materialName) {
+  function resolveQuotationEditMaterialSelection(item, materialName) {
     const normalizedMaterial = normalizeLookupValue(materialName);
-    if (!normalizedMaterial) return;
+    if (!normalizedMaterial) {
+      return {
+        ...item,
+        materialName: materialName,
+        materialType: materialName
+      };
+    }
     const matchingProducts = (products || []).filter(
       (product) => normalizeLookupValue(product.material_name) === normalizedMaterial
     );
 
     if (!matchingProducts.length) {
-      handleQuotationItemChange(index, "materialName", materialName);
-      return;
+      return {
+        ...item,
+        materialName: materialName,
+        materialType: materialName
+      };
     }
 
     const selectedProduct = matchingProducts[0];
     const customFieldSeedColumns = unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && String(column.type || "").toLowerCase() !== "formula");
-    setQuotationEditForm((prev) => ({
-      ...prev,
-      items: prev.items.map((item, itemIndex) => {
-        if (itemIndex !== index) return item;
-        return {
-          ...item,
-          productId: selectedProduct.id ? String(selectedProduct.id) : "",
-          materialName: selectedProduct.material_name || materialName,
-          materialType: selectedProduct.material_name || materialName,
-          itemCategory: selectedProduct.category || item.itemCategory || "",
-          thickness: selectedProduct.thickness || item.thickness || "",
-          colorName: selectedProduct.color_name || item.colorName || "",
-          sku: selectedProduct.sku || item.sku || "",
-          pricingType: selectedProduct.pricing_type || item.pricingType || "SFT",
-          unitPrice: String(item.unitPrice || selectedProduct.base_price || ""),
-          customFields: getCatalogueDrivenQuotationCustomFields(
-            selectedProduct,
-            customFieldSeedColumns,
-            item.customFields || {}
-          )
-        };
-      })
-    }));
-  }
-
-  function handleAddQuotationEditItem() {
-    setQuotationEditForm((prev) => ({
-      ...prev,
-      items: [...prev.items, createEditableQuotationItem()]
-    }));
+    return {
+      ...item,
+      productId: selectedProduct.id ? String(selectedProduct.id) : "",
+      materialName: selectedProduct.material_name || materialName,
+      materialType: selectedProduct.material_name || materialName,
+      itemCategory: selectedProduct.category || item.itemCategory || "",
+      thickness: selectedProduct.thickness || item.thickness || "",
+      colorName: selectedProduct.color_name || item.colorName || "",
+      sku: selectedProduct.sku || item.sku || "",
+      pricingType: selectedProduct.pricing_type || item.pricingType || "SFT",
+      unitPrice: String(item.unitPrice || selectedProduct.base_price || ""),
+      customFields: getCatalogueDrivenQuotationCustomFields(
+        selectedProduct,
+        customFieldSeedColumns,
+        item.customFields || {}
+      )
+    };
   }
 
   function handleRemoveQuotationEditItem(index) {
@@ -5963,16 +5850,30 @@ function App() {
         setError(`Item ${invalidItemIndex + 1} is incomplete. Product, quantity, and rate are required.`);
         return;
       }
+      const normalizedDeliveryType = String(quotationEditForm.deliveryType || "PICKUP").toUpperCase();
+      if (normalizedDeliveryType === "DOORSTEP") {
+        const hasAddress = String(quotationEditForm.deliveryAddress || "").trim();
+        const rawPincode = String(quotationEditForm.deliveryPincode || "").trim();
+        const hasPincode = rawPincode;
+        if (!hasAddress || !hasPincode) {
+          setError("Delivery address and pincode are required for doorstep delivery.");
+          return;
+        }
+        if (!/^\d{6}$/.test(rawPincode)) {
+          setError("Delivery pincode must be a 6-digit number.");
+          return;
+        }
+      }
 
       const response = await apiFetch(`/api/quotations/${selectedOrderDetails.quotation.id}/revise`, {
         method: "PATCH",
         body: JSON.stringify({
           customQuotationNumber: quotationEditForm.customQuotationNumber || null,
           referenceRequestId: quotationEditForm.referenceRequestId || null,
-          deliveryType: quotationEditForm.deliveryType,
+          deliveryType: normalizedDeliveryType,
           deliveryDate: quotationEditForm.deliveryDate || null,
-          deliveryAddress: quotationEditForm.deliveryAddress || null,
-          deliveryPincode: quotationEditForm.deliveryPincode || null,
+          deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? quotationEditForm.deliveryAddress || null : null,
+          deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? quotationEditForm.deliveryPincode || null : null,
           transportCharges: Number(quotationEditForm.transportCharges || 0),
           designCharges: Number(quotationEditForm.designCharges || 0),
           discountAmount: Number(quotationEditForm.discountAmount || 0),
@@ -6512,36 +6413,74 @@ function App() {
             handleDownloadQuotation={handleDownloadQuotation}
           />
         ) : activeModule === "Orders" ? (
-          <OrdersPage
-            activeModule={activeModule}
-            quotations={quotations}
-            sellers={sellers}
-            seller={seller}
-            isPlatformAdmin={isPlatformAdmin}
-            filteredOrders={filteredOrders}
-            pagedOrders={pagedOrders}
-            orderPage={orderPage}
-            PAGE_SIZE={PAGE_SIZE}
-            setOrderPage={setOrderPage}
-            handleOpenOrderDetails={handleOpenOrderDetails}
-            formatQuotationLabel={formatQuotationLabel}
-            formatCurrency={formatCurrency}
-            statusLabel={statusLabel}
-            handleOrderStatusUpdate={handleOrderStatusUpdate}
-            ORDER_STATUS_OPTIONS={ORDER_STATUS_OPTIONS}
-            handleMarkQuotationSent={handleMarkQuotationSent}
-            handleMarkPaid={handleMarkPaid}
-            handleDownloadQuotationSheet={handleDownloadQuotationSheet}
-            handleDownloadQuotation={handleDownloadQuotation}
-            handleSendQuotationEmail={handleSendQuotationEmail}
-            renderPagination={renderPagination}
-            canEditQuotation={canEditQuotation}
-            canSendQuotation={canSendQuotation}
-            canMarkPaid={canMarkPaid}
-            canDownloadQuotationPdf={canDownloadQuotationPdf}
-            loadQuotationExportDraft={loadQuotationExportDraft}
-            downloadQuotationExportSheet={downloadQuotationExportSheet}
-          />
+          showOrderDetailsModal ? (
+            <OrderDetailPage
+              showOrderDetailsPage={showOrderDetailsModal}
+              selectedOrderDetails={selectedOrderDetails}
+              closeOrderDetailsPage={closeOrderDetailsModal}
+              handleDownloadQuotationSheet={handleDownloadQuotationSheet}
+              handleSendQuotationEmail={handleSendQuotationEmail}
+              selectedVersionRecord={selectedVersionRecord}
+              selectedVersionIndex={selectedVersionIndex}
+              setIsEditingQuotation={setIsEditingQuotation}
+              shouldShowVersionSelector={shouldShowVersionSelector}
+              selectedVersionId={selectedVersionId}
+              setSelectedVersionId={setSelectedVersionId}
+              orderVersions={orderVersions}
+              getVersionLabel={getVersionLabel}
+              formatDateIST={formatDateIST}
+              displayedQuotation={displayedQuotation}
+              previousVersionRecord={previousVersionRecord}
+              quotationFieldChanged={quotationFieldChanged}
+              formatQuotationLabel={formatQuotationLabel}
+              formatCurrency={formatCurrency}
+              statusLabel={statusLabel}
+              approvalStatusLabel={approvalStatusLabel}
+              openApprovalRequest={openApprovalRequest}
+              error={error}
+              orderDetailColumns={orderDetailColumns}
+              displayedItems={displayedItems}
+              quotationItemFieldChanged={quotationItemFieldChanged}
+              getQuotationItemTitle={getQuotationItemTitle}
+              getQuotationCustomFieldEntries={getQuotationCustomFieldEntries}
+              getQuotationItemDimensionText={getQuotationItemDimensionText}
+              getQuotationItemQuantityValue={getQuotationItemQuantityValue}
+              getQuotationItemRateValue={getQuotationItemRateValue}
+              getQuotationItemTotalValue={getQuotationItemTotalValue}
+              canReviseQuotation={canReviseQuotation}
+            />
+          ) : (
+            <OrdersPage
+              activeModule={activeModule}
+              quotations={quotations}
+              sellers={sellers}
+              seller={seller}
+              isPlatformAdmin={isPlatformAdmin}
+              filteredOrders={filteredOrders}
+              pagedOrders={pagedOrders}
+              orderPage={orderPage}
+              PAGE_SIZE={PAGE_SIZE}
+              setOrderPage={setOrderPage}
+              handleOpenOrderDetails={handleOpenOrderDetails}
+              formatQuotationLabel={formatQuotationLabel}
+              formatCurrency={formatCurrency}
+              statusLabel={statusLabel}
+              handleOrderStatusUpdate={handleOrderStatusUpdate}
+              ORDER_STATUS_OPTIONS={ORDER_STATUS_OPTIONS}
+              handleMarkQuotationSent={handleMarkQuotationSent}
+              handleMarkPaid={handleMarkPaid}
+              handleDownloadQuotationSheet={handleDownloadQuotationSheet}
+              handleDownloadQuotation={handleDownloadQuotation}
+              handleSendQuotationEmail={handleSendQuotationEmail}
+              renderPagination={renderPagination}
+              canEditQuotation={canEditQuotation}
+              canSendQuotation={canSendQuotation}
+              canMarkPaid={canMarkPaid}
+              canDownloadQuotationPdf={canDownloadQuotationPdf}
+              loadQuotationExportDraft={loadQuotationExportDraft}
+              downloadQuotationExportSheet={downloadQuotationExportSheet}
+            />
+          )
         ) : activeModule === "Customers" ? (
           <CustomersPage
             activeModule={activeModule}
@@ -6808,9 +6747,11 @@ function App() {
         )}
 
         <OrderDetailModal
-          showOrderDetailsModal={showOrderDetailsModal}
+          key={`${selectedOrderDetails?.quotation?.id || "none"}-${isEditingQuotation ? "edit" : "view"}`}
+          showOrderDetailsModal={isEditingQuotation}
           selectedOrderDetails={selectedOrderDetails}
           closeOrderDetailsModal={closeOrderDetailsModal}
+          closeEditModal={() => setIsEditingQuotation(false)}
           handleDownloadQuotationSheet={handleDownloadQuotationSheet}
           handleSendQuotationEmail={handleSendQuotationEmail}
           selectedVersionRecord={selectedVersionRecord}
@@ -6838,10 +6779,9 @@ function App() {
           quotationEditMaterialSuggestions={quotationEditMaterialSuggestions}
           displayedItems={displayedItems}
           quotationItemFieldChanged={quotationItemFieldChanged}
-          handleQuotationItemChange={handleQuotationItemChange}
-          handleQuotationEditMaterialSelect={handleQuotationEditMaterialSelect}
-          handleAddQuotationEditItem={handleAddQuotationEditItem}
           handleRemoveQuotationEditItem={handleRemoveQuotationEditItem}
+          resolveQuotationEditMaterialSelection={resolveQuotationEditMaterialSelection}
+          createEditableQuotationItem={createEditableQuotationItem}
           getQuotationItemTitle={getQuotationItemTitle}
           getQuotationCustomFieldEntries={getQuotationCustomFieldEntries}
           getQuotationItemDimensionText={getQuotationItemDimensionText}

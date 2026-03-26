@@ -427,10 +427,35 @@ export default function QuotationWizardModal(props) {
               <input placeholder="Discount Amount" type="number" min="0" value={quotationWizard.amounts.discountAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }))} />
               <input placeholder="Advance Amount" type="number" min="0" value={quotationWizard.amounts.advanceAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, advanceAmount: e.target.value } }))} />
               <input placeholder="Reference Request ID" type="text" maxLength="120" value={quotationWizard.amounts.referenceRequestId || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, referenceRequestId: e.target.value } }))} />
+              <label>
+                <span>Delivery Type</span>
+                <select
+                  value={quotationWizard.amounts.deliveryType || "PICKUP"}
+                  onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryType: e.target.value } }))}
+                >
+                  <option value="PICKUP">Pickup</option>
+                  <option value="DOORSTEP">Doorstep</option>
+                </select>
+                <small className="muted">Address and pincode are required for doorstep delivery.</small>
+              </label>
               <label className="wizard-full">
                 <span className="muted">Delivery Date</span>
                 <input type="date" value={quotationWizard.amounts.deliveryDate || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryDate: e.target.value } }))} />
               </label>
+              {String(quotationWizard.amounts.deliveryType || "PICKUP") === "DOORSTEP" && (
+                <>
+                  <input
+                    placeholder="Delivery Address"
+                    value={quotationWizard.amounts.deliveryAddress || ""}
+                    onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryAddress: e.target.value } }))}
+                  />
+                  <input
+                    placeholder="Delivery Pincode"
+                    value={quotationWizard.amounts.deliveryPincode || ""}
+                    onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, deliveryPincode: e.target.value } }))}
+                  />
+                </>
+              )}
             </div>
             <div className="quotation-wizard-summary-grid">
               <div className="preview-pane">
@@ -440,6 +465,13 @@ export default function QuotationWizardModal(props) {
                 <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>
                 <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
                 <span>Reference Request ID: {quotationWizard.amounts.referenceRequestId || "-"}</span>
+                <span>Delivery Type: {quotationWizard.amounts.deliveryType || "PICKUP"}</span>
+                {String(quotationWizard.amounts.deliveryType || "PICKUP") === "DOORSTEP" && (
+                  <>
+                    <span>Delivery Address: {quotationWizard.amounts.deliveryAddress || "-"}</span>
+                    <span>Delivery Pincode: {quotationWizard.amounts.deliveryPincode || "-"}</span>
+                  </>
+                )}
                 <span>Delivery Date: {formatDateIST(quotationWizard.amounts.deliveryDate)}</span>
                 <span>Balance: {formatCurrency(quotationWizardBalanceAmount)}</span>
               </div>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { getItemDisplayFieldValue } from "../utils/quotationView";
 
 function normalizeColumnKey(value) {
@@ -34,6 +35,7 @@ export default function OrderDetailModal(props) {
     showOrderDetailsModal,
     selectedOrderDetails,
     closeOrderDetailsModal,
+    closeEditModal,
     handleDownloadQuotationSheet,
     handleSendQuotationEmail,
     selectedVersionRecord,
@@ -62,10 +64,9 @@ export default function OrderDetailModal(props) {
     quotationEditMaterialSuggestions,
     displayedItems,
     quotationItemFieldChanged,
-    handleQuotationItemChange,
-    handleQuotationEditMaterialSelect,
-    handleAddQuotationEditItem,
     handleRemoveQuotationEditItem,
+    resolveQuotationEditMaterialSelection,
+    createEditableQuotationItem,
     getQuotationItemTitle,
     getQuotationCustomFieldEntries,
     getQuotationItemDimensionText,
@@ -75,10 +76,143 @@ export default function OrderDetailModal(props) {
     canReviseQuotation
   } = props;
 
+  const [editMode, setEditMode] = useState(null);
+  const [editIndex, setEditIndex] = useState(null);
+  const [editDraft, setEditDraft] = useState(null);
+
   if (!showOrderDetailsModal || !selectedOrderDetails) return null;
+  const handleClose = isEditingQuotation && closeEditModal ? closeEditModal : closeOrderDetailsModal;
+
+  function startEditItem(index) {
+    const source = quotationEditForm?.items?.[index];
+    if (!source) return;
+    setEditMode("edit");
+    setEditIndex(index);
+    setEditDraft({
+      ...source,
+      customFields: { ...(source.customFields || {}) }
+    });
+  }
+
+  function startAddItem() {
+    const draft = typeof createEditableQuotationItem === "function"
+      ? createEditableQuotationItem()
+      : { customFields: {} };
+    setEditMode("add");
+    setEditIndex(null);
+    setEditDraft({
+      ...draft,
+      customFields: { ...(draft.customFields || {}) }
+    });
+  }
+
+  function cancelEditItem() {
+    setEditMode(null);
+    setEditIndex(null);
+    setEditDraft(null);
+  }
+
+  function saveEditItem() {
+    if (!editDraft) return;
+    if (editMode === "edit" && editIndex !== null) {
+      setQuotationEditForm((prev) => ({
+        ...prev,
+        items: (prev.items || []).map((item, index) => (index === editIndex ? editDraft : item))
+      }));
+    }
+    if (editMode === "add") {
+      setQuotationEditForm((prev) => ({
+        ...prev,
+        items: [...(prev.items || []), editDraft]
+      }));
+    }
+    cancelEditItem();
+  }
+
+  function updateEditDraft(field, value) {
+    if (!editDraft) return;
+    const normalizedField = normalizeColumnKey(field);
+    if (field === "materialName" || normalizedField === "material_name") {
+      setEditDraft((prev) => ({
+        ...prev,
+        materialName: value,
+        materialType: value
+      }));
+      return;
+    }
+    if (field === "unitPrice" || normalizedField === "rate" || normalizedField === "unit_price") {
+      setEditDraft((prev) => ({ ...prev, unitPrice: value }));
+      return;
+    }
+    if (normalizedField === "quantity") {
+      setEditDraft((prev) => ({ ...prev, quantity: value }));
+      return;
+    }
+    if (normalizedField === "thickness") {
+      setEditDraft((prev) => ({ ...prev, thickness: value }));
+      return;
+    }
+    if (normalizedField === "size") {
+      setEditDraft((prev) => ({
+        ...prev,
+        size: value,
+        customFields: {
+          ...(prev.customFields || {}),
+          size: value
+        }
+      }));
+      return;
+    }
+    if (normalizedField === "width") {
+      setEditDraft((prev) => ({ ...prev, dimensionWidth: value }));
+      return;
+    }
+    if (normalizedField === "height") {
+      setEditDraft((prev) => ({ ...prev, dimensionHeight: value }));
+      return;
+    }
+    if (normalizedField === "unit") {
+      setEditDraft((prev) => ({ ...prev, dimensionUnit: value }));
+      return;
+    }
+    if (normalizedField === "category") {
+      setEditDraft((prev) => ({ ...prev, itemCategory: value }));
+      return;
+    }
+    if (normalizedField === "note" || normalizedField === "item_note") {
+      setEditDraft((prev) => ({ ...prev, itemNote: value }));
+      return;
+    }
+    if (normalizedField === "color_name") {
+      setEditDraft((prev) => ({ ...prev, colorName: value }));
+      return;
+    }
+    if (normalizedField === "other_info" || normalizedField === "imported_color_note") {
+      setEditDraft((prev) => ({ ...prev, importedColorNote: value }));
+      return;
+    }
+    if (normalizedField === "ps") {
+      setEditDraft((prev) => ({ ...prev, psIncluded: Boolean(value) }));
+      return;
+    }
+
+    setEditDraft((prev) => ({
+      ...prev,
+      customFields: {
+        ...(prev.customFields || {}),
+        [normalizedField || field]: value
+      }
+    }));
+  }
+
+  function handleDraftMaterialBlur(value) {
+    if (!editDraft || editMode !== "add" || typeof resolveQuotationEditMaterialSelection !== "function") return;
+    const next = resolveQuotationEditMaterialSelection(editDraft, value);
+    setEditDraft(next);
+  }
 
   return (
-    <div className="modal-overlay" onClick={closeOrderDetailsModal}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-card modal-wide glass-panel" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
           <h3>Quotation Details</h3>
@@ -97,18 +231,28 @@ export default function OrderDetailModal(props) {
             >
               Send Email
             </button>
-            <button
-              type="button"
-              className="ghost-btn"
-              onClick={() => setIsEditingQuotation((prev) => !prev)}
-              disabled={!canReviseQuotation || Boolean(selectedVersionRecord && selectedVersionIndex > 0)}
-            >
-              {isEditingQuotation ? "Cancel Edit" : "Edit Quotation"}
-            </button>
+            {isEditingQuotation ? (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={handleClose}
+              >
+                Cancel Edit
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => setIsEditingQuotation(true)}
+                disabled={!canReviseQuotation || Boolean(selectedVersionRecord && selectedVersionIndex > 0)}
+              >
+                Edit Quotation
+              </button>
+            )}
             {isEditingQuotation && canReviseQuotation && (
               <button type="button" onClick={handleSaveQuotationRevision}>Save New Version</button>
             )}
-            <button type="button" className="ghost-btn" onClick={closeOrderDetailsModal}>Close</button>
+            <button type="button" className="ghost-btn" onClick={handleClose}>Close</button>
           </div>
         </div>
         {error && <div className="notice error">{error}</div>}
@@ -152,14 +296,18 @@ export default function OrderDetailModal(props) {
             <span className={quotationFieldChanged("payment_status") ? "change-highlight" : ""}>Payment: {statusLabel(displayedQuotation?.payment_status)}</span>
             <span className={quotationFieldChanged("approval_status") ? "change-highlight" : ""}>Approval: {approvalStatusLabel(displayedQuotation?.approval_status)}</span>
           </div>
-          <div className="preview-pane">
-            <h5>Delivery</h5>
-            <span className={quotationFieldChanged("delivery_type") ? "change-highlight" : ""}>Type: {displayedQuotation?.delivery_type || "-"}</span>
-            <span className={quotationFieldChanged("delivery_date") ? "change-highlight" : ""}>Date: {formatDateIST(displayedQuotation?.delivery_date)}</span>
-            <span className={quotationFieldChanged("reference_request_id") ? "change-highlight" : ""}>Reference Request ID: {displayedQuotation?.reference_request_id || "-"}</span>
-            <span className={quotationFieldChanged("delivery_address") ? "change-highlight" : ""}>Address: {displayedQuotation?.delivery_address || "-"}</span>
-            <span className={quotationFieldChanged("delivery_pincode") ? "change-highlight" : ""}>Pincode: {displayedQuotation?.delivery_pincode || "-"}</span>
-          </div>
+        <div className="preview-pane">
+          <h5>Delivery</h5>
+          <span className={quotationFieldChanged("delivery_type") ? "change-highlight" : ""}>Type: {displayedQuotation?.delivery_type || "-"}</span>
+          <span className={quotationFieldChanged("delivery_date") ? "change-highlight" : ""}>Date: {formatDateIST(displayedQuotation?.delivery_date)}</span>
+          <span className={quotationFieldChanged("reference_request_id") ? "change-highlight" : ""}>Reference Request ID: {displayedQuotation?.reference_request_id || "-"}</span>
+          {String(displayedQuotation?.delivery_type || "PICKUP").toUpperCase() === "DOORSTEP" && (
+            <>
+              <span className={quotationFieldChanged("delivery_address") ? "change-highlight" : ""}>Address: {displayedQuotation?.delivery_address || "-"}</span>
+              <span className={quotationFieldChanged("delivery_pincode") ? "change-highlight" : ""}>Pincode: {displayedQuotation?.delivery_pincode || "-"}</span>
+            </>
+          )}
+        </div>
         </div>
 
         <div className="preview-grid" style={{ marginTop: "14px" }}>
@@ -220,38 +368,43 @@ export default function OrderDetailModal(props) {
                 <option value="PICKUP">Pickup</option>
                 <option value="DOORSTEP">Doorstep</option>
               </select>
+              <small className="muted">Address and pincode are required for doorstep delivery.</small>
               <input type="date" value={quotationEditForm.deliveryDate || ""} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryDate: e.target.value }))} />
-              <input placeholder="Delivery address" value={quotationEditForm.deliveryAddress} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))} />
-              <input placeholder="Delivery pincode" value={quotationEditForm.deliveryPincode} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryPincode: e.target.value }))} />
+              {String(quotationEditForm.deliveryType || "PICKUP") === "DOORSTEP" && (
+                <>
+                  <input placeholder="Delivery address" value={quotationEditForm.deliveryAddress} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryAddress: e.target.value }))} />
+                  <input placeholder="Delivery pincode" value={quotationEditForm.deliveryPincode} onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, deliveryPincode: e.target.value }))} />
+                </>
+              )}
             </div>
-          <div className="preview-pane">
-            <h5>Edit Items</h5>
-            <span>Add or remove line items before saving the new version.</span>
-            <label className="compact-field-label">
-              <span>Discount</span>
-              <input
-                className="compact-amount-input"
-                type="number"
-                min="0"
-                value={quotationEditForm.discountAmount || ""}
-                onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, discountAmount: e.target.value }))}
-              />
-            </label>
-            <label className="compact-field-label">
-              <span>Advance</span>
-              <input
-                className="compact-amount-input"
-                type="number"
-                min="0"
-                value={quotationEditForm.advanceAmount || ""}
-                onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, advanceAmount: e.target.value }))}
-              />
-            </label>
-            <button type="button" className="ghost-btn" onClick={handleAddQuotationEditItem}>
-              Add Item
-            </button>
+            <div className="preview-pane">
+              <h5>Edit Items</h5>
+              <span>Add or remove line items before saving the new version.</span>
+              <label className="compact-field-label">
+                <span>Discount</span>
+                <input
+                  className="compact-amount-input"
+                  type="number"
+                  min="0"
+                  value={quotationEditForm.discountAmount || ""}
+                  onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, discountAmount: e.target.value }))}
+                />
+              </label>
+              <label className="compact-field-label">
+                <span>Advance</span>
+                <input
+                  className="compact-amount-input"
+                  type="number"
+                  min="0"
+                  value={quotationEditForm.advanceAmount || ""}
+                  onChange={(e) => setQuotationEditForm((prev) => ({ ...prev, advanceAmount: e.target.value }))}
+                />
+              </label>
+              <button type="button" className="ghost-btn" onClick={startAddItem}>
+                Add Item
+              </button>
+            </div>
           </div>
-        </div>
         )}
 
         <table className="data-table" style={{ marginTop: "14px" }}>
@@ -260,7 +413,7 @@ export default function OrderDetailModal(props) {
               {(orderDetailColumns || []).map((column) => (
                 <th key={column.key}>{column.label || column.key}</th>
               ))}
-              {isEditingQuotation && <th>Action</th>}
+              {isEditingQuotation && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -270,57 +423,7 @@ export default function OrderDetailModal(props) {
               <tr key={item.id || item.tempId || index}>
                 {(orderDetailColumns || []).map((column) => {
                   const normalizedKey = normalizeColumnKey(column.key);
-                  const isFormula = String(column.type || "").toLowerCase() === "formula" || normalizedKey === "amount";
-                  const isNumber = ["number", "formula"].includes(String(column.type || "").toLowerCase()) || ["quantity", "rate", "amount", "width", "height"].includes(normalizedKey);
                   const cellKey = `${column.key}-${index}`;
-
-                  if (isEditingQuotation) {
-                    if (normalizedKey === "material_name") {
-                      return (
-                        <td key={cellKey}>
-                          <input
-                            list="quotation-edit-material-suggestions"
-                            value={item.materialName || ""}
-                            onChange={(e) => handleQuotationItemChange(index, "material_name", e.target.value)}
-                            onBlur={(e) => handleQuotationEditMaterialSelect(index, e.target.value)}
-                          />
-                        </td>
-                      );
-                    }
-                    if (isFormula) {
-                      return (
-                        <td key={cellKey}>
-                          {formatCurrency(getQuotationItemTotalValue(item))}
-                        </td>
-                      );
-                    }
-                    if (normalizedKey === "ps") {
-                      return (
-                        <td key={cellKey}>
-                          <input
-                            type="checkbox"
-                            checked={Boolean(item.psIncluded)}
-                            onChange={(e) => handleQuotationItemChange(index, "ps", e.target.checked)}
-                          />
-                        </td>
-                      );
-                    }
-
-                    return (
-                      <td key={cellKey}>
-                        <input
-                          type={isNumber ? "number" : "text"}
-                          value={String(getOrderItemColumnValue(item, normalizedKey, {
-                            getQuotationItemDimensionText,
-                            getQuotationItemQuantityValue,
-                            getQuotationItemRateValue,
-                            getQuotationItemTotalValue
-                          }) ?? "")}
-                          onChange={(e) => handleQuotationItemChange(index, normalizedKey, e.target.value)}
-                        />
-                      </td>
-                    );
-                  }
 
                   const compareKey = normalizedKey === "rate" ? "unit_price" : normalizedKey === "amount" ? "total_price" : normalizedKey;
                   const changed = quotationItemFieldChanged(item, index, compareKey);
@@ -355,15 +458,113 @@ export default function OrderDetailModal(props) {
                 })}
                 {isEditingQuotation && (
                   <td>
-                    <button type="button" className="ghost-btn compact" onClick={() => handleRemoveQuotationEditItem(index)}>
-                      Remove
-                    </button>
+                    <div className="order-actions">
+                      <button type="button" className="ghost-btn compact" onClick={() => startEditItem(index)}>
+                        Edit
+                      </button>
+                      <button type="button" className="ghost-btn compact" onClick={() => handleRemoveQuotationEditItem(index)}>
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>
             ))}
           </tbody>
         </table>
+        {isEditingQuotation && editMode && editDraft && (
+          <div style={{ marginTop: "16px" }}>
+            <div className="section-head">
+              <h3>{editMode === "add" ? "Add Item" : "Edit Item"}</h3>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" onClick={saveEditItem}>
+                  {editMode === "add" ? "Add Item" : "Update Item"}
+                </button>
+                <button type="button" className="ghost-btn" onClick={cancelEditItem}>Cancel</button>
+              </div>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  {(orderDetailColumns || []).map((column) => (
+                    <th key={column.key}>{column.label || column.key}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {(orderDetailColumns || []).map((column) => {
+                    const normalizedKey = normalizeColumnKey(column.key);
+                    const isFormula = String(column.type || "").toLowerCase() === "formula" || normalizedKey === "amount";
+                    const isNumber = ["number", "formula"].includes(String(column.type || "").toLowerCase()) || ["quantity", "rate", "amount", "width", "height"].includes(normalizedKey);
+                    const cellKey = `${column.key}-edit`;
+
+                    if (normalizedKey === "material_name") {
+                      return (
+                        <td key={cellKey}>
+                          {editMode === "add" ? (
+                            <input
+                              list="quotation-edit-material-suggestions"
+                              value={editDraft.materialName || ""}
+                              onChange={(e) => updateEditDraft("material_name", e.target.value)}
+                              onBlur={(e) => handleDraftMaterialBlur(e.target.value)}
+                            />
+                          ) : (
+                            <div className="quotation-item-cell">
+                              <strong>{getQuotationItemTitle(editDraft) || "-"}</strong>
+                            </div>
+                          )}
+                        </td>
+                      );
+                    }
+                    if (isFormula) {
+                      const isAmountLike = ["amount", "total", "total_price"].includes(normalizedKey);
+                      const formulaValue = isAmountLike
+                        ? formatCurrency(getQuotationItemTotalValue(editDraft))
+                        : getOrderItemColumnValue(editDraft, normalizedKey, {
+                          getQuotationItemDimensionText,
+                          getQuotationItemQuantityValue,
+                          getQuotationItemRateValue,
+                          getQuotationItemTotalValue
+                        });
+                      return (
+                        <td key={cellKey}>
+                          {formulaValue === null || formulaValue === undefined || String(formulaValue).trim() === "" ? "-" : formulaValue}
+                        </td>
+                      );
+                    }
+                    if (normalizedKey === "ps") {
+                      return (
+                        <td key={cellKey}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editDraft.psIncluded)}
+                            onChange={(e) => updateEditDraft("ps", e.target.checked)}
+                          />
+                        </td>
+                      );
+                    }
+
+                    return (
+                      <td key={cellKey}>
+                        <input
+                          type={isNumber ? "number" : "text"}
+                          value={String(getOrderItemColumnValue(editDraft, normalizedKey, {
+                            getQuotationItemDimensionText,
+                            getQuotationItemQuantityValue,
+                            getQuotationItemRateValue,
+                            getQuotationItemTotalValue
+                          }) ?? "")}
+                          onChange={(e) => updateEditDraft(normalizedKey, e.target.value)}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
         <datalist id="quotation-edit-material-suggestions">
           {(quotationEditMaterialSuggestions || []).map((name) => (
             <option key={name} value={name} />

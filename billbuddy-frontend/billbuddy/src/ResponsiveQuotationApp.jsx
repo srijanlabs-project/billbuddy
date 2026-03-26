@@ -999,39 +999,6 @@ export default function ResponsiveQuotationApp({
     URL.revokeObjectURL(url);
   }
 
-  async function downloadRichPdfDebug(quotationId = draft.submittedQuotation?.id, quotationRecord = draft.submittedQuotation) {
-    if (!quotationId) return;
-    const token = auth?.token;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
-    const response = await fetch(`${baseUrl}/api/quotations/${quotationId}/download?debug=1`, {
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      }
-    });
-    if (!response.ok) {
-      let errorMessage = "Failed to run rich PDF debug";
-      try {
-        const errorPayload = await response.json();
-        errorMessage = errorPayload?.message || errorMessage;
-      } catch {
-        // Keep generic message if backend did not return JSON.
-      }
-      throw new Error(errorMessage);
-    }
-    const blob = await response.blob();
-    const disposition = response.headers.get("content-disposition") || "";
-    const nameMatch = disposition.match(/filename="?([^"]+)"?/i);
-    const filename = nameMatch?.[1] || `${getQuotationFileStem(quotationRecord || { id: quotationId })}.pdf`;
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
   function resetDraft() {
     const needsConfirm = !draft.submittedQuotation && hasActiveDraftContent(draft);
     if (needsConfirm && !window.confirm("Discard the current draft and start a new quotation?")) return;

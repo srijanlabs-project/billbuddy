@@ -68,7 +68,7 @@ export function buildConfiguredQuotationItemTitle(item = {}, config = {}) {
   }
 
   const tokens = [];
-  const tokenRegex = /\{([^{}\[\]]+)\}|\[([^[\]{}]+)\]/g;
+  const tokenRegex = /\{([^{}[\]]+)\}|\[([^\]{}]+)\]/g;
   let cursor = 0;
   let match = tokenRegex.exec(pattern);
   while (match) {

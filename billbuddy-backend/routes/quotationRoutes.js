@@ -4189,9 +4189,16 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const deliveryPincode = req.body.deliveryPincode ?? quotation.delivery_pincode;
     const normalizedReferenceRequestId = normalizeReferenceRequestId(req.body.referenceRequestId ?? quotation.reference_request_id);
 
-    if (normalizedDeliveryType === "DOORSTEP" && (!deliveryAddress || !deliveryPincode)) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ message: "deliveryAddress and deliveryPincode are required for DOORSTEP delivery" });
+    if (normalizedDeliveryType === "DOORSTEP") {
+      if (!deliveryAddress || !deliveryPincode) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "deliveryAddress and deliveryPincode are required for DOORSTEP delivery" });
+      }
+      const normalizedPincode = String(deliveryPincode || "").trim();
+      if (!/^\d{6}$/.test(normalizedPincode)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "deliveryPincode must be a 6-digit number" });
+      }
     }
 
     const normalizedItems = items.map((item) => ({
