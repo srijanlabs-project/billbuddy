@@ -211,6 +211,13 @@ export default function OrdersPage(props) {
       const draft = await loadQuotationExportDraft(selectedQuotationIds, { sellerId: resolvedSellerId });
       const options = Array.isArray(draft?.fieldOptions) ? draft.fieldOptions : [];
       const rows = Array.isArray(draft?.rows) ? draft.rows : [];
+      const draftSellerIds = Array.from(
+        new Set(rows.map((row) => Number(row.seller_id || 0)).filter((value) => value > 0))
+      );
+      if (draftSellerIds.length > 1) {
+        setExportError("Please select quotations from one seller account only.");
+        return;
+      }
       if (!rows.length) {
         setExportError("No export data found for the selected seller scope.");
         return;
