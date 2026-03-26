@@ -4234,7 +4234,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       transportCharges: req.body.transportCharges ?? quotation.transport_charges ?? 0,
       designCharges: req.body.designCharges ?? quotation.design_charges ?? 0,
       discountAmount: req.body.discountAmount ?? quotation.discount_amount ?? 0,
-      advanceAmount: req.body.advanceAmount ?? quotation.advance_amount ?? 0
+      advanceAmount: req.body.advanceAmount ?? quotation.advance_amount ?? 0,
+      calculationColumns: customColumns
     });
     const approvalEvaluation = await evaluateQuotationApproval(client, {
       sellerId: tenantId,
