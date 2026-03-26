@@ -35,6 +35,12 @@ function toAmount(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function toFormulaAmount(value) {
+  if (value === null || value === undefined || value === "") return 1;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 1;
+}
+
 function getFeetFactor(unit) {
   const normalized = String(unit || "").trim().toLowerCase();
   if (normalized === "in") return 1 / 12;
@@ -44,13 +50,19 @@ function getFeetFactor(unit) {
 
 function buildComputedFieldContext(item) {
   const customFields = item.custom_fields || item.customFields || {};
-  const width = toAmount(item.dimension_width ?? item.dimensionWidth);
-  const height = toAmount(item.dimension_height ?? item.dimensionHeight);
+  const rawWidth = item.dimension_width ?? item.dimensionWidth;
+  const rawHeight = item.dimension_height ?? item.dimensionHeight;
+  const hasWidth = rawWidth !== null && rawWidth !== undefined && rawWidth !== "";
+  const hasHeight = rawHeight !== null && rawHeight !== undefined && rawHeight !== "";
+  const width = toAmount(rawWidth);
+  const height = toAmount(rawHeight);
   const unit = String(item.dimension_unit || item.dimensionUnit || item.unit || "ft").trim().toLowerCase();
   const unitFactor = getFeetFactor(unit);
-  const widthFt = Number((width * unitFactor).toFixed(6));
-  const heightFt = Number((height * unitFactor).toFixed(6));
-  const areaSqft = Number((widthFt * heightFt).toFixed(6));
+  const widthFt = hasWidth ? Number((width * unitFactor).toFixed(6)) : null;
+  const heightFt = hasHeight ? Number((height * unitFactor).toFixed(6)) : null;
+  const areaSqft = (!hasWidth && !hasHeight)
+    ? null
+    : Number((((widthFt ?? 1) * (heightFt ?? 1))).toFixed(6));
   const context = {
     quantity: toAmount(item.quantity),
     rate: toAmount(item.unitPrice ?? item.unit_price),
@@ -88,7 +100,7 @@ function evaluateFormulaExpression(expression, context) {
     throw new Error(`Unsupported characters in formula: ${source}`);
   }
 
-  const replaced = source.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (token) => String(toAmount(context[token])));
+  const replaced = source.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (token) => String(toFormulaAmount(context[token])));
   if (/[^0-9+\-*/().\s]/.test(replaced)) {
     throw new Error(`Formula could not be evaluated safely: ${source}`);
   }
