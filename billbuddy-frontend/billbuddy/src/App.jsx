@@ -5884,14 +5884,34 @@ function App() {
             const unitPrice = Number(item.unitPrice || 0);
             let totalPrice;
             let totalArea;
+            let resolvedWidth = item.dimensionWidth ?? item.dimension_width;
+            let resolvedHeight = item.dimensionHeight ?? item.dimension_height;
+
+            if ((!resolvedWidth || !resolvedHeight) && item.size) {
+              const match = String(item.size || "")
+                .replace(/\s+/g, " ")
+                .match(/(\d+(?:\.\d+)?)\s*[xX]\s*(\d+(?:\.\d+)?)/);
+              if (match) {
+                resolvedWidth = resolvedWidth || match[1];
+                resolvedHeight = resolvedHeight || match[2];
+              }
+            }
 
             if (pricingType === "SFT") {
-              const widthFeet = quotationWizardToFeet(item.dimensionWidth ?? item.dimension_width, item.dimensionUnit || "ft");
-              const heightFeet = quotationWizardToFeet(item.dimensionHeight ?? item.dimension_height, item.dimensionUnit || "ft");
-              if (widthFeet && heightFeet) {
+              const unit = item.dimensionUnit || item.dimension_unit || "ft";
+              const widthFeet = quotationWizardToFeet(resolvedWidth, unit);
+              const heightFeet = quotationWizardToFeet(resolvedHeight, unit);
+              if (Number(widthFeet) && Number(heightFeet)) {
                 totalArea = Number((widthFeet * heightFeet).toFixed(2));
                 const effectiveQuantity = totalArea * quantity;
                 totalPrice = Number((effectiveQuantity * unitPrice).toFixed(2));
+              } else {
+                const fallbackArea = Number(item.customFields?.total_area ?? item.custom_fields?.total_area);
+                if (Number.isFinite(fallbackArea) && fallbackArea > 0) {
+                  totalArea = Number(fallbackArea.toFixed(2));
+                  const effectiveQuantity = totalArea * quantity;
+                  totalPrice = Number((effectiveQuantity * unitPrice).toFixed(2));
+                }
               }
             }
 
@@ -5910,8 +5930,8 @@ function App() {
               colorName: item.colorName || null,
               importedColorNote: item.importedColorNote || null,
               psIncluded: Boolean(item.psIncluded),
-              dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
-              dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
+              dimensionHeight: resolvedHeight === "" ? null : resolvedHeight,
+              dimensionWidth: resolvedWidth === "" ? null : resolvedWidth,
               dimensionUnit: item.dimensionUnit || null,
               itemNote: item.itemNote || null,
               pricingType: item.pricingType || "SFT",
