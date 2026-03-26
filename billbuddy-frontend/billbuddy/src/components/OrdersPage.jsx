@@ -258,7 +258,7 @@ export default function OrdersPage(props) {
     closeExportModal();
   }
 
-  if (activeModule !== "Orders") return null;
+  if (activeModule !== "Orders" || isPlatformAdmin) return null;
 
   return (
     <section className="module-placeholder glass-panel">
