@@ -43,6 +43,7 @@ import spanLogo from "./assets/span.jpeg";
 
 const REMEMBER_ME_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 const AUTH_STORAGE_KEY = "billbuddyAuth";
+const COOKIE_CONSENT_STORAGE_KEY = "quotsyCookieConsent";
 
 const SELLER_MODULES = [
   "Dashboard",
@@ -622,6 +623,16 @@ function getQuotationFileStem(quotation) {
   const visibleNumber = getVisibleQuotationNumber(quotation) || "quotation";
   const version = quotation?.version_no || 1;
   return `${String(visibleNumber).replace(/[^a-zA-Z0-9-_]+/g, "_")}-V${version}`;
+}
+
+function getStoredCookieConsent() {
+  if (typeof window === "undefined") return "";
+  try {
+    const stored = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
+    return stored === "accepted" || stored === "rejected" ? stored : "";
+  } catch {
+    return "";
+  }
 }
 
 function statusLabel(status) {
@@ -3052,6 +3063,7 @@ function App() {
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [cookieConsent, setCookieConsent] = useState(getStoredCookieConsent);
 
   const [activeModule, setActiveModule] = useState("Dashboard");
   const [dashboardRange, setDashboardRange] = useState("daily");
@@ -5923,6 +5935,16 @@ function App() {
     }));
   }
 
+  function handleCookieConsentDecision(decision) {
+    if (decision !== "accepted" && decision !== "rejected") return;
+    setCookieConsent(decision);
+    try {
+      localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, decision);
+    } catch {
+      // Ignore storage errors and keep app usable.
+    }
+  }
+
   function renderPagination(page, setPage, total) {
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
     return (
@@ -5982,20 +6004,31 @@ function App() {
       return <PublicLandingPage />;
     }
     return (
-      <PublicLoginPage
-        bootstrapRequired={Boolean(bootstrapRequired && isBootstrapSetupPage)}
-        bootstrapHint={Boolean(bootstrapRequired && !isBootstrapSetupPage)}
-        loginForm={loginForm}
-        setupForm={setupForm}
-        rememberMe={rememberMe}
-        infoMessage={authNotice}
-        errorMessage={error}
-        onLoginFormChange={setLoginForm}
-        onSetupFormChange={setSetupForm}
-        onRememberMeChange={setRememberMe}
-        onLogin={handleLogin}
-        onBootstrapAdmin={handleBootstrapAdmin}
-      />
+      <>
+        <PublicLoginPage
+          bootstrapRequired={Boolean(bootstrapRequired && isBootstrapSetupPage)}
+          bootstrapHint={Boolean(bootstrapRequired && !isBootstrapSetupPage)}
+          loginForm={loginForm}
+          setupForm={setupForm}
+          rememberMe={rememberMe}
+          infoMessage={authNotice}
+          errorMessage={error}
+          onLoginFormChange={setLoginForm}
+          onSetupFormChange={setSetupForm}
+          onRememberMeChange={setRememberMe}
+          onLogin={handleLogin}
+          onBootstrapAdmin={handleBootstrapAdmin}
+        />
+        {!cookieConsent ? (
+          <div className="cookie-consent-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+            <p>We use cookies to improve performance and user experience. Please accept or reject cookies to continue.</p>
+            <div className="cookie-consent-actions">
+              <button type="button" className="ghost-btn" onClick={() => handleCookieConsentDecision("rejected")}>Reject</button>
+              <button type="button" onClick={() => handleCookieConsentDecision("accepted")}>Accept</button>
+            </div>
+          </div>
+        ) : null}
+      </>
     );
   }
 
@@ -6883,6 +6916,16 @@ function App() {
           formatDateTime={formatDateTime}
           formatAuditActionLabel={formatAuditActionLabel}
         />
+
+        {!cookieConsent ? (
+          <div className="cookie-consent-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+            <p>We use cookies to improve performance and user experience. Please accept or reject cookies to continue.</p>
+            <div className="cookie-consent-actions">
+              <button type="button" className="ghost-btn" onClick={() => handleCookieConsentDecision("rejected")}>Reject</button>
+              <button type="button" onClick={() => handleCookieConsentDecision("accepted")}>Accept</button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

@@ -80,7 +80,6 @@ export default function OrdersPage(props) {
     ORDER_STATUS_OPTIONS,
     handleMarkQuotationSent,
     handleMarkPaid,
-    handleDownloadQuotationSheet,
     handleDownloadQuotation,
     handleSendQuotationEmail,
     renderPagination,
@@ -327,7 +326,6 @@ export default function OrdersPage(props) {
                   {canMarkPaid && (
                     <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkPaid(order.id)} disabled={order.payment_status === "paid"}>Paid</button>
                   )}
-                  <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotationSheet(order.id)} title="Download XLSX">XLSX</button>
                   {canDownloadQuotationPdf && (
                     <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
                   )}
