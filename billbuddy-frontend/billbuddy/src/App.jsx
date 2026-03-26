@@ -5878,29 +5878,49 @@ function App() {
           designCharges: Number(quotationEditForm.designCharges || 0),
           discountAmount: Number(quotationEditForm.discountAmount || 0),
           advanceAmount: Number(quotationEditForm.advanceAmount || 0),
-          items: quotationEditForm.items.map((item) => ({
-            productId: item.productId ? Number(item.productId) : null,
-            variantId: item.variantId ? Number(item.variantId) : null,
-            category: item.itemCategory || null,
-            materialType: item.materialType || item.materialName || null,
-            thickness: item.thickness || null,
-            size: item.size || null,
-            quantity: Number(item.quantity || 0),
-            unitPrice: Number(item.unitPrice || 0),
-            sku: item.sku || null,
-            designName: item.designName || null,
-            colorName: item.colorName || null,
-            importedColorNote: item.importedColorNote || null,
-            psIncluded: Boolean(item.psIncluded),
-            dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
-            dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
-            dimensionUnit: item.dimensionUnit || null,
-            itemNote: item.itemNote || null,
-            pricingType: item.pricingType || "SFT",
-            customFields: {
-              ...(item.customFields || {})
+          items: quotationEditForm.items.map((item) => {
+            const pricingType = String(item.pricingType || "SFT").toUpperCase();
+            const quantity = Number(item.quantity || 0);
+            const unitPrice = Number(item.unitPrice || 0);
+            let totalPrice;
+            let totalArea;
+
+            if (pricingType === "SFT") {
+              const widthFeet = quotationWizardToFeet(item.dimensionWidth ?? item.dimension_width, item.dimensionUnit || "ft");
+              const heightFeet = quotationWizardToFeet(item.dimensionHeight ?? item.dimension_height, item.dimensionUnit || "ft");
+              if (widthFeet && heightFeet) {
+                totalArea = Number((widthFeet * heightFeet).toFixed(2));
+                const effectiveQuantity = totalArea * quantity;
+                totalPrice = Number((effectiveQuantity * unitPrice).toFixed(2));
+              }
             }
-          }))
+
+            return {
+              productId: item.productId ? Number(item.productId) : null,
+              variantId: item.variantId ? Number(item.variantId) : null,
+              category: item.itemCategory || null,
+              materialType: item.materialType || item.materialName || null,
+              thickness: item.thickness || null,
+              size: item.size || null,
+              quantity,
+              unitPrice,
+              totalPrice,
+              sku: item.sku || null,
+              designName: item.designName || null,
+              colorName: item.colorName || null,
+              importedColorNote: item.importedColorNote || null,
+              psIncluded: Boolean(item.psIncluded),
+              dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
+              dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
+              dimensionUnit: item.dimensionUnit || null,
+              itemNote: item.itemNote || null,
+              pricingType: item.pricingType || "SFT",
+              customFields: {
+                ...(item.customFields || {}),
+                ...(totalArea !== undefined ? { total_area: totalArea } : {})
+              }
+            };
+          })
         })
       });
 
