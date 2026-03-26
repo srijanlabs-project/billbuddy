@@ -5575,6 +5575,104 @@ function App() {
     }
   }
 
+  function buildQuotationExportRows(details) {
+    const quotation = details?.quotation || {};
+    const items = Array.isArray(details?.items) && details.items.length > 0 ? details.items : [{}];
+    return items.map((item, index) => ({
+      quotation_id: quotation.id || "",
+      quotation_number: getVisibleQuotationNumber(quotation) || "",
+      version_no: quotation.version_no || 1,
+      quotation_date: quotation.created_at || "",
+      customer_name: quotation.customer_name || "",
+      customer_firm_name: quotation.firm_name || "",
+      customer_mobile: quotation.mobile || "",
+      customer_email: quotation.email || "",
+      seller_id: quotation.seller_id || "",
+      subtotal: Number(quotation.subtotal || 0),
+      gst_amount: Number(quotation.gst_amount || 0),
+      transport_charges: Number(quotation.transport_charges || 0),
+      design_charges: Number(quotation.design_charges || 0),
+      discount_amount: Number(quotation.discount_amount || 0),
+      advance_amount: Number(quotation.advance_amount || 0),
+      total_amount: Number(quotation.total_amount || 0),
+      balance_amount: Number(quotation.balance_amount || 0),
+      payment_status: quotation.payment_status || "",
+      order_status: quotation.order_status || "",
+      delivery_type: quotation.delivery_type || "",
+      delivery_date: quotation.delivery_date || "",
+      delivery_address: quotation.delivery_address || "",
+      delivery_pincode: quotation.delivery_pincode || "",
+      item_row_no: index + 1,
+      item_material_name: item.material_name || item.design_name || item.sku || "",
+      item_sku: item.sku || "",
+      item_category: item.item_category || "",
+      item_thickness: item.thickness || "",
+      item_color_name: item.color_name || "",
+      item_size: item.size || "",
+      item_dimension_width: item.dimension_width || "",
+      item_dimension_height: item.dimension_height || "",
+      item_dimension_unit: item.dimension_unit || "",
+      item_quantity: Number(item.quantity || 0),
+      item_unit_price: Number(item.unit_price || 0),
+      item_total_price: Number(item.total_price || 0),
+      item_pricing_type: item.pricing_type || "",
+      item_note: item.item_note || "",
+      ...Object.fromEntries(
+        Object.entries(item.custom_fields || {}).map(([key, value]) => [
+          `item_custom_${normalizeConfigKey(key)}`,
+          value ?? ""
+        ])
+      )
+    }));
+  }
+
+  function formatExportColumnLabel(key) {
+    return String(key || "")
+      .replace(/^item_custom_/, "Item Custom ")
+      .replace(/^item_/, "Item ")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  async function loadQuotationExportDraft(quotationIds = []) {
+    const ids = Array.from(new Set((quotationIds || []).map((value) => Number(value)).filter(Number.isFinite)));
+    if (!ids.length) return { fieldOptions: [], rows: [] };
+
+    const detailsRows = await Promise.all(ids.map((id) => apiFetch(`/api/quotations/${id}`)));
+    const rows = detailsRows.flatMap((details) => buildQuotationExportRows(details));
+    const fieldOrder = [];
+    const seen = new Set();
+    rows.forEach((row) => {
+      Object.keys(row).forEach((key) => {
+        if (!seen.has(key)) {
+          seen.add(key);
+          fieldOrder.push(key);
+        }
+      });
+    });
+
+    return {
+      rows,
+      fieldOptions: fieldOrder.map((key) => ({ key, label: formatExportColumnLabel(key) }))
+    };
+  }
+
+  function downloadQuotationExportSheet(rows = [], orderedFieldKeys = []) {
+    if (!rows.length || !orderedFieldKeys.length) return;
+    const exportRows = rows.map((row) =>
+      orderedFieldKeys.reduce((accumulator, key) => {
+        accumulator[formatExportColumnLabel(key)] = row[key] ?? "";
+        return accumulator;
+      }, {})
+    );
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Quotations");
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+    XLSX.writeFile(workbook, `quotations-export-${timestamp}.xlsx`);
+  }
+
   async function handleOpenOrderDetails(orderId) {
     try {
       const [details, versions] = await Promise.all([
@@ -6270,6 +6368,10 @@ function App() {
         ) : activeModule === "Orders" ? (
           <OrdersPage
             activeModule={activeModule}
+            quotations={quotations}
+            sellers={sellers}
+            seller={seller}
+            isPlatformAdmin={isPlatformAdmin}
             filteredOrders={filteredOrders}
             pagedOrders={pagedOrders}
             orderPage={orderPage}
@@ -6291,6 +6393,8 @@ function App() {
             canSendQuotation={canSendQuotation}
             canMarkPaid={canMarkPaid}
             canDownloadQuotationPdf={canDownloadQuotationPdf}
+            loadQuotationExportDraft={loadQuotationExportDraft}
+            downloadQuotationExportSheet={downloadQuotationExportSheet}
           />
         ) : activeModule === "Customers" ? (
           <CustomersPage

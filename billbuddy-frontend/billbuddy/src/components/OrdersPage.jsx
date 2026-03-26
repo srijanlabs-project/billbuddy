@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 function getQuotationBadgeClass(status) {
   const normalized = String(status || '').toUpperCase();
   if (normalized === 'READY_DISPATCH') return 'quotation-ready-dispatch';
@@ -20,6 +22,13 @@ function getApprovalLabel(status) {
   if (normalized === "rejected") return "Rejected";
   if (normalized === "pending") return "Pending";
   return "Not Required";
+}
+
+function toDateValue(value) {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
 }
 
 function SentStatusIcon({ sent }) {
@@ -55,6 +64,10 @@ function SentStatusIcon({ sent }) {
 export default function OrdersPage(props) {
   const {
     activeModule,
+    quotations,
+    sellers,
+    seller,
+    isPlatformAdmin,
     filteredOrders,
     pagedOrders,
     orderPage,
@@ -75,8 +88,136 @@ export default function OrdersPage(props) {
     canEditQuotation,
     canSendQuotation,
     canMarkPaid,
-    canDownloadQuotationPdf
+    canDownloadQuotationPdf,
+    loadQuotationExportDraft,
+    downloadQuotationExportSheet
   } = props;
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStep, setExportStep] = useState("filters");
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const [exportSellerId, setExportSellerId] = useState("");
+  const [exportFromDate, setExportFromDate] = useState("");
+  const [exportToDate, setExportToDate] = useState("");
+  const [exportMobileInput, setExportMobileInput] = useState("");
+  const [selectedQuotationIds, setSelectedQuotationIds] = useState([]);
+  const [exportRows, setExportRows] = useState([]);
+  const [exportFieldOptions, setExportFieldOptions] = useState([]);
+  const [selectedFieldKeys, setSelectedFieldKeys] = useState([]);
+
+  const mobileSuggestions = useMemo(() => {
+    const term = exportMobileInput.trim();
+    if (term.length < 2) return [];
+    const mobileSet = new Set(
+      (quotations || [])
+        .map((row) => String(row.mobile || "").trim())
+        .filter((value) => value)
+        .filter((value) => value.includes(term))
+    );
+    return Array.from(mobileSet).slice(0, 8);
+  }, [quotations, exportMobileInput]);
+
+  const filteredExportOrders = useMemo(() => {
+    return (quotations || []).filter((row) => {
+      if (isPlatformAdmin && exportSellerId && String(row.seller_id) !== String(exportSellerId)) return false;
+      const rowDate = toDateValue(row.created_at);
+      if (exportFromDate && rowDate && rowDate < exportFromDate) return false;
+      if (exportToDate && rowDate && rowDate > exportToDate) return false;
+      if (exportMobileInput.trim().length >= 2 && !String(row.mobile || "").includes(exportMobileInput.trim())) return false;
+      return true;
+    });
+  }, [quotations, isPlatformAdmin, exportSellerId, exportFromDate, exportToDate, exportMobileInput]);
+
+  const allFilteredSelected = filteredExportOrders.length > 0
+    && filteredExportOrders.every((row) => selectedQuotationIds.includes(row.id));
+
+  function resetExportModalState() {
+    setExportStep("filters");
+    setExportLoading(false);
+    setExportError("");
+    setExportSellerId("");
+    setExportFromDate("");
+    setExportToDate("");
+    setExportMobileInput("");
+    setSelectedQuotationIds([]);
+    setExportRows([]);
+    setExportFieldOptions([]);
+    setSelectedFieldKeys([]);
+  }
+
+  function openExportModal() {
+    resetExportModalState();
+    setShowExportModal(true);
+  }
+
+  function closeExportModal() {
+    setShowExportModal(false);
+    resetExportModalState();
+  }
+
+  function toggleQuotationSelection(id) {
+    setSelectedQuotationIds((prev) =>
+      prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]
+    );
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedQuotationIds((prev) => {
+      if (allFilteredSelected) {
+        return prev.filter((id) => !filteredExportOrders.some((row) => row.id === id));
+      }
+      const merged = new Set([...prev, ...filteredExportOrders.map((row) => row.id)]);
+      return Array.from(merged);
+    });
+  }
+
+  async function handlePrepareExportFields() {
+    if (!selectedQuotationIds.length) {
+      setExportError("Please select at least one quotation.");
+      return;
+    }
+    try {
+      setExportError("");
+      setExportLoading(true);
+      const draft = await loadQuotationExportDraft(selectedQuotationIds);
+      const options = Array.isArray(draft?.fieldOptions) ? draft.fieldOptions : [];
+      const rows = Array.isArray(draft?.rows) ? draft.rows : [];
+      setExportRows(rows);
+      setExportFieldOptions(options);
+      setSelectedFieldKeys(options.map((entry) => entry.key));
+      setExportStep("fields");
+    } catch (error) {
+      setExportError(error?.message || "Failed to prepare export data.");
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
+  function toggleFieldSelection(key) {
+    setSelectedFieldKeys((prev) => (prev.includes(key) ? prev.filter((entry) => entry !== key) : [...prev, key]));
+  }
+
+  function moveSelectedField(key, direction) {
+    setSelectedFieldKeys((prev) => {
+      const index = prev.indexOf(key);
+      if (index < 0) return prev;
+      const nextIndex = direction === "up" ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const copy = [...prev];
+      [copy[index], copy[nextIndex]] = [copy[nextIndex], copy[index]];
+      return copy;
+    });
+  }
+
+  function handleDownloadSelectedExcel() {
+    if (!selectedFieldKeys.length) {
+      setExportError("Please select at least one field to download.");
+      return;
+    }
+    downloadQuotationExportSheet(exportRows, selectedFieldKeys);
+    closeExportModal();
+  }
 
   if (activeModule !== "Orders") return null;
 
@@ -93,7 +234,13 @@ export default function OrdersPage(props) {
           <strong>{filteredOrders.length}</strong>
         </div>
       </div>
-      <div className="section-head"><h3>Quotation Tracker</h3><span>{filteredOrders.length} total</span></div>
+      <div className="section-head">
+        <h3>Quotation Tracker</h3>
+        <div className="toolbar-controls">
+          <span>{filteredOrders.length} total</span>
+          <button type="button" className="ghost-btn" onClick={openExportModal}>Download Excel</button>
+        </div>
+      </div>
       <table className="data-table order-table">
         <thead>
           <tr>
@@ -158,6 +305,178 @@ export default function OrdersPage(props) {
         </tbody>
       </table>
       {renderPagination(orderPage, setOrderPage, filteredOrders.length)}
+
+      {showExportModal ? (
+        <div className="modal-overlay" onClick={closeExportModal}>
+          <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="section-head">
+              <h3>{exportStep === "filters" ? "Download Excel" : "Select Fields & Sequence"}</h3>
+              <button type="button" className="ghost-btn" onClick={closeExportModal}>Close</button>
+            </div>
+
+            {exportStep === "filters" ? (
+              <>
+                <div className="settings-two-column">
+                  {isPlatformAdmin ? (
+                    <label className="settings-field">
+                      <span>Seller</span>
+                      <select value={exportSellerId} onChange={(event) => setExportSellerId(event.target.value)}>
+                        <option value="">All sellers</option>
+                        {(sellers || []).map((entry) => (
+                          <option key={entry.id} value={entry.id}>{entry.business_name || entry.name || `Seller ${entry.id}`}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <label className="settings-field">
+                      <span>Seller</span>
+                      <input value={seller?.business_name || seller?.name || "Current seller"} disabled />
+                    </label>
+                  )}
+                  <label className="settings-field">
+                    <span>From Date</span>
+                    <input type="date" value={exportFromDate} onChange={(event) => setExportFromDate(event.target.value)} />
+                  </label>
+                  <label className="settings-field">
+                    <span>To Date</span>
+                    <input type="date" value={exportToDate} onChange={(event) => setExportToDate(event.target.value)} />
+                  </label>
+                  <label className="settings-field settings-field-wide">
+                    <span>Mobile Number</span>
+                    <input
+                      type="text"
+                      value={exportMobileInput}
+                      onChange={(event) => setExportMobileInput(event.target.value)}
+                      placeholder="Type at least 2 digits"
+                    />
+                    {mobileSuggestions.length > 0 ? (
+                      <div className="rq-suggest-list" style={{ marginTop: "6px", maxHeight: "160px" }}>
+                        {mobileSuggestions.map((mobile) => (
+                          <button key={mobile} type="button" className="rq-suggest-row" onClick={() => setExportMobileInput(mobile)}>
+                            <span className="rq-suggest-main">{mobile}</span>
+                            <span className="rq-suggest-meta">Mobile match</span>
+                            <span className="rq-suggest-meta">Tap to apply</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </label>
+                </div>
+
+                <div className="table-wrap" style={{ marginTop: "12px", maxHeight: "320px", overflow: "auto" }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>
+                          <input
+                            type="checkbox"
+                            checked={allFilteredSelected}
+                            onChange={toggleSelectAllFiltered}
+                            style={{ width: "auto" }}
+                          />
+                        </th>
+                        <th>Quotation #</th>
+                        <th>Customer</th>
+                        <th>Mobile</th>
+                        <th>Date</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredExportOrders.length === 0 ? (
+                        <tr><td colSpan={6}>No quotations found for selected filters.</td></tr>
+                      ) : (
+                        filteredExportOrders.map((row) => (
+                          <tr key={`export-row-${row.id}`}>
+                            <td>
+                              <input
+                                type="checkbox"
+                                checked={selectedQuotationIds.includes(row.id)}
+                                onChange={() => toggleQuotationSelection(row.id)}
+                                style={{ width: "auto" }}
+                              />
+                            </td>
+                            <td>{formatQuotationLabel(row)}</td>
+                            <td>{row.firm_name || row.customer_name || "-"}</td>
+                            <td>{row.mobile || "-"}</td>
+                            <td>{toDateValue(row.created_at) || "-"}</td>
+                            <td>{formatCurrency(row.total_amount)}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {exportError ? <div className="notice error">{exportError}</div> : null}
+
+                <div className="settings-form-actions" style={{ marginTop: "14px", position: "sticky", bottom: 0 }}>
+                  <button type="button" onClick={handlePrepareExportFields} disabled={exportLoading || selectedQuotationIds.length === 0}>
+                    {exportLoading ? "Preparing..." : "Download in Excel"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Select Fields and Column Order</h4>
+                    <p>{exportRows.length} row(s) ready from selected quotations.</p>
+                  </div>
+                  <div className="table-wrap" style={{ maxHeight: "420px", overflow: "auto" }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Use</th>
+                          <th>Field</th>
+                          <th>Sequence</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {exportFieldOptions.map((field) => {
+                          const selected = selectedFieldKeys.includes(field.key);
+                          const sequence = selected ? selectedFieldKeys.indexOf(field.key) + 1 : "-";
+                          return (
+                            <tr key={`field-${field.key}`}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selected}
+                                  onChange={() => toggleFieldSelection(field.key)}
+                                  style={{ width: "auto" }}
+                                />
+                              </td>
+                              <td>{field.label}</td>
+                              <td>
+                                {selected ? (
+                                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <span>{sequence}</span>
+                                    <button type="button" className="ghost-btn compact-btn" onClick={() => moveSelectedField(field.key, "up")}>Up</button>
+                                    <button type="button" className="ghost-btn compact-btn" onClick={() => moveSelectedField(field.key, "down")}>Down</button>
+                                  </div>
+                                ) : (
+                                  "-"
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {exportError ? <div className="notice error">{exportError}</div> : null}
+
+                <div className="settings-form-actions" style={{ marginTop: "14px" }}>
+                  <button type="button" className="ghost-btn" onClick={() => setExportStep("filters")}>Back</button>
+                  <button type="button" onClick={handleDownloadSelectedExcel}>Download XLSX</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
