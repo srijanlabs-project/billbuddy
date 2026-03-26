@@ -945,8 +945,14 @@ async function createQuotationWithItems(payload) {
     }
 
     const normalizedDeliveryType = normalizeDeliveryType(deliveryType || DELIVERY_TYPE.PICKUP);
-    if (normalizedDeliveryType === DELIVERY_TYPE.DOORSTEP && (!deliveryAddress || !deliveryPincode)) {
-      throw new Error("deliveryAddress and deliveryPincode are required for DOORSTEP delivery");
+    if (normalizedDeliveryType === DELIVERY_TYPE.DOORSTEP) {
+      if (!deliveryAddress || !deliveryPincode) {
+        throw new Error("deliveryAddress and deliveryPincode are required for DOORSTEP delivery");
+      }
+      const normalizedPincode = String(deliveryPincode || "").trim();
+      if (!/^\d{6}$/.test(normalizedPincode)) {
+        throw new Error("deliveryPincode must be a 6-digit number");
+      }
     }
 
     const { normalizedItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =

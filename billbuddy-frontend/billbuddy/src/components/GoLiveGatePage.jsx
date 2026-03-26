@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 const STATUS_OPTIONS = [
   { value: "pass", label: "Pass" },
@@ -45,14 +45,6 @@ export default function GoLiveGatePage(props) {
   } = props;
 
   const [draftById, setDraftById] = useState({});
-
-  useEffect(() => {
-    const next = {};
-    (gates || []).forEach((gate) => {
-      next[gate.id] = toDraft(gate);
-    });
-    setDraftById(next);
-  }, [gates]);
 
   const counts = useMemo(() => {
     const rows = Array.isArray(gates) ? gates : [];

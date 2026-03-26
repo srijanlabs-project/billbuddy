@@ -81,7 +81,6 @@ export default function OrdersPage(props) {
     handleMarkQuotationSent,
     handleMarkPaid,
     handleDownloadQuotation,
-    handleSendQuotationEmail,
     renderPagination,
     canEditQuotation,
     canSendQuotation,

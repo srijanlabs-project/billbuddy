@@ -208,7 +208,7 @@ export default function ConfigurationStudio(props) {
       try {
         inputRef.focus();
         inputRef.setSelectionRange(nextCaret, nextCaret);
-      } catch (_error) {
+      } catch {
         // Ignore focus/selection failures on detached refs.
       }
     });
