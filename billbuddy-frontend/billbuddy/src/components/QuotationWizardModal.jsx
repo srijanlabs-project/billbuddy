@@ -136,9 +136,9 @@ export default function QuotationWizardModal(props) {
                         className={`quotation-customer-card ${String(quotationWizard.selectedCustomerId) === String(customer.id) ? "selected" : ""}`}
                         onClick={() => setQuotationWizard((prev) => ({ ...prev, selectedCustomerId: String(customer.id) }))}
                       >
-                        <strong>{customer.firm_name || customer.name}</strong>
-                        <span>{customer.name}</span>
-                        <span>{customer.mobile}</span>
+                        <span className="quotation-suggest-main">{customer.firm_name || customer.name || "-"}</span>
+                        <span className="quotation-suggest-meta">{customer.name || "-"}</span>
+                        <span className="quotation-suggest-meta">{customer.mobile || "-"}</span>
                       </button>
                     ))
                   )}
@@ -209,10 +209,11 @@ export default function QuotationWizardModal(props) {
                       <button
                         type="button"
                         key={materialName}
-                        className={`wizard-suggestion-chip ${quotationWizard.itemForm.materialName === materialName ? "active" : ""}`}
+                        className={`wizard-suggestion-row ${quotationWizard.itemForm.materialName === materialName ? "active" : ""}`}
                         onClick={() => handleQuotationWizardMaterialSelect(materialName)}
                       >
-                        {materialName}
+                        <span className="quotation-suggest-main">{materialName}</span>
+                        <span className="quotation-suggest-meta">Tap to select</span>
                       </button>
                     ))}
                   </div>

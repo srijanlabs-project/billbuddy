@@ -4626,9 +4626,11 @@ button:disabled {
 }
 
 .wizard-suggestion-list {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .wizard-suggestion-chip {
@@ -4672,18 +4674,61 @@ button:disabled {
 
 .quotation-customer-card {
   display: grid;
-  gap: 3px;
+  grid-template-columns: minmax(160px, 1.3fr) minmax(110px, 1fr) minmax(100px, 0.9fr);
+  align-items: center;
+  gap: 10px;
   width: 100%;
   text-align: left;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  /*background: rgba(255,255,255,0.86);*/
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #f8fafc;
+  color: #1f2937;
+  box-shadow: none;
 }
 
 .quotation-customer-card.selected {
-  border-color: rgba(123, 3, 21, 0.34);
-  background: linear-gradient(180deg, rgba(251, 113, 133, 0.88), rgba(84, 2, 2, 0.78));
+  border-color: rgba(59, 130, 246, 0.35);
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.quotation-suggest-main {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quotation-suggest-meta {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wizard-suggestion-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 0.8fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  background: #f8fafc;
+  color: #1f2937;
+  text-align: left;
+  box-shadow: none;
+}
+
+.wizard-suggestion-row:hover,
+.wizard-suggestion-row.active {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: #eff6ff;
 }
 
 .quotation-wizard-summary-grid {
@@ -5176,6 +5221,15 @@ button:disabled {
   .seller-subscription-summary,
   .seller-config-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quotation-customer-card,
+  .wizard-suggestion-row {
+    grid-template-columns: minmax(120px, 1.2fr) minmax(95px, 0.9fr);
+  }
+
+  .quotation-customer-card .quotation-suggest-meta:last-child {
+    display: none;
   }
 }
 
