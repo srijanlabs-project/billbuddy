@@ -5599,6 +5599,10 @@ function App() {
       customer_firm_name: quotation.firm_name || "",
       customer_mobile: quotation.mobile || "",
       customer_email: quotation.email || "",
+      customer_gst_number: quotation.customer_gst_number || "",
+      customer_shipping_addresses: Array.isArray(quotation.customer_shipping_addresses)
+        ? quotation.customer_shipping_addresses.map((entry) => entry?.address || entry?.label || "").filter(Boolean).join(" | ")
+        : "",
       seller_id: quotation.seller_id || "",
       subtotal: Number(quotation.subtotal || 0),
       gst_amount: Number(quotation.gst_amount || 0),
@@ -5638,6 +5642,94 @@ function App() {
     }));
   }
 
+  const BASE_EXPORT_FIELD_ORDER = [
+    "quotation_id",
+    "quotation_number",
+    "version_no",
+    "quotation_date",
+    "customer_name",
+    "customer_firm_name",
+    "customer_mobile",
+    "customer_email",
+    "customer_gst_number",
+    "customer_shipping_addresses",
+    "subtotal",
+    "gst_amount",
+    "transport_charges",
+    "design_charges",
+    "discount_amount",
+    "advance_amount",
+    "total_amount",
+    "balance_amount",
+    "payment_status",
+    "order_status",
+    "delivery_type",
+    "delivery_date",
+    "delivery_address",
+    "delivery_pincode",
+    "item_row_no"
+  ];
+
+  function mapConfiguredFieldToExportKey(configKey) {
+    const normalized = normalizeConfigKey(configKey);
+    switch (normalized) {
+      case "material_name":
+        return "item_material_name";
+      case "sku":
+        return "item_sku";
+      case "category":
+        return "item_category";
+      case "thickness":
+        return "item_thickness";
+      case "color_name":
+        return "item_color_name";
+      case "size":
+        return "item_size";
+      case "width":
+        return "item_dimension_width";
+      case "height":
+        return "item_dimension_height";
+      case "unit":
+      case "uom":
+      case "unit_type":
+        return "item_dimension_unit";
+      case "quantity":
+        return "item_quantity";
+      case "rate":
+      case "unit_price":
+        return "item_unit_price";
+      case "amount":
+      case "total":
+      case "total_rate":
+      case "total_price":
+        return "item_total_price";
+      case "pricing_type":
+        return "item_pricing_type";
+      case "note":
+      case "item_note":
+        return "item_note";
+      default:
+        return `item_custom_${normalized}`;
+    }
+  }
+
+  function buildSellerExportWhitelist(config) {
+    const allowed = new Set(BASE_EXPORT_FIELD_ORDER);
+    const configuredCatalogueFields = Array.isArray(config?.catalogueFields) ? config.catalogueFields : [];
+    configuredCatalogueFields.forEach((field) => {
+      if (!field?.key) return;
+      allowed.add(mapConfiguredFieldToExportKey(field.key));
+    });
+    const configuredQuotationColumns = Array.isArray(config?.quotationColumns) ? config.quotationColumns : [];
+    configuredQuotationColumns.forEach((column) => {
+      if (!column?.key) return;
+      if (column.visibleInForm || column.visibleInPdf || column.required || column.type === "formula") {
+        allowed.add(mapConfiguredFieldToExportKey(column.key));
+      }
+    });
+    return allowed;
+  }
+
   function formatExportColumnLabel(key) {
     return String(key || "")
       .replace(/^item_custom_/, "Item Custom ")
@@ -5675,10 +5767,18 @@ function App() {
         return value !== "" && value !== null && value !== undefined;
       })
     );
+    const sellerWhitelist = buildSellerExportWhitelist(currentSellerConfiguration);
+    const preferredOrder = [
+      ...BASE_EXPORT_FIELD_ORDER,
+      ...Array.from(sellerWhitelist).filter((key) => !BASE_EXPORT_FIELD_ORDER.includes(key))
+    ];
+    const orderedVisibleScopedFields = preferredOrder.filter((key) =>
+      visibleFieldOrder.includes(key) && sellerWhitelist.has(key)
+    );
 
     return {
       rows,
-      fieldOptions: visibleFieldOrder.map((key) => ({ key, label: formatExportColumnLabel(key) }))
+      fieldOptions: orderedVisibleScopedFields.map((key) => ({ key, label: formatExportColumnLabel(key) }))
     };
   }
 
