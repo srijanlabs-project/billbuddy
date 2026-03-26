@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import "./App.css";
 import { apiFetch } from "./api";
-import ResponsiveQuotationApp from "./ResponsiveQuotationApp";
 import SettingsPage from "./components/SettingsPage";
 import ConfigurationStudio from "./components/ConfigurationStudio";
 import ProductsPage from "./components/ProductsPage";
@@ -5885,41 +5884,6 @@ function App() {
         onRememberMeChange={setRememberMe}
         onLogin={handleLogin}
         onBootstrapAdmin={handleBootstrapAdmin}
-      />
-    );
-  }
-
-  const responsivePaths = new Set(["/web", "/mobile", "/responsive"]);
-  const useResponsiveWorkspace = responsivePaths.has(window.location.pathname);
-  if (useResponsiveWorkspace) {
-    if (isPlatformAdmin) {
-      return (
-        <div className="auth-shell">
-          <div className="auth-bg-glow" />
-          <div className="auth-grid">
-            <div className="glass-card hero-card">
-              <p className="eyebrow">Quotsy Platform</p>
-              <h1>Platform admins use the control-plane interface.</h1>
-              <p>The responsive `/web` workspace is reserved for seller-side quotation work. Please continue in the platform console for seller management and governance.</p>
-              <div style={{ display: "flex", gap: "12px", marginTop: "16px", flexWrap: "wrap" }}>
-                <a className="glass-btn" href="/">Open Platform Console</a>
-                <button type="button" onClick={handleLogout}>Logout</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return (
-      <ResponsiveQuotationApp
-        auth={auth}
-        seller={seller}
-        plans={plans}
-        customers={customers}
-        products={products}
-        quotationTemplate={quotationTemplate}
-        onLogout={handleLogout}
-        onCustomerCreated={(createdCustomer) => setCustomers((prev) => [createdCustomer, ...prev])}
       />
     );
   }

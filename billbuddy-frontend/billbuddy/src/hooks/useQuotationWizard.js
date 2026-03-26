@@ -87,7 +87,7 @@ export default function useQuotationWizard({
           customer.email
         ].some((value) => String(value || "").toLowerCase().includes(term))
       )
-      .slice(0, 8);
+      .slice(0, 10);
   }, [customers, quotationWizard.customerSearch]);
 
   const quotationWizardSelectedProduct = useMemo(() => {
@@ -159,8 +159,8 @@ export default function useQuotationWizard({
   const quotationWizardMaterialSuggestions = useMemo(() => {
     const term = normalizeComparableValue(quotationWizard.itemForm.materialName);
     const names = uniqueValues((products || []).map((product) => String(product.material_name || "").trim())).sort((a, b) => a.localeCompare(b));
-    if (!term) return names.slice(0, 8);
-    return names.filter((name) => normalizeComparableValue(name).includes(term)).slice(0, 8);
+    if (term.length < 2) return [];
+    return names.filter((name) => normalizeComparableValue(name).includes(term)).slice(0, 10);
   }, [products, quotationWizard.itemForm.materialName]);
 
   const quotationWizardMaterialProducts = useMemo(() => {

@@ -200,6 +200,9 @@ export default function QuotationWizardModal(props) {
                   value={quotationWizard.itemForm.materialName}
                   onChange={(e) => handleQuotationWizardMaterialInput(e.target.value)}
                 />
+                {quotationWizard.itemForm.materialName.trim().length > 0 && quotationWizard.itemForm.materialName.trim().length < 2 ? (
+                  <p className="muted">Type at least 2 characters to see material suggestions.</p>
+                ) : null}
                 {quotationWizardMaterialSuggestions.length > 0 && quotationWizard.itemForm.materialName.trim() ? (
                   <div className="wizard-suggestion-list">
                     {quotationWizardMaterialSuggestions.map((materialName) => (
