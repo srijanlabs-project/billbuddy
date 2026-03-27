@@ -171,6 +171,9 @@ export default function ConfigurationStudio(props) {
       sellerProducts.find((product) => String(product.category || "").trim() === category) || null
     ])
   );
+  const productCustomFieldKeys = [...new Set(
+    sellerProducts.flatMap((product) => Object.keys(product.custom_fields || {}))
+  )].filter(Boolean);
   const availableDisplayTokens = [
     ...new Set([
       "material_name",
@@ -187,7 +190,8 @@ export default function ConfigurationStudio(props) {
       "item_note",
       "imported_color_note",
       ...activeSellerConfiguration.catalogueFields.map((field) => field.key),
-      ...activeSellerConfiguration.quotationColumns.map((column) => column.key)
+      ...activeSellerConfiguration.quotationColumns.map((column) => column.key),
+      ...productCustomFieldKeys
     ].filter(Boolean))
   ].sort((left, right) => left.localeCompare(right));
 

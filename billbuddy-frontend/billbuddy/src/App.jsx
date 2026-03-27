@@ -1155,7 +1155,7 @@ function validateProductRows(rows) {
   });
 }
 
-function buildOrderEditForm(details) {
+function buildOrderEditForm(details, products = [], catalogueFields = []) {
   return {
     customQuotationNumber: details?.quotation?.custom_quotation_number || "",
     referenceRequestId: details?.quotation?.reference_request_id || "",
@@ -1167,7 +1167,12 @@ function buildOrderEditForm(details) {
     designCharges: String(details?.quotation?.design_charges || 0),
     discountAmount: String(details?.quotation?.discount_amount || 0),
     advanceAmount: String(details?.quotation?.advance_amount || 0),
-    items: (details?.items || []).map((item) => ({
+    items: (details?.items || []).map((item) => {
+      const product = products.find((entry) => Number(entry.id) === Number(item.product_id));
+      const mergedCustomFields = product
+        ? getCatalogueDrivenQuotationCustomFields(product, catalogueFields, item.custom_fields || item.customFields || {})
+        : { ...(item.custom_fields || item.customFields || {}) };
+      return ({
       id: item.id,
       tempId: `existing-${item.id}`,
       productId: item.product_id || "",
@@ -1190,9 +1195,10 @@ function buildOrderEditForm(details) {
       itemNote: item.item_note || "",
       pricingType: item.pricing_type || "SFT",
       customFields: {
-        ...(item.custom_fields || item.customFields || {})
+        ...mergedCustomFields
       }
-    }))
+    });
+    })
   };
 }
 
@@ -4225,7 +4231,22 @@ function App() {
 
   const selectedVersionRecord = orderVersions.find((version) => String(version.id) === String(selectedVersionId)) || orderVersions[0] || null;
   const displayedQuotation = selectedVersionRecord?.quotation_snapshot || selectedOrderDetails?.quotation || null;
-  const displayedItems = selectedVersionRecord?.items_snapshot || selectedOrderDetails?.items || [];
+  const baseDisplayedItems = selectedVersionRecord?.items_snapshot || selectedOrderDetails?.items || [];
+  const catalogueFields = activeSellerConfiguration?.catalogueFields || [];
+  const displayedItems = baseDisplayedItems.map((item) => {
+    const product = products.find((entry) => Number(entry.id) === Number(item.product_id));
+    if (!product || !catalogueFields.length) return item;
+    const mergedCustomFields = getCatalogueDrivenQuotationCustomFields(
+      product,
+      catalogueFields,
+      item.custom_fields || item.customFields || {}
+    );
+    return {
+      ...item,
+      custom_fields: mergedCustomFields,
+      customFields: mergedCustomFields
+    };
+  });
   const selectedVersionIndex = selectedVersionRecord ? orderVersions.findIndex((version) => version.id === selectedVersionRecord.id) : -1;
   const previousVersionRecord = selectedVersionIndex >= 0 ? orderVersions[selectedVersionIndex + 1] || null : null;
   const comparisonQuotation = previousVersionRecord?.quotation_snapshot || null;
@@ -5768,7 +5789,7 @@ function App() {
       const versionRows = Array.isArray(versions) ? versions : [];
       setOrderVersions(versionRows);
       setSelectedVersionId(versionRows[0] ? String(versionRows[0].id) : "");
-      setQuotationEditForm(buildOrderEditForm(details));
+      setQuotationEditForm(buildOrderEditForm(details, products, activeSellerConfiguration?.catalogueFields || []));
       setIsEditingQuotation(false);
       setShowOrderDetailsModal(true);
     } catch (err) {
@@ -5921,7 +5942,7 @@ function App() {
       setQuotationEditForm(buildOrderEditForm({
         quotation: response.quotation,
         items: response.items
-      }));
+      }, products, activeSellerConfiguration?.catalogueFields || []));
       setIsEditingQuotation(false);
       setError("Quotation updated and saved as a new version.");
     } catch (err) {
