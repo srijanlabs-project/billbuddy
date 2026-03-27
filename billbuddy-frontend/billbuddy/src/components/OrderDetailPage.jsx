@@ -133,10 +133,8 @@ export default function OrderDetailPage(props) {
         <div className="preview-pane">
           <h5>Quotation Summary</h5>
           <span className={quotationFieldChanged("quotation_number") || quotationFieldChanged("version_no") ? "change-highlight" : ""}>Quotation No: {formatQuotationLabel(displayedQuotation)}</span>
-          <span>Customer: {displayedQuotation?.firm_name || displayedQuotation?.customer_name}</span>
-          <span>Mobile: {displayedQuotation?.mobile || "-"}</span>
-          <span className={quotationFieldChanged("total_amount") ? "change-highlight" : ""}>Total: {formatCurrency(displayedQuotation?.total_amount)}</span>
-          <span className={quotationFieldChanged("payment_status") ? "change-highlight" : ""}>Payment: {statusLabel(displayedQuotation?.payment_status)}</span>
+          <span>Customer: {displayedQuotation?.firm_name || displayedQuotation?.customer_name || selectedOrderDetails?.quotation?.firm_name || selectedOrderDetails?.quotation?.customer_name || "-"}</span>
+          <span>Mobile: {displayedQuotation?.mobile || selectedOrderDetails?.quotation?.mobile || "-"}</span>
           <span className={quotationFieldChanged("approval_status") ? "change-highlight" : ""}>Approval: {approvalStatusLabel(displayedQuotation?.approval_status)}</span>
         </div>
         <div className="preview-pane">
@@ -156,10 +154,23 @@ export default function OrderDetailPage(props) {
       <div className="preview-grid" style={{ marginTop: "14px" }}>
         <div className="preview-pane">
           <h5>Charges</h5>
-          <span className={quotationFieldChanged("subtotal") ? "change-highlight" : ""}>Subtotal: {formatCurrency(displayedQuotation?.subtotal)}</span>
-          <span className={quotationFieldChanged("discount_amount") ? "change-highlight" : ""}>Discount: {formatCurrency(displayedQuotation?.discount_amount)}</span>
-          <span className={quotationFieldChanged("advance_amount") ? "change-highlight" : ""}>Advance: {formatCurrency(displayedQuotation?.advance_amount)}</span>
-          <span>Outstanding: {formatCurrency(selectedOrderDetails.customerOutstanding)}</span>
+          {(() => {
+            const lineTotals = (displayedItems || []).map((item) => Number(getQuotationItemTotalValue(item) || 0));
+            const total = lineTotals.length ? lineTotals.reduce((sum, value) => sum + value, 0) : Number(displayedQuotation?.total_amount || 0);
+            const discount = Number(displayedQuotation?.discount_amount || 0);
+            const advance = Number(displayedQuotation?.advance_amount || 0);
+            const balance = Math.max(0, Number((total - discount - advance).toFixed(2)));
+            return (
+              <>
+                <span className={quotationFieldChanged("total_amount") ? "change-highlight" : ""}>Total: {formatCurrency(total)}</span>
+                <span className={quotationFieldChanged("discount_amount") ? "change-highlight" : ""}>Discount: (-) {formatCurrency(discount)}</span>
+                <span className={quotationFieldChanged("advance_amount") ? "change-highlight" : ""}>Advance: {formatCurrency(advance)}</span>
+                <span>Balance: {formatCurrency(balance)}</span>
+                <span className={quotationFieldChanged("payment_status") ? "change-highlight" : ""}>Payment: {statusLabel(displayedQuotation?.payment_status)}</span>
+                <span>Outstanding: (Total outstanding till date: {formatCurrency(selectedOrderDetails.customerOutstanding)})</span>
+              </>
+            );
+          })()}
         </div>
         <div className="preview-pane">
           <h5>Version Info</h5>
