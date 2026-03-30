@@ -38,7 +38,7 @@ export default function OrderDetailPage(props) {
     handleSendQuotationEmail,
     selectedVersionRecord,
     selectedVersionIndex,
-    setIsEditingQuotation,
+    openRevisionQuotationWizard,
     shouldShowVersionSelector,
     selectedVersionId,
     setSelectedVersionId,
@@ -90,7 +90,7 @@ export default function OrderDetailPage(props) {
           <button
             type="button"
             className="ghost-btn"
-            onClick={() => setIsEditingQuotation(true)}
+            onClick={openRevisionQuotationWizard}
             disabled={!canReviseQuotation || Boolean(selectedVersionRecord && selectedVersionIndex > 0)}
           >
             Edit Quotation
@@ -108,7 +108,6 @@ export default function OrderDetailPage(props) {
               value={selectedVersionId || "current"}
               onChange={(e) => {
                 setSelectedVersionId(e.target.value === "current" ? "" : e.target.value);
-                setIsEditingQuotation(false);
               }}
             >
               {!selectedVersionRecord && (

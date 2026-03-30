@@ -46,8 +46,10 @@ export default function useQuotationWizard({
   apiFetch,
   setCustomers,
   setProducts,
+  refreshQuotationList,
   loadDashboardData,
   dashboardRange,
+  handleOpenOrderDetails,
   handleApiError,
   setError
 }) {
@@ -217,9 +219,9 @@ export default function useQuotationWizard({
     };
   }, [quotationPreviewUrl]);
 
-  function openQuotationWizard() {
+  function openQuotationWizard(initialState = null) {
     if (!auth?.user?.isPlatformAdmin) {
-      setQuotationWizard(createInitialQuotationWizardState(null));
+      setQuotationWizard(initialState || createInitialQuotationWizardState(null));
       if (quotationPreviewUrl) {
         URL.revokeObjectURL(quotationPreviewUrl);
       }
@@ -241,6 +243,14 @@ export default function useQuotationWizard({
     setQuotationWizardSubmitting(false);
     setQuotationWizardNotice("");
     setShowMessageSimulatorModal(false);
+  }
+
+  function resetQuotationWizardItemForm() {
+    setQuotationWizard((prev) => ({
+      ...prev,
+      editingItemId: null,
+      itemForm: createQuotationWizardItem(null)
+    }));
   }
 
   function updateQuotationWizardCustomerField(field, value) {
@@ -549,18 +559,48 @@ export default function useQuotationWizard({
 
     setQuotationWizard((prev) => ({
       ...prev,
-      items: [...prev.items, itemToAdd],
+      items: prev.editingItemId
+        ? prev.items.map((item) => (item.id === prev.editingItemId ? { ...itemToAdd, id: prev.editingItemId } : item))
+        : [...prev.items, itemToAdd],
+      editingItemId: null,
       itemForm: createQuotationWizardItem(null)
     }));
     setError("");
     setQuotationWizardNotice("");
   }
 
-  function handleRemoveQuotationWizardItem(itemId) {
+  function startEditQuotationWizardItem(itemId) {
+    const selectedItem = quotationWizard.items.find((item) => item.id === itemId);
+    if (!selectedItem) return;
+    setQuotationWizardNotice("");
     setQuotationWizard((prev) => ({
       ...prev,
-      items: prev.items.filter((item) => item.id !== itemId)
+      editingItemId: itemId,
+      itemForm: {
+        ...selectedItem,
+        customFields: {
+          ...(selectedItem.customFields || {})
+        }
+      }
     }));
+  }
+
+  function cancelEditQuotationWizardItem() {
+    resetQuotationWizardItemForm();
+    setQuotationWizardNotice("");
+    setError("");
+  }
+
+  function handleRemoveQuotationWizardItem(itemId) {
+    setQuotationWizard((prev) => {
+      const isEditingRemovedItem = prev.editingItemId === itemId;
+      return {
+        ...prev,
+        items: prev.items.filter((item) => item.id !== itemId),
+        editingItemId: isEditingRemovedItem ? null : prev.editingItemId,
+        itemForm: isEditingRemovedItem ? createQuotationWizardItem(null) : prev.itemForm
+      };
+    });
   }
 
   function handleQuotationWizardNext() {
@@ -684,11 +724,17 @@ export default function useQuotationWizard({
           return;
         }
       }
-      const customerId = await ensureQuotationWizardCustomer();
-      const response = await apiFetch("/api/quotations", {
-        method: "POST",
+      const isRevision = quotationWizard.mode === "revise" && quotationWizard.quotationId;
+      const customerId = isRevision
+        ? Number(quotationWizard.selectedCustomerId)
+        : await ensureQuotationWizardCustomer();
+      const requestPath = isRevision ? `/api/quotations/${quotationWizard.quotationId}/revise` : "/api/quotations";
+      const requestMethod = isRevision ? "PATCH" : "POST";
+      const response = await apiFetch(requestPath, {
+        method: requestMethod,
         body: JSON.stringify({
           customerId,
+          customQuotationNumber: String(quotationWizard.amounts.customQuotationNumber || "").trim() || null,
           items: buildQuotationWizardPayloadItems(quotationWizard.items),
           gstPercent: 0,
           transportCharges: 0,
@@ -703,7 +749,7 @@ export default function useQuotationWizard({
           deliveryType: normalizedDeliveryType,
           deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryAddress || "").trim() || null : null,
           deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryPincode || "").trim() || null : null,
-          sourceChannel: "seller-dashboard-modal",
+          sourceChannel: isRevision ? "seller-dashboard-revision" : "seller-dashboard-modal",
           recordStatus: "submitted",
           customerMonthlyBilling: Boolean(quotationWizard.customer.monthlyBilling)
         })
@@ -728,16 +774,35 @@ export default function useQuotationWizard({
         setQuotationPreviewError(previewError?.message || "Preview could not be loaded. You can still download the PDF.");
       }
 
-      try {
-        await loadDashboardData(dashboardRange);
-      } catch {
-        // Keep the created quotation visible even if dashboard refresh is delayed.
-      }
+      await Promise.all([
+        (async () => {
+          try {
+            await loadDashboardData(dashboardRange);
+          } catch {
+            // Keep the quotation visible even if dashboard refresh is delayed.
+          }
+        })(),
+        (async () => {
+          try {
+            await refreshQuotationList?.();
+          } catch {
+            // Keep the quotation visible even if list refresh is delayed.
+          }
+        })(),
+        (async () => {
+          if (!response?.quotation?.id || typeof handleOpenOrderDetails !== "function") return;
+          try {
+            await handleOpenOrderDetails(response.quotation.id);
+          } catch {
+            // Keep the wizard flow usable even if the detail refresh fails.
+          }
+        })()
+      ]);
 
       if (Array.isArray(response.inventoryWarnings) && response.inventoryWarnings.length > 0) {
-        setError(`Quotation created successfully. ${response.inventoryWarnings.join(" ")}`);
+        setError(`${isRevision ? "Quotation revised successfully." : "Quotation created successfully."} ${response.inventoryWarnings.join(" ")}`);
       } else {
-        setError("Quotation created successfully.");
+        setError(isRevision ? "Quotation revised successfully." : "Quotation created successfully.");
       }
     } catch (err) {
       handleApiError(err);
@@ -778,6 +843,8 @@ export default function useQuotationWizard({
     handleQuotationWizardProductChange,
     handleSaveQuotationWizardSecondaryProduct,
     handleAddQuotationWizardItem,
+    startEditQuotationWizardItem,
+    cancelEditQuotationWizardItem,
     handleRemoveQuotationWizardItem,
     handleQuotationWizardNext,
     handleQuotationWizardBack,

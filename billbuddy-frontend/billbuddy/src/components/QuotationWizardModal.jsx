@@ -18,6 +18,8 @@ export default function QuotationWizardModal(props) {
     quotationWizardSelectedProduct,
     updateQuotationWizardCustomField,
     handleAddQuotationWizardItem,
+    startEditQuotationWizardItem,
+    cancelEditQuotationWizardItem,
     quotationWizardItemReady,
     formatCurrency,
     calculateQuotationWizardItemTotal,
@@ -72,12 +74,14 @@ export default function QuotationWizardModal(props) {
   };
 
   const activeWizardHelp = wizardStepHelp[quotationWizard.step] || wizardStepHelp.customer;
+  const isRevision = quotationWizard.mode === "revise";
+  const isEditingItem = Boolean(quotationWizard.editingItemId);
 
   return (
     <div className="modal-overlay" onClick={closeQuotationWizard}>
       <div className="modal-card modal-wide glass-panel quotation-wizard-modal" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
-          <h3>Create Quotation</h3>
+          <h3>{isRevision ? "Revise Quotation" : "Create Quotation"}</h3>
           <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
         </div>
 
@@ -99,24 +103,44 @@ export default function QuotationWizardModal(props) {
 
         {quotationWizard.step === "customer" && (
           <div className="quotation-wizard-body">
-            <div className="quotation-wizard-mode-switch">
-              <button
-                type="button"
-                className={`ghost-btn ${quotationWizard.customerMode === "existing" ? "active-chip" : ""}`}
-                onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "existing" }))}
-              >
-                Existing Customer
-              </button>
-              <button
-                type="button"
-                className={`ghost-btn ${quotationWizard.customerMode === "new" ? "active-chip" : ""}`}
-                onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "new", selectedCustomerId: "" }))}
-              >
-                New Customer
-              </button>
-            </div>
+            {quotationWizard.lockedCustomer ? (
+              <div className="preview-grid">
+                <div className="preview-pane">
+                  <h5>Locked Customer</h5>
+                  <span>Name: {quotationWizard.customer.name || "-"}</span>
+                  <span>Firm: {quotationWizard.customer.firmName || "-"}</span>
+                  <span>Mobile: {quotationWizard.customer.mobile || "-"}</span>
+                  <span>Email: {quotationWizard.customer.email || "-"}</span>
+                  <span>GST: {quotationWizard.customer.gstNumber || "-"}</span>
+                </div>
+                <div className="preview-pane">
+                  <h5>Billing Details</h5>
+                  <span>Address: {quotationWizard.customer.address || "-"}</span>
+                  <span>Monthly Billing: {quotationWizard.customer.monthlyBilling ? "Yes" : "No"}</span>
+                  <span>Shipping Addresses: {(quotationWizard.customer.shippingAddresses || []).length}</span>
+                  <span className="muted">Customer editing is disabled during quotation revision.</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="quotation-wizard-mode-switch">
+                  <button
+                    type="button"
+                    className={`ghost-btn ${quotationWizard.customerMode === "existing" ? "active-chip" : ""}`}
+                    onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "existing" }))}
+                  >
+                    Existing Customer
+                  </button>
+                  <button
+                    type="button"
+                    className={`ghost-btn ${quotationWizard.customerMode === "new" ? "active-chip" : ""}`}
+                    onClick={() => setQuotationWizard((prev) => ({ ...prev, customerMode: "new", selectedCustomerId: "" }))}
+                  >
+                    New Customer
+                  </button>
+                </div>
 
-            {quotationWizard.customerMode === "existing" ? (
+                {quotationWizard.customerMode === "existing" ? (
               <div className="quotation-wizard-customer-search">
                 <input
                   placeholder="Search customer by name, firm, mobile, or email"
@@ -191,6 +215,8 @@ export default function QuotationWizardModal(props) {
                   Monthly Billing
                 </label>
               </div>
+                )}
+              </>
             )}
           </div>
         )}
@@ -382,7 +408,12 @@ export default function QuotationWizardModal(props) {
                   Save To Secondary Catalogue
                 </button>
               ) : null}
-              <button type="button" onClick={handleAddQuotationWizardItem} disabled={!quotationWizardItemReady}>Add Item</button>
+              <button type="button" onClick={handleAddQuotationWizardItem} disabled={!quotationWizardItemReady}>
+                {isEditingItem ? "Update Item" : "Add Item"}
+              </button>
+              {isEditingItem ? (
+                <button type="button" className="ghost-btn" onClick={cancelEditQuotationWizardItem}>Cancel Item Edit</button>
+              ) : null}
               <span className="muted">Current item total: {formatCurrency(calculateQuotationWizardItemTotal(quotationWizard.itemForm))}</span>
             </div>
 
@@ -410,6 +441,7 @@ export default function QuotationWizardModal(props) {
                         <td>{formatCurrency(getQuotationItemRateValue(item))}</td>
                         <td>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</td>
                         <td>
+                          <button type="button" className="ghost-btn" onClick={() => startEditQuotationWizardItem(item.id)}>Edit</button>
                           <button type="button" className="ghost-btn" onClick={() => handleRemoveQuotationWizardItem(item.id)}>Remove</button>
                         </td>
                       </tr>
@@ -426,6 +458,7 @@ export default function QuotationWizardModal(props) {
             <div className="quotation-wizard-grid two">
               <input placeholder="Discount Amount" type="number" min="0" value={quotationWizard.amounts.discountAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }))} />
               <input placeholder="Advance Amount" type="number" min="0" value={quotationWizard.amounts.advanceAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, advanceAmount: e.target.value } }))} />
+              <input placeholder="Custom Quotation Number" type="text" maxLength="120" value={quotationWizard.amounts.customQuotationNumber || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, customQuotationNumber: e.target.value } }))} />
               <input placeholder="Reference Request ID" type="text" maxLength="120" value={quotationWizard.amounts.referenceRequestId || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, referenceRequestId: e.target.value } }))} />
               <label>
                 <span>Delivery Type</span>
@@ -464,6 +497,7 @@ export default function QuotationWizardModal(props) {
                 <span>Gross Total: {formatCurrency(quotationWizardGrossTotal)}</span>
                 <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>
                 <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
+                <span>Custom Quotation Number: {quotationWizard.amounts.customQuotationNumber || "-"}</span>
                 <span>Reference Request ID: {quotationWizard.amounts.referenceRequestId || "-"}</span>
                 <span>Delivery Type: {quotationWizard.amounts.deliveryType || "PICKUP"}</span>
                 {String(quotationWizard.amounts.deliveryType || "PICKUP") === "DOORSTEP" && (
@@ -484,7 +518,7 @@ export default function QuotationWizardModal(props) {
             <div className="quotation-preview-header">
               <div>
                 <h4>{formatQuotationLabel(quotationWizard.submittedQuotation)}</h4>
-                <p className="muted">Quotation created successfully. Full document preview is shown below.</p>
+                <p className="muted">{isRevision ? "Quotation revised successfully." : "Quotation created successfully."} Full document preview is shown below.</p>
               </div>
               <div className="quotation-wizard-inline-actions">
                 <button
@@ -515,7 +549,7 @@ export default function QuotationWizardModal(props) {
             </button>
             {quotationWizard.step === "amounts" ? (
               <button type="button" onClick={handleSubmitQuotationWizard} disabled={quotationWizardSubmitting || !quotationWizard.items.length}>
-                {quotationWizardSubmitting ? "Submitting..." : "Submit Quotation"}
+                {quotationWizardSubmitting ? "Submitting..." : (isRevision ? "Save New Version" : "Submit Quotation")}
               </button>
             ) : (
               <button type="button" onClick={handleQuotationWizardNext}>

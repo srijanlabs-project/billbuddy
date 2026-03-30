@@ -18,7 +18,6 @@ import DashboardPage from "./components/DashboardPage";
 import HelpCenterPage from "./components/HelpCenterPage";
 import RbacMatrixPage from "./components/RbacMatrixPage";
 import GoLiveGatePage from "./components/GoLiveGatePage";
-import OrderDetailModal from "./components/OrderDetailModal";
 import SellerDetailModal from "./components/SellerDetailModal";
 import NotificationDetailModal from "./components/NotificationDetailModal";
 import SubscriptionDetailModal from "./components/SubscriptionDetailModal";
@@ -1155,75 +1154,85 @@ function validateProductRows(rows) {
   });
 }
 
-function buildOrderEditForm(details, products = [], catalogueFields = []) {
-  return {
-    customQuotationNumber: details?.quotation?.custom_quotation_number || "",
-    referenceRequestId: details?.quotation?.reference_request_id || "",
-    deliveryType: details?.quotation?.delivery_type || "PICKUP",
-    deliveryDate: details?.quotation?.delivery_date || "",
-    deliveryAddress: details?.quotation?.delivery_address || "",
-    deliveryPincode: details?.quotation?.delivery_pincode || "",
-    transportCharges: String(details?.quotation?.transport_charges || details?.quotation?.transportation_cost || 0),
-    designCharges: String(details?.quotation?.design_charges || 0),
-    discountAmount: String(details?.quotation?.discount_amount || 0),
-    advanceAmount: String(details?.quotation?.advance_amount || 0),
-    items: (details?.items || []).map((item) => {
-      const product = products.find((entry) => Number(entry.id) === Number(item.product_id));
-      const mergedCustomFields = product
-        ? getCatalogueDrivenQuotationCustomFields(product, catalogueFields, item.custom_fields || item.customFields || {})
-        : { ...(item.custom_fields || item.customFields || {}) };
-      return ({
-      id: item.id,
-      tempId: `existing-${item.id}`,
-      productId: item.product_id || "",
-      variantId: item.variant_id || "",
-      itemCategory: item.item_category || item.category || "",
-      materialName: item.material_name || item.material_type || item.design_name || item.sku || "",
-      materialType: item.material_type || "",
-      thickness: item.thickness || "",
-      size: item.size || "",
-      quantity: String(item.quantity ?? ""),
-      unitPrice: String(item.unit_price ?? ""),
-      sku: item.sku || "",
-      designName: item.design_name || "",
-      colorName: item.color_name || "",
-      importedColorNote: item.imported_color_note || "",
-      psIncluded: Boolean(item.ps_included),
-      dimensionHeight: item.dimension_height ?? "",
-      dimensionWidth: item.dimension_width ?? "",
-      dimensionUnit: item.dimension_unit || "",
-      itemNote: item.item_note || "",
-      pricingType: item.pricing_type || "SFT",
-      customFields: {
-        ...mergedCustomFields
-      }
-    });
-    })
-  };
-}
+function buildQuotationWizardRevisionState(details, {
+  products = [],
+  customers = [],
+  quotationColumns = [],
+  createInitialQuotationWizardState,
+  createQuotationWizardItem,
+  getCatalogueDrivenQuotationCustomFields
+}) {
+  const quotation = details?.quotation || {};
+  const customerId = quotation.customer_id ? String(quotation.customer_id) : "";
+  const selectedCustomer = (customers || []).find((entry) => String(entry.id) === customerId) || null;
+  const customColumns = (quotationColumns || []).filter((column) => column.visibleInForm && column.type !== "formula");
+  const shippingAddresses = Array.isArray(quotation.customer_shipping_addresses) && quotation.customer_shipping_addresses.length
+    ? quotation.customer_shipping_addresses
+    : [createEmptyShippingAddress()];
 
-function createEditableQuotationItem() {
+  const baseState = createInitialQuotationWizardState();
   return {
-    tempId: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    productId: "",
-    variantId: "",
-    materialName: "",
-    materialType: "",
-    thickness: "",
-    size: "",
-    quantity: "1",
-    unitPrice: "",
-    sku: "",
-    designName: "",
-    colorName: "",
-    importedColorNote: "",
-    psIncluded: false,
-    dimensionHeight: "",
-    dimensionWidth: "",
-    dimensionUnit: "",
-    itemNote: "",
-    pricingType: "SFT",
-    customFields: {}
+    ...baseState,
+    mode: "revise",
+    quotationId: quotation.id || null,
+    lockedCustomer: true,
+    customerMode: "existing",
+    customerSearch: selectedCustomer?.firm_name || selectedCustomer?.name || quotation.firm_name || quotation.customer_name || quotation.mobile || "",
+    selectedCustomerId: customerId,
+    customer: {
+      name: quotation.customer_name || selectedCustomer?.name || "",
+      firmName: quotation.firm_name || selectedCustomer?.firm_name || "",
+      mobile: quotation.mobile || selectedCustomer?.mobile || "",
+      email: quotation.email || selectedCustomer?.email || "",
+      address: quotation.address || selectedCustomer?.address || "",
+      gstNumber: quotation.customer_gst_number || selectedCustomer?.gst_number || "",
+      monthlyBilling: Boolean(quotation.customer_monthly_billing ?? selectedCustomer?.monthly_billing),
+      shippingAddresses
+    },
+    items: (details?.items || []).map((item, index) => {
+      const product = (products || []).find((entry) => String(entry.id) === String(item.product_id)) || null;
+      const baseItem = createQuotationWizardItem(product);
+      return {
+        ...baseItem,
+        id: item.id ? String(item.id) : `existing-${index + 1}`,
+        productId: item.product_id ? String(item.product_id) : "",
+        catalogueSource: product?.catalogue_source || item.catalogue_source || baseItem.catalogueSource,
+        materialName: item.material_name || item.material_type || item.design_name || item.sku || baseItem.materialName,
+        category: normalizeQuotationWizardCategory(item.item_category || item.category || product?.category),
+        color: item.color_name || product?.color_name || "",
+        otherInfo: item.imported_color_note || "",
+        ps: Boolean(item.ps_included),
+        thickness: item.thickness || product?.thickness || "",
+        height: item.dimension_height ?? "",
+        width: item.dimension_width ?? "",
+        unit: item.dimension_unit || "ft",
+        quantity: String(item.quantity ?? "1"),
+        rate: String(item.unit_price ?? ""),
+        catalogueBasePrice: Number(product?.base_price || 0),
+        limitRateEdit: Boolean(product?.limit_rate_edit),
+        maxDiscountPercent: formatMaxDiscountLimit(product?.max_discount_percent, product?.max_discount_type || "percent"),
+        maxDiscountType: product?.max_discount_type || "percent",
+        note: item.item_note || item.design_name || "",
+        customFields: getCatalogueDrivenQuotationCustomFields(
+          product,
+          customColumns,
+          {
+            ...(item.custom_fields || item.customFields || {}),
+            ...(item.size ? { size: item.size } : {})
+          }
+        )
+      };
+    }),
+    amounts: {
+      discountAmount: String(quotation.discount_amount || ""),
+      advanceAmount: String(quotation.advance_amount || ""),
+      customQuotationNumber: quotation.custom_quotation_number || "",
+      deliveryDate: quotation.delivery_date || "",
+      referenceRequestId: quotation.reference_request_id || "",
+      deliveryType: quotation.delivery_type || "PICKUP",
+      deliveryAddress: quotation.delivery_address || "",
+      deliveryPincode: quotation.delivery_pincode || ""
+    }
   };
 }
 
@@ -1367,6 +1376,9 @@ function createQuotationWizardItem(product = null) {
 
 function createInitialQuotationWizardState(firstProduct = null) {
   return {
+    mode: "create",
+    quotationId: null,
+    lockedCustomer: false,
     step: "customer",
     customerMode: "existing",
     customerSearch: "",
@@ -1382,10 +1394,12 @@ function createInitialQuotationWizardState(firstProduct = null) {
       shippingAddresses: [createEmptyShippingAddress()]
     },
     itemForm: createQuotationWizardItem(firstProduct),
+    editingItemId: null,
     items: [],
     amounts: {
       discountAmount: "",
       advanceAmount: "",
+      customQuotationNumber: "",
       deliveryDate: "",
       referenceRequestId: "",
       deliveryType: "PICKUP",
@@ -3298,20 +3312,6 @@ function App() {
   const [showOrderDetailsModal, setShowOrderDetailsModal] = useState(false);
   const [orderVersions, setOrderVersions] = useState([]);
   const [selectedVersionId, setSelectedVersionId] = useState("");
-  const [isEditingQuotation, setIsEditingQuotation] = useState(false);
-  const [quotationEditForm, setQuotationEditForm] = useState({
-    customQuotationNumber: "",
-    referenceRequestId: "",
-    deliveryType: "PICKUP",
-    deliveryDate: "",
-    deliveryAddress: "",
-    deliveryPincode: "",
-    transportCharges: "0",
-    designCharges: "0",
-    discountAmount: "0",
-    advanceAmount: "0",
-    items: []
-  });
   const [orderPage, setOrderPage] = useState(1);
   const [sellerPage, setSellerPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
@@ -4106,12 +4106,6 @@ function App() {
 
     return columns;
   }, [runtimeQuotationColumns, unsupportedRuntimeQuotationColumns]);
-  const quotationEditMaterialSuggestions = useMemo(() => {
-    return [...new Set((products || [])
-      .map((product) => String(product.material_name || "").trim())
-      .filter(Boolean))]
-      .sort((left, right) => left.localeCompare(right));
-  }, [products]);
   const aiSuggestions = useMemo(() => {
     const pending = Number(dashboardData?.pendingOverall || 0);
     const walkin = Number(dashboardData?.totals?.walk_in_sales || 0);
@@ -4153,6 +4147,12 @@ function App() {
     approvals.filter((entry) => String(entry.status || "").toLowerCase() === "pending" && Number(entry.requested_by_user_id || 0) === Number(auth?.user?.id || 0)).length
   ), [approvals, auth?.user?.id]);
 
+  async function refreshQuotationList() {
+    const quotationRows = await apiFetch("/api/quotations");
+    setQuotations(quotationRows);
+    return quotationRows;
+  }
+
   const {
     showMessageSimulatorModal,
     quotationWizard,
@@ -4184,6 +4184,8 @@ function App() {
     handleQuotationWizardVariantSelection,
     handleSaveQuotationWizardSecondaryProduct,
     handleAddQuotationWizardItem,
+    startEditQuotationWizardItem,
+    cancelEditQuotationWizardItem,
     handleRemoveQuotationWizardItem,
     handleQuotationWizardNext,
     handleQuotationWizardBack,
@@ -4210,8 +4212,10 @@ function App() {
     apiFetch,
     setCustomers,
     setProducts,
+    refreshQuotationList,
     loadDashboardData,
     dashboardRange,
+    handleOpenOrderDetails,
     handleApiError,
     setError
   });
@@ -4263,7 +4267,6 @@ function App() {
     showProductUploadModal ||
     showSingleProductModal ||
     showProductPreviewModal ||
-    isEditingQuotation ||
     showSellerDetailModal ||
     showSubscriptionModal ||
     showPlanDetailModal ||
@@ -5789,12 +5792,24 @@ function App() {
       const versionRows = Array.isArray(versions) ? versions : [];
       setOrderVersions(versionRows);
       setSelectedVersionId(versionRows[0] ? String(versionRows[0].id) : "");
-      setQuotationEditForm(buildOrderEditForm(details, products, activeSellerConfiguration?.catalogueFields || []));
-      setIsEditingQuotation(false);
       setShowOrderDetailsModal(true);
     } catch (err) {
       handleApiError(err);
     }
+  }
+
+  function openRevisionQuotationWizard() {
+    if (!selectedOrderDetails?.quotation?.id) return;
+    const revisionState = buildQuotationWizardRevisionState(selectedOrderDetails, {
+      products,
+      customers,
+      quotationColumns: unsupportedRuntimeQuotationColumns,
+      createInitialQuotationWizardState,
+      createQuotationWizardItem,
+      getCatalogueDrivenQuotationCustomFields
+    });
+    openQuotationWizard(revisionState);
+    setError("");
   }
 
   function closeOrderDetailsModal() {
@@ -5802,152 +5817,6 @@ function App() {
     setSelectedOrderDetails(null);
     setOrderVersions([]);
     setSelectedVersionId("");
-    setIsEditingQuotation(false);
-  }
-
-  function resolveQuotationEditMaterialSelection(item, materialName) {
-    const normalizedMaterial = normalizeLookupValue(materialName);
-    if (!normalizedMaterial) {
-      return {
-        ...item,
-        materialName: materialName,
-        materialType: materialName
-      };
-    }
-    const matchingProducts = (products || []).filter(
-      (product) => normalizeLookupValue(product.material_name) === normalizedMaterial
-    );
-
-    if (!matchingProducts.length) {
-      return {
-        ...item,
-        materialName: materialName,
-        materialType: materialName
-      };
-    }
-
-    const selectedProduct = matchingProducts[0];
-    const customFieldSeedColumns = unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && String(column.type || "").toLowerCase() !== "formula");
-    return {
-      ...item,
-      productId: selectedProduct.id ? String(selectedProduct.id) : "",
-      materialName: selectedProduct.material_name || materialName,
-      materialType: selectedProduct.material_name || materialName,
-      itemCategory: selectedProduct.category || item.itemCategory || "",
-      thickness: selectedProduct.thickness || item.thickness || "",
-      colorName: selectedProduct.color_name || item.colorName || "",
-      sku: selectedProduct.sku || item.sku || "",
-      pricingType: selectedProduct.pricing_type || item.pricingType || "SFT",
-      unitPrice: String(item.unitPrice || selectedProduct.base_price || ""),
-      customFields: getCatalogueDrivenQuotationCustomFields(
-        selectedProduct,
-        customFieldSeedColumns,
-        item.customFields || {}
-      )
-    };
-  }
-
-  function handleRemoveQuotationEditItem(index) {
-    setQuotationEditForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, itemIndex) => itemIndex !== index)
-    }));
-  }
-
-  async function handleSaveQuotationRevision() {
-    if (!selectedOrderDetails?.quotation?.id) return;
-
-    try {
-      if (!quotationEditForm.items.length) {
-        setError("Please add at least one item before saving the new version.");
-        return;
-      }
-      const invalidItemIndex = quotationEditForm.items.findIndex((item) => (
-        !String(item.materialName || "").trim()
-        || Number(item.quantity || 0) <= 0
-        || Number(item.unitPrice || 0) <= 0
-      ));
-      if (invalidItemIndex >= 0) {
-        setError(`Item ${invalidItemIndex + 1} is incomplete. Product, quantity, and rate are required.`);
-        return;
-      }
-      const normalizedDeliveryType = String(quotationEditForm.deliveryType || "PICKUP").toUpperCase();
-      if (normalizedDeliveryType === "DOORSTEP") {
-        const hasAddress = String(quotationEditForm.deliveryAddress || "").trim();
-        const rawPincode = String(quotationEditForm.deliveryPincode || "").trim();
-        const hasPincode = rawPincode;
-        if (!hasAddress || !hasPincode) {
-          setError("Delivery address and pincode are required for doorstep delivery.");
-          return;
-        }
-        if (!/^\d{6}$/.test(rawPincode)) {
-          setError("Delivery pincode must be a 6-digit number.");
-          return;
-        }
-      }
-
-      const response = await apiFetch(`/api/quotations/${selectedOrderDetails.quotation.id}/revise`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          customQuotationNumber: quotationEditForm.customQuotationNumber || null,
-          referenceRequestId: quotationEditForm.referenceRequestId || null,
-          deliveryType: normalizedDeliveryType,
-          deliveryDate: quotationEditForm.deliveryDate || null,
-          deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? quotationEditForm.deliveryAddress || null : null,
-          deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? quotationEditForm.deliveryPincode || null : null,
-          transportCharges: Number(quotationEditForm.transportCharges || 0),
-          designCharges: Number(quotationEditForm.designCharges || 0),
-          discountAmount: Number(quotationEditForm.discountAmount || 0),
-          advanceAmount: Number(quotationEditForm.advanceAmount || 0),
-          items: quotationEditForm.items.map((item) => ({
-            productId: item.productId ? Number(item.productId) : null,
-            variantId: item.variantId ? Number(item.variantId) : null,
-            category: item.itemCategory || null,
-            materialType: item.materialType || item.materialName || null,
-            thickness: item.thickness || null,
-            size: item.size || null,
-            quantity: Number(item.quantity || 0),
-            unitPrice: Number(item.unitPrice || 0),
-            sku: item.sku || null,
-            designName: item.designName || null,
-            colorName: item.colorName || null,
-            importedColorNote: item.importedColorNote || null,
-            psIncluded: Boolean(item.psIncluded),
-            dimensionHeight: item.dimensionHeight === "" ? null : item.dimensionHeight,
-            dimensionWidth: item.dimensionWidth === "" ? null : item.dimensionWidth,
-            dimensionUnit: item.dimensionUnit || null,
-            itemNote: item.itemNote || null,
-            pricingType: item.pricingType || "SFT",
-            customFields: {
-              ...(item.customFields || {})
-            }
-          }))
-        })
-      });
-
-      const [quotationRows, summary] = await Promise.all([
-        apiFetch("/api/quotations"),
-        apiFetch(`/api/dashboard/summary?range=${dashboardRange}`)
-      ]);
-
-      setQuotations(quotationRows);
-      setDashboardData(summary);
-      setSelectedOrderDetails((prev) => ({
-        ...prev,
-        quotation: response.quotation,
-        items: response.items
-      }));
-      setOrderVersions(response.versions || []);
-      setSelectedVersionId(response.versions?.[0] ? String(response.versions[0].id) : "");
-      setQuotationEditForm(buildOrderEditForm({
-        quotation: response.quotation,
-        items: response.items
-      }, products, activeSellerConfiguration?.catalogueFields || []));
-      setIsEditingQuotation(false);
-      setError("Quotation updated and saved as a new version.");
-    } catch (err) {
-      handleApiError(err);
-    }
   }
 
   function changeSort(key) {
@@ -6443,7 +6312,7 @@ function App() {
               handleSendQuotationEmail={handleSendQuotationEmail}
               selectedVersionRecord={selectedVersionRecord}
               selectedVersionIndex={selectedVersionIndex}
-              setIsEditingQuotation={setIsEditingQuotation}
+              openRevisionQuotationWizard={openRevisionQuotationWizard}
               shouldShowVersionSelector={shouldShowVersionSelector}
               selectedVersionId={selectedVersionId}
               setSelectedVersionId={setSelectedVersionId}
@@ -6680,6 +6549,8 @@ function App() {
           quotationWizardSelectedProduct={quotationWizardSelectedProduct}
           updateQuotationWizardCustomField={updateQuotationWizardCustomField}
           handleAddQuotationWizardItem={handleAddQuotationWizardItem}
+          startEditQuotationWizardItem={startEditQuotationWizardItem}
+          cancelEditQuotationWizardItem={cancelEditQuotationWizardItem}
           quotationWizardItemReady={quotationWizardItemReady}
           formatCurrency={formatCurrency}
           calculateQuotationWizardItemTotal={calculateQuotationWizardItemTotal}
@@ -6766,52 +6637,6 @@ function App() {
             </div>
           </div>
         )}
-
-        <OrderDetailModal
-          key={`${selectedOrderDetails?.quotation?.id || "none"}-${isEditingQuotation ? "edit" : "view"}`}
-          showOrderDetailsModal={isEditingQuotation}
-          selectedOrderDetails={selectedOrderDetails}
-          closeOrderDetailsModal={closeOrderDetailsModal}
-          closeEditModal={() => setIsEditingQuotation(false)}
-          handleDownloadQuotationSheet={handleDownloadQuotationSheet}
-          handleSendQuotationEmail={handleSendQuotationEmail}
-          selectedVersionRecord={selectedVersionRecord}
-          selectedVersionIndex={selectedVersionIndex}
-          isEditingQuotation={isEditingQuotation}
-          setIsEditingQuotation={setIsEditingQuotation}
-          handleSaveQuotationRevision={handleSaveQuotationRevision}
-          shouldShowVersionSelector={shouldShowVersionSelector}
-          selectedVersionId={selectedVersionId}
-          setSelectedVersionId={setSelectedVersionId}
-          orderVersions={orderVersions}
-          getVersionLabel={getVersionLabel}
-          formatDateIST={formatDateIST}
-          displayedQuotation={displayedQuotation}
-          previousVersionRecord={previousVersionRecord}
-          quotationFieldChanged={quotationFieldChanged}
-          formatQuotationLabel={formatQuotationLabel}
-          formatCurrency={formatCurrency}
-          statusLabel={statusLabel}
-          approvalStatusLabel={approvalStatusLabel}
-          error={error}
-          quotationEditForm={quotationEditForm}
-          setQuotationEditForm={setQuotationEditForm}
-          orderDetailColumns={orderDetailColumns}
-          quotationEditMaterialSuggestions={quotationEditMaterialSuggestions}
-          displayedItems={displayedItems}
-          quotationItemFieldChanged={quotationItemFieldChanged}
-          handleRemoveQuotationEditItem={handleRemoveQuotationEditItem}
-          resolveQuotationEditMaterialSelection={resolveQuotationEditMaterialSelection}
-          createEditableQuotationItem={createEditableQuotationItem}
-          getQuotationItemTitle={getQuotationItemTitle}
-          getQuotationCustomFieldEntries={getQuotationCustomFieldEntries}
-          getQuotationItemDimensionText={getQuotationItemDimensionText}
-          getQuotationItemQuantityValue={getQuotationItemQuantityValue}
-          getQuotationItemRateValue={getQuotationItemRateValue}
-          getQuotationItemTotalValue={getQuotationItemTotalValue}
-          canReviseQuotation={canReviseQuotation}
-          openApprovalRequest={openApprovalRequest}
-        />
 
         <SellerDetailModal
           showSellerDetailModal={showSellerDetailModal}
