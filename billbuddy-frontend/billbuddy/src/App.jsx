@@ -3381,6 +3381,32 @@ function App() {
     document.title = isPublicLandingPage ? "Srijan Labs" : "Quotsy";
   }, [isPublicLandingPage]);
 
+  useEffect(() => {
+    if (
+      auth?.token ||
+      !bootstrapRequired ||
+      isBootstrapSetupPage ||
+      isPublicLandingPage ||
+      isPublicLeadPage ||
+      isPublicDemoPage ||
+      isPublicVisitorHelpPage ||
+      isPublicFeaturesPage
+    ) {
+      return;
+    }
+
+    window.history.replaceState({}, "", "/platform-setup");
+  }, [
+    auth?.token,
+    bootstrapRequired,
+    isBootstrapSetupPage,
+    isPublicLandingPage,
+    isPublicLeadPage,
+    isPublicDemoPage,
+    isPublicVisitorHelpPage,
+    isPublicFeaturesPage
+  ]);
+
   function saveAuth(authData, shouldRemember = true) {
     const nextAuth = {
       ...authData,
@@ -5897,8 +5923,8 @@ function App() {
     return (
       <>
         <PublicLoginPage
-          bootstrapRequired={Boolean(bootstrapRequired && isBootstrapSetupPage)}
-          bootstrapHint={Boolean(bootstrapRequired && !isBootstrapSetupPage)}
+          bootstrapRequired={Boolean(bootstrapRequired)}
+          bootstrapHint={false}
           loginForm={loginForm}
           setupForm={setupForm}
           rememberMe={rememberMe}
