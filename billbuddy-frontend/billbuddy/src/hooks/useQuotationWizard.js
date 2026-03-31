@@ -480,8 +480,11 @@ export default function useQuotationWizard({
 
   function buildSecondaryCataloguePayload(itemForm) {
     const normalizedCategory = String(itemForm.category || "Product").trim() || "Product";
-    const derivedUnitType = normalizedCategory === "Sheet" ? "SFT" : "COUNT";
-    const derivedPricingType = normalizedCategory === "Sheet" ? "SFT" : "UNIT";
+    const width = Number(itemForm.width || 0);
+    const height = Number(itemForm.height || 0);
+    const hasDimensions = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
+    const derivedUnitType = hasDimensions ? "SFT" : "COUNT";
+    const derivedPricingType = hasDimensions ? "SFT" : "UNIT";
     const supportedCustomKeys = new Set((runtimeCatalogueFields || []).map((field) => field.normalizedKey || field.key));
 
     const secondaryCustomFields = {};

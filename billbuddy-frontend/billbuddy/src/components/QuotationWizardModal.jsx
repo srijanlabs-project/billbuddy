@@ -244,7 +244,7 @@ export default function QuotationWizardModal(props) {
                         try {
                           await validateQuotationWizardCustomerGst(gstNumber, { applyProfile: true });
                         } catch {
-                          // Error is surfaced through the shared app error banner.
+                          // Error is surfaced through the current wizard error state.
                         }
                       }}
                     />
@@ -257,7 +257,7 @@ export default function QuotationWizardModal(props) {
                         try {
                           await validateQuotationWizardCustomerGst(gstNumber, { applyProfile: true });
                         } catch {
-                          // Error is surfaced through the shared app error banner.
+                          // Error is surfaced through the current wizard error state.
                         }
                       }}
                       disabled={quotationWizardCustomerGstValidation?.status === "verifying" || !String(quotationWizard.customer.gstNumber || "").trim()}
@@ -408,9 +408,6 @@ export default function QuotationWizardModal(props) {
                     if (normalizedKey === "material_name") return null;
                     if (quotationWizardVisibleVariantFields.some((field) => field.key === normalizedKey)) return null;
                     if (["width", "height", "unit"].includes(normalizedKey) && quotationWizardItemRules.isServices) {
-                      return null;
-                    }
-                    if (["thickness", "color_name", "other_info"].includes(normalizedKey) && !quotationWizardItemRules.isSheet) {
                       return null;
                     }
                     if (normalizedKey === "ps" && quotationWizardItemRules.isServices) {

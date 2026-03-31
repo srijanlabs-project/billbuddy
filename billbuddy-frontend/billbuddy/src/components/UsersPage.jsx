@@ -43,14 +43,9 @@ export default function UsersPage(props) {
   function getSellerCreateRoleOptions(roleRows) {
     const roleGroups = [
       {
-        keys: ["seller_admin", "admin"],
+        keys: ["seller_admin", "admin", "master_user"],
         label: "Seller Admin",
-        preferredLabels: ["Seller Admin", "Admin"]
-      },
-      {
-        keys: ["master_user"],
-        label: "Master User",
-        preferredLabels: ["Master User"]
+        preferredLabels: ["Seller Admin", "Admin", "Master User"]
       },
       {
         keys: ["sub_user", "seller_user"],
@@ -295,7 +290,7 @@ export default function UsersPage(props) {
               <p className="muted">Mobile number is locked for MVP because it is the login identity.</p>
               <select value={userForm.roleId} onChange={(event) => setUserForm((prev) => ({ ...prev, roleId: event.target.value }))} required>
                 <option value="">Select Role</option>
-                {roles.map((role) => <option key={role.id} value={role.id}>{role.role_name}</option>)}
+                {(isPlatformAdmin ? roles : visibleRoleOptions).map((role) => <option key={role.id} value={role.id}>{role.display_label || role.role_name}</option>)}
               </select>
               <select value={userForm.status ? "active" : "inactive"} onChange={(event) => setUserForm((prev) => ({ ...prev, status: event.target.value === "active" }))}>
                 <option value="active">Active</option>

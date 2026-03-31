@@ -1341,9 +1341,10 @@ function getSubscriptionBannerData(seller, plans = []) {
 
 function normalizeQuotationWizardCategory(value) {
   const raw = String(value || "").trim().toLowerCase();
-  if (raw === "product") return "Product";
   if (raw === "services" || raw === "service") return "Services";
-  return "Sheet";
+  if (raw === "sheet") return "Sheet";
+  if (!raw) return "Product";
+  return String(value || "Product").trim();
 }
 
 function createQuotationWizardItem(product = null) {
@@ -1480,8 +1481,6 @@ function getQuotationWizardRules(item) {
   const category = normalizeQuotationWizardCategory(item?.category);
   return {
     category,
-    isSheet: category === "Sheet",
-    isProduct: category === "Product",
     isServices: category === "Services"
   };
 }
@@ -1495,13 +1494,19 @@ function calculateQuotationWizardItemTotal(item) {
   const rate = resolveQuotationWizardRate(item);
   const quantity = toQuotationWizardAmount(item?.quantity || 0);
 
-  if (rules.isProduct || rules.isServices) {
+  if (rules.isServices) {
     return Number((quantity * rate).toFixed(2));
   }
 
-  const widthFeet = quotationWizardToFeet(item?.width, item?.unit);
-  const heightFeet = quotationWizardToFeet(item?.height, item?.unit);
-  return Number((widthFeet * heightFeet * quantity * rate).toFixed(2));
+  const width = toQuotationWizardAmount(item?.width);
+  const height = toQuotationWizardAmount(item?.height);
+  if (width > 0 && height > 0) {
+    const widthFeet = quotationWizardToFeet(width, item?.unit);
+    const heightFeet = quotationWizardToFeet(height, item?.unit);
+    return Number((widthFeet * heightFeet * quantity * rate).toFixed(2));
+  }
+
+  return Number((quantity * rate).toFixed(2));
 }
 
 function validateQuotationWizardItem(item) {
@@ -1509,8 +1514,11 @@ function validateQuotationWizardItem(item) {
   if (resolveQuotationWizardRate(item) <= 0) return false;
   if (toQuotationWizardAmount(item?.quantity) <= 0) return false;
   const rules = getQuotationWizardRules(item);
-  if (rules.isSheet) {
-    return toQuotationWizardAmount(item?.width) > 0 && toQuotationWizardAmount(item?.height) > 0;
+  if (rules.isServices) return true;
+  const width = toQuotationWizardAmount(item?.width);
+  const height = toQuotationWizardAmount(item?.height);
+  if (width > 0 || height > 0) {
+    return width > 0 && height > 0;
   }
   return true;
 }
@@ -1542,8 +1550,11 @@ function buildQuotationWizardPayloadItems(items) {
   return (items || []).map((item) => {
     const rules = getQuotationWizardRules(item);
     const rate = resolveQuotationWizardRate(item);
+    const width = toQuotationWizardAmount(item.width);
+    const height = toQuotationWizardAmount(item.height);
+    const hasDimensions = !rules.isServices && width > 0 && height > 0;
 
-    if (rules.isProduct || rules.isServices) {
+    if (!hasDimensions) {
       return {
         product_id: item.productId ? Number(item.productId) : null,
         category: item.category || null,
@@ -1563,8 +1574,8 @@ function buildQuotationWizardPayloadItems(items) {
       };
     }
 
-    const widthFeet = quotationWizardToFeet(item.width, item.unit);
-    const heightFeet = quotationWizardToFeet(item.height, item.unit);
+    const widthFeet = quotationWizardToFeet(width, item.unit);
+    const heightFeet = quotationWizardToFeet(height, item.unit);
     const enteredQuantity = toQuotationWizardAmount(item.quantity || 0);
     const totalArea = Number((widthFeet * heightFeet).toFixed(2));
     const effectiveQuantity = totalArea * enteredQuantity;
@@ -1583,8 +1594,8 @@ function buildQuotationWizardPayloadItems(items) {
       colorName: item.color || null,
       importedColorNote: item.otherInfo || null,
       psIncluded: Boolean(item.ps),
-      dimensionHeight: toQuotationWizardAmount(item.height),
-      dimensionWidth: toQuotationWizardAmount(item.width),
+      dimensionHeight: height,
+      dimensionWidth: width,
       dimensionUnit: item.unit || "ft",
       itemNote: item.note || null,
       pricingType: "SFT",
@@ -3076,52 +3087,11 @@ function PublicLandingPage() {
   );
 }
 
-function ServerErrorPage({ errorInfo, onReturn }) {
-  const title = errorInfo?.title || "Something went wrong";
-  const message = errorInfo?.message || "A server error interrupted the request. Please try again.";
-
-  return (
-    <div className="auth-wrap public-page-shell">
-      <div className="app-ambience" aria-hidden="true">
-        <span className="shape shape-cube" />
-        <span className="shape shape-ring" />
-        <span className="shape shape-panel" />
-      </div>
-      <div className="auth-bg-glow" />
-      <div className="public-page-stage">
-        <div className="auth-grid auth-grid-duo">
-          <div className="glass-card hero-card auth-showcase-card">
-            <p className="eyebrow">Quotsy Platform</p>
-            <h1>Server Error</h1>
-            <p>A backend issue stopped the last action before the app could finish normally.</p>
-          </div>
-          <div className="auth-public-side">
-            <div className="glass-card auth-card auth-panel-card">
-              <div className="auth-panel-copy">
-                <div className="auth-access-badge">Action Interrupted</div>
-                <h2>{title}</h2>
-                <p>{message}</p>
-              </div>
-              <div className="notice error">
-                This error is being shown in one place so it does not keep appearing across other screens.
-              </div>
-              <div className="modal-fixed-actions">
-                <button type="button" className="ghost-btn" onClick={onReturn}>Return to app</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function App() {
   const [auth, setAuth] = useState(getStoredAuth());
   const [authReady, setAuthReady] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(null);
   const [error, setError] = useState("");
-  const [serverError, setServerError] = useState(null);
   const [successNotice, setSuccessNotice] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3488,7 +3458,6 @@ function App() {
     clearStoredAuth();
     setAuth(null);
     setSellerSetupStatus(null);
-    setServerError(null);
     if (message) setError(message);
     setSuccessNotice("");
   }
@@ -3539,16 +3508,12 @@ function App() {
     const reason = normalizeErrorReason(err?.message);
     const fieldLabel = humanizeErrorField(err?.field);
     const finalMessage = fieldLabel ? `${fieldLabel}: ${reason}` : reason;
-    if (!err?.status || err.status >= 500) {
-      setServerError({
-        title: err?.status ? `Server error (${err.status})` : "Unable to reach server",
-        message: finalMessage
-      });
-      setError("");
-      return;
-    }
     setError(finalMessage);
   }
+
+  useEffect(() => {
+    setError("");
+  }, [activeModule]);
 
   function updatePublicLeadField(field, value) {
     setPublicLeadForm((prev) => ({
@@ -6150,15 +6115,6 @@ function App() {
 
   if (!authReady) {
     return <div className="auth-wrap"><div className="glass-card">Preparing dashboard...</div></div>;
-  }
-
-  if (serverError) {
-    return (
-      <ServerErrorPage
-        errorInfo={serverError}
-        onReturn={() => setServerError(null)}
-      />
-    );
   }
 
   if (!auth?.token && bootstrapRequired) {
