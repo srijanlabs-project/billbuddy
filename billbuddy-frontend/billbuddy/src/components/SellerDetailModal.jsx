@@ -55,6 +55,7 @@ export default function SellerDetailModal(props) {
                   <div><span>Email</span><strong>{selectedSellerDetail.seller.email || "-"}</strong></div>
                   <div><span>City / State</span><strong>{[selectedSellerDetail.seller.city, selectedSellerDetail.seller.state].filter(Boolean).join(", ") || "-"}</strong></div>
                   <div><span>GST</span><strong>{selectedSellerDetail.seller.gst_number || "-"}</strong></div>
+                  <div><span>Seller Type</span><strong>{String(selectedSellerDetail.seller.seller_type || "BASIC").toUpperCase() === "ADVANCED" ? "ADVANCED" : "BASIC"}</strong></div>
                 </div>
               </article>
 
@@ -114,6 +115,26 @@ export default function SellerDetailModal(props) {
                       value={getSellerLifecycleDraft(selectedSellerDetail.seller).maxOrdersPerMonth}
                       onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "maxOrdersPerMonth", e.target.value)}
                     />
+                  </label>
+                  <label>
+                    <span>Seller Type</span>
+                    <select
+                      value={getSellerLifecycleDraft(selectedSellerDetail.seller).sellerType}
+                      onChange={(e) => updateSellerLifecycleDraft(selectedSellerDetail.seller.id, "sellerType", e.target.value)}
+                    >
+                      {String(selectedSellerDetail.seller.seller_type || "BASIC").trim().toUpperCase() === "ADVANCED" ? (
+                        <>
+                          <option value="ADVANCED">Advanced</option>
+                          <option value="BASIC" disabled>Basic (Downgrade Not Allowed)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="BASIC">Basic</option>
+                          <option value="ADVANCED">Advanced</option>
+                        </>
+                      )}
+                    </select>
+                    <small className="muted">Upgrade from Basic to Advanced is allowed. Downgrade is blocked.</small>
                   </label>
                   <label>
                     <span>Onboarding</span>

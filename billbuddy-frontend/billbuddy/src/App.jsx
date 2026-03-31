@@ -3411,6 +3411,16 @@ function App() {
   const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : sellerModules;
   const currentModuleMeta = isPlatformAdmin ? PLATFORM_MODULE_META : MODULE_META;
   const sellerSetupStage = !isPlatformAdmin ? String(sellerSetupStatus?.stage || "ready").toLowerCase() : "ready";
+  const setupFieldLabelMap = {
+    business_name: "Business Name",
+    quotation_prefix: "Quotation Prefix",
+    seller_gst_number: "Seller GST Number",
+    company_contact: "Company Phone or Company Email",
+    company_address: "Company Address"
+  };
+  const pendingSetupLabels = Array.isArray(sellerSetupStatus?.missingSettings)
+    ? sellerSetupStatus.missingSettings.map((entry) => setupFieldLabelMap[entry] || entry)
+    : [];
   const setupAllowedModules = useMemo(() => {
     if (isPlatformAdmin || isSubUser) return null;
     if (sellerSetupStage === "settings") return new Set(["Settings", "Help Center", "Subscriptions"]);
@@ -5099,7 +5109,8 @@ function App() {
       maxUsers: sellerRow.max_users ?? "",
       maxOrdersPerMonth: sellerRow.max_orders_per_month ?? "",
       isLocked: Boolean(sellerRow.is_locked),
-      onboardingStatus: sellerRow.onboarding_status || "active"
+      onboardingStatus: sellerRow.onboarding_status || "active",
+      sellerType: String(sellerRow.seller_type || sellerRow.sellerType || "BASIC").trim().toUpperCase() === "ADVANCED" ? "ADVANCED" : "BASIC"
     };
   }
 
@@ -5166,7 +5177,8 @@ function App() {
           maxUsers: draft.maxUsers,
           maxOrdersPerMonth: draft.maxOrdersPerMonth,
           isLocked: Boolean(draft.isLocked),
-          onboardingStatus: draft.onboardingStatus || null
+          onboardingStatus: draft.onboardingStatus || null,
+          sellerType: String(draft.sellerType || "BASIC").trim().toUpperCase()
         })
       });
 
@@ -6352,6 +6364,16 @@ function App() {
         </header>
 
         {loading && <div className="notice">Syncing latest data...</div>}
+        {!isPlatformAdmin && !isSubUser && sellerSetupStage === "settings" && pendingSetupLabels.length > 0 && !isAnyModalOpen && (
+          <div className="notice">
+            <strong>Complete these settings to unlock modules:</strong> {pendingSetupLabels.join(", ")}
+          </div>
+        )}
+        {!isPlatformAdmin && !isSubUser && sellerSetupStage === "configuration" && !isAnyModalOpen && (
+          <div className="notice">
+            <strong>Configuration pending:</strong> Publish configuration with catalogue + quotation fields to unlock quotation flow.
+          </div>
+        )}
         {successNotice && !isAnyModalOpen && <div className="notice success">{successNotice}</div>}
         {error && !isAnyModalOpen && <div className="notice error">{error}</div>}
 

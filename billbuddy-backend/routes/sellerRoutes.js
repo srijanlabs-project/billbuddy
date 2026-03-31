@@ -676,7 +676,8 @@ router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requi
       maxUsers,
       maxOrdersPerMonth,
       isLocked,
-      onboardingStatus
+      onboardingStatus,
+      sellerType
     } = req.body;
 
     await client.query("BEGIN");
@@ -689,8 +690,13 @@ router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requi
            max_users = COALESCE($4, max_users),
            max_orders_per_month = COALESCE($5, max_orders_per_month),
            is_locked = COALESCE($6, is_locked),
-           onboarding_status = COALESCE($7, onboarding_status)
-       WHERE id = $8
+           onboarding_status = COALESCE($7, onboarding_status),
+           seller_type = CASE
+             WHEN seller_type = 'ADVANCED' THEN 'ADVANCED'
+             WHEN COALESCE($8, seller_type) = 'ADVANCED' THEN 'ADVANCED'
+             ELSE 'BASIC'
+           END
+       WHERE id = $9
        RETURNING *`,
       [
         status || null,
@@ -700,6 +706,7 @@ router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requi
         maxOrdersPerMonth !== undefined && maxOrdersPerMonth !== null && maxOrdersPerMonth !== "" ? Number(maxOrdersPerMonth) : null,
         isLocked !== undefined ? Boolean(isLocked) : null,
         onboardingStatus || null,
+        sellerType ? normalizeSellerType(sellerType) : null,
         Number(id)
       ]
     );
@@ -770,7 +777,8 @@ router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requi
           trialEndsAt: result.rows[0].trial_ends_at,
           maxUsers: result.rows[0].max_users,
           maxOrdersPerMonth: result.rows[0].max_orders_per_month,
-          isLocked: result.rows[0].is_locked
+          isLocked: result.rows[0].is_locked,
+          sellerType: normalizeSellerType(result.rows[0].seller_type)
         })
       ]
     );
