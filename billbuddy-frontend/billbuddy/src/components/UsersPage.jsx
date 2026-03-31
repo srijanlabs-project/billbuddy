@@ -33,12 +33,56 @@ export default function UsersPage(props) {
 
   if (activeModule !== "Users") return null;
 
+  function normalizeRoleName(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+  }
+
+  function getSellerCreateRoleOptions(roleRows) {
+    const roleGroups = [
+      {
+        keys: ["seller_admin", "admin"],
+        label: "Seller Admin",
+        preferredLabels: ["Seller Admin", "Admin"]
+      },
+      {
+        keys: ["master_user"],
+        label: "Master User",
+        preferredLabels: ["Master User"]
+      },
+      {
+        keys: ["sub_user", "seller_user"],
+        label: "Sub User",
+        preferredLabels: ["Sub User", "Seller User"]
+      }
+    ];
+
+    return roleGroups
+      .map((group) => {
+        const matchingRoles = (roleRows || []).filter((role) => group.keys.includes(normalizeRoleName(role.role_name)));
+        if (!matchingRoles.length) return null;
+
+        const preferredRole =
+          matchingRoles.find((role) => group.preferredLabels.includes(String(role.role_name || "").trim())) ||
+          matchingRoles[0];
+
+        return {
+          ...preferredRole,
+          display_label: group.label
+        };
+      })
+      .filter(Boolean);
+  }
+
   const approvalRoleOptions = [
     { value: "requester", label: "Requester" },
     { value: "approver", label: "Approver" },
     { value: "both", label: "Both" }
   ];
 
+  const visibleRoleOptions = isPlatformAdmin ? roles : getSellerCreateRoleOptions(roles);
   const editingUserId = Number(editingUser?.id || 0);
   const activeSellerUsers = (users || []).filter((user) => user.status);
   const approverCandidates = activeSellerUsers.filter((user) => ["approver", "both"].includes(String(user.approval_mode || "").toLowerCase()) && Number(user.id) !== editingUserId);
@@ -148,7 +192,7 @@ export default function UsersPage(props) {
               <input placeholder="Password" type="password" value={userForm.password} onChange={(event) => setUserForm((prev) => ({ ...prev, password: event.target.value }))} />
               <select value={userForm.roleId} onChange={(event) => setUserForm((prev) => ({ ...prev, roleId: event.target.value }))} required>
                 <option value="">Select Role</option>
-                {roles.map((role) => <option key={role.id} value={role.id}>{role.role_name}</option>)}
+                {visibleRoleOptions.map((role) => <option key={role.id} value={role.id}>{role.display_label || role.role_name}</option>)}
               </select>
               <select value={userForm.createdBy} onChange={(event) => setUserForm((prev) => ({ ...prev, createdBy: event.target.value }))}>
                 <option value="">Created By (Optional)</option>
