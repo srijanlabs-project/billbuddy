@@ -3385,12 +3385,7 @@ function App() {
     if (
       auth?.token ||
       !bootstrapRequired ||
-      isBootstrapSetupPage ||
-      isPublicLandingPage ||
-      isPublicLeadPage ||
-      isPublicDemoPage ||
-      isPublicVisitorHelpPage ||
-      isPublicFeaturesPage
+      isBootstrapSetupPage
     ) {
       return;
     }
@@ -3399,12 +3394,7 @@ function App() {
   }, [
     auth?.token,
     bootstrapRequired,
-    isBootstrapSetupPage,
-    isPublicLandingPage,
-    isPublicLeadPage,
-    isPublicDemoPage,
-    isPublicVisitorHelpPage,
-    isPublicFeaturesPage
+    isBootstrapSetupPage
   ]);
 
   function saveAuth(authData, shouldRemember = true) {
@@ -5875,6 +5865,36 @@ function App() {
 
   if (!authReady) {
     return <div className="auth-wrap"><div className="glass-card">Preparing dashboard...</div></div>;
+  }
+
+  if (!auth?.token && bootstrapRequired) {
+    return (
+      <>
+        <PublicLoginPage
+          bootstrapRequired
+          bootstrapHint={false}
+          loginForm={loginForm}
+          setupForm={setupForm}
+          rememberMe={rememberMe}
+          infoMessage={authNotice}
+          errorMessage={error}
+          onLoginFormChange={setLoginForm}
+          onSetupFormChange={setSetupForm}
+          onRememberMeChange={setRememberMe}
+          onLogin={handleLogin}
+          onBootstrapAdmin={handleBootstrapAdmin}
+        />
+        {!cookieConsent ? (
+          <div className="cookie-consent-banner" role="dialog" aria-live="polite" aria-label="Cookie consent">
+            <p>We use cookies to improve performance and user experience. Please accept or reject cookies to continue.</p>
+            <div className="cookie-consent-actions">
+              <button type="button" className="ghost-btn" onClick={() => handleCookieConsentDecision("rejected")}>Reject</button>
+              <button type="button" onClick={() => handleCookieConsentDecision("accepted")}>Accept</button>
+            </div>
+          </div>
+        ) : null}
+      </>
+    );
   }
 
   if (isPublicLeadPage) {
