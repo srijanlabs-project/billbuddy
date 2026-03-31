@@ -172,17 +172,24 @@ function getQuotationItemTotalValue(item = {}) {
 }
 
 function getQuotationSummaryRows({
+  subtotalAmount = 0,
   totalAmount = 0,
   gstAmount = 0,
   discountAmount = 0,
   advanceAmount = 0,
   balanceAmount = 0
 } = {}) {
-  const rows = [{ label: "Total Amount", value: Number(totalAmount || 0) }];
-  if (Number(gstAmount || 0) > 0) rows.push({ label: "GST", value: Number(gstAmount || 0) });
-  if (Number(discountAmount || 0) > 0) rows.push({ label: "Discount", value: Number(discountAmount || 0) });
-  if (Number(advanceAmount || 0) > 0) rows.push({ label: "Advance", value: Number(advanceAmount || 0) });
-  rows.push({ label: "Balance Amount", value: Number(balanceAmount || totalAmount || 0), accent: true });
+  const subtotal = Number(subtotalAmount || totalAmount || 0);
+  const discount = Number(discountAmount || 0);
+  const gst = Number(gstAmount || 0);
+  const resolvedTotal = Number(totalAmount || (subtotal - discount + gst) || 0);
+
+  const rows = [{ label: "Sub Total", value: subtotal }];
+  if (discount > 0) rows.push({ label: "-Discount", value: discount });
+  if (gst > 0) rows.push({ label: "GST", value: gst });
+  rows.push({ label: "Total Amount", value: resolvedTotal });
+  if (Number(advanceAmount || 0) > 0) rows.push({ label: "Advance Amount", value: Number(advanceAmount || 0) });
+  rows.push({ label: "Balance Amount", value: Number(balanceAmount || resolvedTotal || 0), accent: true });
   return rows;
 }
 

@@ -915,6 +915,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   }).join("");
 
   const summaryRows = getQuotationSummaryRows({
+    subtotalAmount: quotation.subtotal || quotation.total_amount,
     totalAmount: quotation.total_amount,
     gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
@@ -1045,7 +1046,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     <div class="footer-grid">
       <div class="footer-card">
         <h4>Amount In Words</h4>
-        <div class="footer-text">${escapeHtml(amountToWordsIndian(Math.max(0, Number(quotation.total_amount || 0) - Number(quotation.discount_amount || 0))))}</div>
+        <div class="footer-text">${escapeHtml(amountToWordsIndian(Number(quotation.total_amount || 0)))}</div>
         <h4 style="margin-top:10px;">Bank Details</h4>
         <div class="footer-text">
           <div><strong>Bank Name:</strong> ${escapeHtml(seller?.bank_name || "-")}</div>
@@ -1103,6 +1104,7 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
   const customerName = quotation.firm_name || quotation.customer_name || "Customer";
   const watermarkText = quotation.watermark_text || "";
   const totalsRows = getQuotationSummaryRows({
+    subtotalAmount: quotation.subtotal || quotation.total_amount,
     totalAmount: quotation.total_amount,
     gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
@@ -1503,6 +1505,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
   const totalsValueWidth = totalsWidth - totalsLabelWidth - 10;
   const totalsX = doc.page.margins.left + pageWidth - totalsWidth;
   const totals = getQuotationSummaryRows({
+    subtotalAmount: quotation.subtotal || quotation.total_amount,
     totalAmount: quotation.total_amount,
     gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
@@ -1956,6 +1959,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
   doc.moveDown(0.6);
 
   const totals = getQuotationSummaryRows({
+    subtotalAmount: quotation.subtotal || quotation.total_amount,
     totalAmount: quotation.total_amount,
     gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
@@ -2289,7 +2293,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const taxable = Math.max(0, subtotal - discount);
     const gst = Number(quotation.gst_amount || quotation.tax_amount || 0);
     const grandTotal = Number(quotation.total_amount || taxable + gst);
-    const amountInWords = amountToWordsIndian(Math.max(0, grandTotal - discount));
+    const amountInWords = amountToWordsIndian(Number(quotation.total_amount || grandTotal || 0));
 
     const totalsLeftWidth = Math.floor(pageWidth * 0.58);
     const totalsRightX = leftX + totalsLeftWidth + 10;
@@ -2305,13 +2309,14 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(accent).text("Amount in words", leftX + 8, y + 8);
     doc.font("Helvetica").fontSize(9.2).fillColor(dark).text(amountInWords, leftX + 8, y + 24, { width: totalsLeftWidth - 16 });
 
-    const totalsRows = [
-      ["Subtotal", subtotal],
-      ...(discount > 0 ? [["Discount", -discount]] : []),
-      ...((discount > 0 || gst > 0) ? [["Taxable", taxable]] : []),
-      ...(gst > 0 ? [["GST", gst]] : []),
-      ["Grand Total", grandTotal]
-    ];
+    const totalsRows = getQuotationSummaryRows({
+      subtotalAmount: subtotal,
+      totalAmount: grandTotal,
+      gstAmount: gst,
+      discountAmount: discount,
+      advanceAmount: quotation.advance_amount || 0,
+      balanceAmount: quotation.balance_amount || grandTotal
+    }).map((row) => [row.label, Number(row.value || 0)]);
     let ty = y + 8;
     totalsRows.forEach(([label, value], idx) => {
       const strong = idx === totalsRows.length - 1;
@@ -2429,9 +2434,11 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     );
     const sellerName = template?.header_text || template?.company_name || "Quotation";
     const summaryRows = [
-      { label: "SUBTOTAL", value: quotation.total_amount || 0 },
-      ...(Number(quotation.discount_amount || 0) ? [{ label: "DISCOUNT", value: `- Rs ${Number(quotation.discount_amount || 0).toLocaleString("en-IN")}` }] : []),
-      ...(Number(quotation.advance_amount || 0) ? [{ label: "ADVANCE", value: `- Rs ${Number(quotation.advance_amount || 0).toLocaleString("en-IN")}` }] : []),
+      { label: "SUB TOTAL", value: `Rs ${Number(quotation.subtotal || quotation.total_amount || 0).toLocaleString("en-IN")}` },
+      ...(Number(quotation.discount_amount || 0) ? [{ label: "-DISCOUNT", value: `Rs ${Number(quotation.discount_amount || 0).toLocaleString("en-IN")}` }] : []),
+      ...(Number(quotation.gst_amount || quotation.tax_amount || 0) ? [{ label: "GST", value: `Rs ${Number(quotation.gst_amount || quotation.tax_amount || 0).toLocaleString("en-IN")}` }] : []),
+      { label: "TOTAL AMOUNT", value: `Rs ${Number(quotation.total_amount || 0).toLocaleString("en-IN")}` },
+      ...(Number(quotation.advance_amount || 0) ? [{ label: "ADVANCE AMOUNT", value: `Rs ${Number(quotation.advance_amount || 0).toLocaleString("en-IN")}` }] : []),
       { label: "BALANCE AMOUNT", value: `Rs ${Number(quotation.balance_amount || quotation.total_amount || 0).toLocaleString("en-IN")}`, strong: true }
     ];
     const detailsTop = doc.page.margins.top;
@@ -3221,9 +3228,11 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   y += 16;
   const summaryX = leftX + pageWidth - 220;
   const summaryRows = [
+    { label: "Sub Total", value: quotation.subtotal || quotation.total_amount || 0 },
+    ...(Number(quotation.discount_amount || 0) ? [{ label: "-Discount", value: quotation.discount_amount || 0 }] : []),
+    ...(Number(quotation.gst_amount || quotation.tax_amount || 0) ? [{ label: "GST", value: quotation.gst_amount || quotation.tax_amount || 0 }] : []),
     { label: "Total Amount", value: quotation.total_amount || 0 },
-    ...(Number(quotation.discount_amount || 0) ? [{ label: "Discount", value: quotation.discount_amount || 0 }] : []),
-    ...(Number(quotation.advance_amount || 0) ? [{ label: "Advance", value: quotation.advance_amount || 0 }] : []),
+    ...(Number(quotation.advance_amount || 0) ? [{ label: "Advance Amount", value: quotation.advance_amount || 0 }] : []),
     { label: "Balance Amount", value: quotation.balance_amount || quotation.total_amount || 0, accent: true }
   ];
   summaryRows.forEach((row, index) => {

@@ -675,9 +675,10 @@ export default function QuotationWizardModal(props) {
                 <h5>Summary</h5>
                 <span>Items: {quotationWizard.items.length}</span>
                 <span>Sub Total: {formatCurrency(quotationWizardGrossTotal)}</span>
-                {quotationWizardGstMode ? <span>GST: {formatCurrency(quotationWizardGstAmount)}</span> : <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>}
+                {quotationWizardDiscountAmount > 0 ? <span>-Discount: {formatCurrency(quotationWizardDiscountAmount)}</span> : null}
+                {quotationWizardGstAmount > 0 ? <span>GST: {formatCurrency(quotationWizardGstAmount)}</span> : null}
                 <span>Total Amount: {formatCurrency(quotationWizardTotalAmount)}</span>
-                <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
+                {quotationWizardAdvanceAmount > 0 ? <span>Advance Amount: {formatCurrency(quotationWizardAdvanceAmount)}</span> : null}
                 <span>Custom Quotation Number: {quotationWizard.amounts.customQuotationNumber || "-"}</span>
                 <span>Reference Request ID: {quotationWizard.amounts.referenceRequestId || "-"}</span>
                 <span>Delivery Type: {quotationWizard.amounts.deliveryType || "PICKUP"}</span>
