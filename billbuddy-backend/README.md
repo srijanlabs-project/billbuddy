@@ -20,12 +20,25 @@ API server for Sai Laser WhatsApp invoice automation.
 - `GET/POST /api/users`
 - `GET /api/roles`, `POST /api/roles/seed`
 - `GET/POST /api/customers`
+- `POST /api/customers/gst/validate`
 - `GET/POST /api/products`
 - `GET/POST /api/quotations`
 - `GET/POST /api/payments`
 - `GET /api/ledger`
 - `GET /api/dashboard/summary?range=daily|weekly|monthly`
 - `POST /api/whatsapp/parse`
+
+## GST Validation Integration
+
+Set these environment variables in `.env`:
+
+- `GST_VALIDATION_API_URL`
+- `GST_VALIDATION_API_KEY`
+- `GST_VALIDATION_METHOD` (default: `GET`)
+- `GST_VALIDATION_QUERY_PARAM` (default: `gstin`)
+- `GST_VALIDATION_TIMEOUT_MS` (default: `12000`)
+
+If customer GST is provided during customer creation, backend validates GST first and uses GST legal profile data for customer name/address.
 
 ## WhatsApp Message Example
 

@@ -59,6 +59,13 @@ export default function useQuotationWizard({
   const [quotationPreviewUrl, setQuotationPreviewUrl] = useState("");
   const [quotationPreviewError, setQuotationPreviewError] = useState("");
   const [quotationWizardNotice, setQuotationWizardNotice] = useState("");
+  const [quotationWizardCustomerGstValidation, setQuotationWizardCustomerGstValidation] = useState({
+    status: "idle",
+    gstNumber: "",
+    profile: null,
+    message: ""
+  });
+  const [quotationWizardShippingGstValidation, setQuotationWizardShippingGstValidation] = useState({});
 
   function getVisibleQuotationNumber(quotation) {
     return quotation?.custom_quotation_number || quotation?.seller_quotation_number || quotation?.quotation_number || "";
@@ -228,6 +235,8 @@ export default function useQuotationWizard({
       setQuotationPreviewUrl("");
       setQuotationPreviewError("");
       setQuotationWizardNotice("");
+      setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+      setQuotationWizardShippingGstValidation({});
       setShowMessageSimulatorModal(true);
       setError("");
     }
@@ -242,6 +251,8 @@ export default function useQuotationWizard({
     setQuotationWizard(createInitialQuotationWizardState(null));
     setQuotationWizardSubmitting(false);
     setQuotationWizardNotice("");
+    setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+    setQuotationWizardShippingGstValidation({});
     setShowMessageSimulatorModal(false);
   }
 
@@ -261,6 +272,12 @@ export default function useQuotationWizard({
         [field]: value
       }
     }));
+    if (field === "gstNumber") {
+      const nextGst = String(value || "").trim().toUpperCase();
+      if (String(quotationWizardCustomerGstValidation.gstNumber || "") !== nextGst) {
+        setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+      }
+    }
   }
 
   function updateQuotationWizardShippingAddress(index, field, value) {
@@ -271,6 +288,12 @@ export default function useQuotationWizard({
         shippingAddresses: updateShippingAddressValue(prev.customer.shippingAddresses, index, field, value)
       }
     }));
+    if (field === "gstNumber") {
+      setQuotationWizardShippingGstValidation((prev) => ({
+        ...prev,
+        [index]: { status: "idle", message: "" }
+      }));
+    }
   }
 
   function addQuotationWizardShippingAddress() {
@@ -613,7 +636,7 @@ export default function useQuotationWizard({
     });
   }
 
-  function handleQuotationWizardNext() {
+  async function handleQuotationWizardNext() {
     if (quotationWizard.step === "customer") {
       if (quotationWizard.customerMode === "existing" && !quotationWizard.selectedCustomerId) {
         setError("Please select a customer before continuing.");
@@ -622,6 +645,14 @@ export default function useQuotationWizard({
       if (quotationWizard.customerMode === "new" && !quotationWizard.customer.name.trim()) {
         setError("Please enter customer details before continuing.");
         return;
+      }
+      if (quotationWizard.customerMode === "new" && String(quotationWizard.customer.gstNumber || "").trim()) {
+        try {
+          await validateQuotationWizardCustomerGst(quotationWizard.customer.gstNumber, { applyProfile: true });
+        } catch (error) {
+          handleApiError(error);
+          return;
+        }
       }
       setQuotationWizard((prev) => ({ ...prev, step: "items" }));
       setError("");
@@ -647,6 +678,74 @@ export default function useQuotationWizard({
       ...prev,
       step: prev.step === "amounts" ? "items" : "customer"
     }));
+  }
+
+  async function validateQuotationWizardCustomerGst(rawGstNumber, options = {}) {
+    const gstNumber = String(rawGstNumber || "").trim().toUpperCase();
+    const applyProfile = options.applyProfile !== false;
+    if (!gstNumber) {
+      setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+      return null;
+    }
+
+    setQuotationWizardCustomerGstValidation({ status: "verifying", gstNumber, profile: null, message: "" });
+    try {
+      const response = await apiFetch("/api/customers/gst/validate", {
+        method: "POST",
+        body: JSON.stringify({ gstNumber })
+      });
+      const profile = response.profile || null;
+      if (applyProfile && profile) {
+        setQuotationWizard((prev) => ({
+          ...prev,
+          customer: {
+            ...prev.customer,
+            gstNumber,
+            name: profile.legalName || prev.customer.name,
+            firmName: profile.tradeName || profile.legalName || prev.customer.firmName,
+            address: profile.address || prev.customer.address
+          }
+        }));
+      }
+      setQuotationWizardCustomerGstValidation({
+        status: "verified",
+        gstNumber,
+        profile,
+        message: "GST verified. Legal name and address auto-filled."
+      });
+      return profile;
+    } catch (error) {
+      setQuotationWizardCustomerGstValidation({
+        status: "error",
+        gstNumber,
+        profile: null,
+        message: error?.message || "Unable to validate GST number."
+      });
+      throw error;
+    }
+  }
+
+  async function validateQuotationWizardShippingGst(index, rawGstNumber) {
+    const gstNumber = String(rawGstNumber || "").trim().toUpperCase();
+    if (!gstNumber) {
+      setQuotationWizardShippingGstValidation((prev) => ({ ...prev, [index]: { status: "idle", message: "" } }));
+      return null;
+    }
+    setQuotationWizardShippingGstValidation((prev) => ({ ...prev, [index]: { status: "verifying", message: "" } }));
+    try {
+      await apiFetch("/api/customers/gst/validate", {
+        method: "POST",
+        body: JSON.stringify({ gstNumber })
+      });
+      setQuotationWizardShippingGstValidation((prev) => ({ ...prev, [index]: { status: "verified", message: "GST verified." } }));
+      return true;
+    } catch (error) {
+      setQuotationWizardShippingGstValidation((prev) => ({
+        ...prev,
+        [index]: { status: "error", message: error?.message || "Invalid GST number." }
+      }));
+      throw error;
+    }
   }
 
   async function ensureQuotationWizardCustomer() {
@@ -829,6 +928,8 @@ export default function useQuotationWizard({
     quotationPreviewUrl,
     quotationPreviewError,
     quotationWizardNotice,
+    quotationWizardCustomerGstValidation,
+    quotationWizardShippingGstValidation,
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
     quotationWizardMaterialSuggestions,
@@ -842,6 +943,8 @@ export default function useQuotationWizard({
     openQuotationWizard,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
+    validateQuotationWizardCustomerGst,
+    validateQuotationWizardShippingGst,
     updateQuotationWizardShippingAddress,
     addQuotationWizardShippingAddress,
     removeQuotationWizardShippingAddress,

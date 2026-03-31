@@ -41,6 +41,13 @@ export default function ConfigurationStudio(props) {
     canSaveConfigurationDraft,
     canPublishConfiguration
   } = props;
+
+  const normalizedSellerType = String(
+    configurationStudioSeller?.sellerType
+    || configurationStudioSeller?.seller_type
+    || "BASIC"
+  ).trim().toUpperCase() === "ADVANCED" ? "ADVANCED" : "BASIC";
+  const isAdvancedSeller = normalizedSellerType === "ADVANCED";
   const defaultPatternInputRef = useRef(null);
   const categoryPatternInputRefs = useRef({});
   const [activePatternTarget, setActivePatternTarget] = useState({ type: "default", index: null });
@@ -495,6 +502,12 @@ export default function ConfigurationStudio(props) {
                 <h3>Quotation Columns Configuration</h3>
                 {canEditConfiguration && <button type="button" onClick={addQuotationColumn}>Add Column</button>}
               </div>
+              <div className="seller-config-help-card" style={{ marginBottom: "18px" }}>
+                <h4>Studio Mode</h4>
+                <p className="muted">
+                  Seller type: <strong>{normalizedSellerType}</strong>. Category-based item display rules are available only for Advanced sellers.
+                </p>
+              </div>
               <div className="seller-config-help-card">
                 <h4>Formula Help</h4>
                 <p className="muted">Use `formula` type when the seller should not enter the value manually. The system will calculate it at quotation save time and store it with the item.</p>
@@ -564,98 +577,106 @@ export default function ConfigurationStudio(props) {
                   </div>
                 </div>
 
-                <div className="section-head compact" style={{ marginTop: "18px" }}>
-                  <h4>Category Overrides</h4>
-                  {canEditConfiguration && (
-                    <button
-                      type="button"
-                      onClick={() => updateItemDisplayConfig((current) => {
-                        const usedCategories = new Set((current.categoryRules || []).map((rule) => rule.category));
-                        const nextCategory = availableCategories.find((category) => !usedCategories.has(category));
-                        if (!nextCategory) return current;
-                        return {
-                          ...current,
-                          categoryRules: [...(current.categoryRules || []), { category: nextCategory, pattern: "" }]
-                        };
-                      })}
-                    >
-                      Add Category Rule
-                    </button>
-                  )}
-                </div>
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Category</th><th>Pattern</th><th>Preview</th><th /></tr>
-                  </thead>
-                  <tbody>
-                    {(activeSellerConfiguration.itemDisplayConfig?.categoryRules || []).length === 0 ? (
-                      <tr><td colSpan="4">No category overrides yet.</td></tr>
-                    ) : (
-                      activeSellerConfiguration.itemDisplayConfig.categoryRules.map((rule, index) => {
-                        const sampleItem = buildSampleItem(sampleProductByCategory[rule.category], rule.category);
-                        const preview = buildConfiguredQuotationItemTitle(sampleItem, {
-                          defaultPattern: activeSellerConfiguration.itemDisplayConfig?.defaultPattern || "",
-                          categoryRules: [rule]
-                        });
-                        const orphaned = rule.category && !availableCategories.includes(rule.category);
-                        return (
-                          <tr key={`${rule.category}-${index}`}>
-                            <td>
-                              <select
-                                disabled={!canEditConfiguration}
-                                value={rule.category}
-                                onChange={(e) => updateItemDisplayConfig((current) => ({
-                                  ...current,
-                                  categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
-                                    entryIndex === index ? { ...entry, category: e.target.value } : entry
-                                  ))
-                                }))}
-                              >
-                                <option value="">Select category</option>
-                                {availableCategories.map((category) => (
-                                  <option key={category} value={category}>{category}</option>
-                                ))}
-                              </select>
-                              {orphaned && <div className="muted">Category no longer exists in catalogue.</div>}
-                            </td>
-                            <td>
-                              <input
-                                ref={(element) => {
-                                  if (!element) return;
-                                  categoryPatternInputRefs.current[index] = element;
-                                }}
-                                disabled={!canEditConfiguration}
-                                value={rule.pattern}
-                                onChange={(e) => updateItemDisplayConfig((current) => ({
-                                  ...current,
-                                  categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
-                                    entryIndex === index ? { ...entry, pattern: e.target.value } : entry
-                                  ))
-                                }))}
-                                onFocus={() => setActivePatternTarget({ type: "category", index })}
-                                placeholder="{material_name}"
-                              />
-                            </td>
-                            <td>{preview || "-"}</td>
-                            <td>
-                              <button
-                                type="button"
-                                className="ghost-btn"
-                                disabled={!canEditConfiguration}
-                                onClick={() => updateItemDisplayConfig((current) => ({
-                                  ...current,
-                                  categoryRules: (current.categoryRules || []).filter((_, entryIndex) => entryIndex !== index)
-                                }))}
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                {isAdvancedSeller ? (
+                  <>
+                    <div className="section-head compact" style={{ marginTop: "18px" }}>
+                      <h4>Category Overrides</h4>
+                      {canEditConfiguration && (
+                        <button
+                          type="button"
+                          onClick={() => updateItemDisplayConfig((current) => {
+                            const usedCategories = new Set((current.categoryRules || []).map((rule) => rule.category));
+                            const nextCategory = availableCategories.find((category) => !usedCategories.has(category));
+                            if (!nextCategory) return current;
+                            return {
+                              ...current,
+                              categoryRules: [...(current.categoryRules || []), { category: nextCategory, pattern: "" }]
+                            };
+                          })}
+                        >
+                          Add Category Rule
+                        </button>
+                      )}
+                    </div>
+                    <table className="data-table">
+                      <thead>
+                        <tr><th>Category</th><th>Pattern</th><th>Preview</th><th /></tr>
+                      </thead>
+                      <tbody>
+                        {(activeSellerConfiguration.itemDisplayConfig?.categoryRules || []).length === 0 ? (
+                          <tr><td colSpan="4">No category overrides yet.</td></tr>
+                        ) : (
+                          activeSellerConfiguration.itemDisplayConfig.categoryRules.map((rule, index) => {
+                            const sampleItem = buildSampleItem(sampleProductByCategory[rule.category], rule.category);
+                            const preview = buildConfiguredQuotationItemTitle(sampleItem, {
+                              defaultPattern: activeSellerConfiguration.itemDisplayConfig?.defaultPattern || "",
+                              categoryRules: [rule]
+                            });
+                            const orphaned = rule.category && !availableCategories.includes(rule.category);
+                            return (
+                              <tr key={`${rule.category}-${index}`}>
+                                <td>
+                                  <select
+                                    disabled={!canEditConfiguration}
+                                    value={rule.category}
+                                    onChange={(e) => updateItemDisplayConfig((current) => ({
+                                      ...current,
+                                      categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
+                                        entryIndex === index ? { ...entry, category: e.target.value } : entry
+                                      ))
+                                    }))}
+                                  >
+                                    <option value="">Select category</option>
+                                    {availableCategories.map((category) => (
+                                      <option key={category} value={category}>{category}</option>
+                                    ))}
+                                  </select>
+                                  {orphaned && <div className="muted">Category no longer exists in catalogue.</div>}
+                                </td>
+                                <td>
+                                  <input
+                                    ref={(element) => {
+                                      if (!element) return;
+                                      categoryPatternInputRefs.current[index] = element;
+                                    }}
+                                    disabled={!canEditConfiguration}
+                                    value={rule.pattern}
+                                    onChange={(e) => updateItemDisplayConfig((current) => ({
+                                      ...current,
+                                      categoryRules: (current.categoryRules || []).map((entry, entryIndex) => (
+                                        entryIndex === index ? { ...entry, pattern: e.target.value } : entry
+                                      ))
+                                    }))}
+                                    onFocus={() => setActivePatternTarget({ type: "category", index })}
+                                    placeholder="{material_name}"
+                                  />
+                                </td>
+                                <td>{preview || "-"}</td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="ghost-btn"
+                                    disabled={!canEditConfiguration}
+                                    onClick={() => updateItemDisplayConfig((current) => ({
+                                      ...current,
+                                      categoryRules: (current.categoryRules || []).filter((_, entryIndex) => entryIndex !== index)
+                                    }))}
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </>
+                ) : (
+                  <div className="muted" style={{ marginTop: "16px" }}>
+                    Category overrides are disabled for Basic sellers.
+                  </div>
+                )}
                 <p className="muted" style={{ marginTop: "12px" }}>Blank field tokens are removed automatically. If a token is missing, the immediately preceding connector text is also hidden.</p>
               </div>
               <table className="data-table">

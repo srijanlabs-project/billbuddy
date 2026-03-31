@@ -19,6 +19,18 @@ const DEFAULT_ITEM_DISPLAY_CONFIG = {
   categoryRules: []
 };
 
+function normalizeSellerType(value) {
+  const normalized = String(value || "BASIC").trim().toUpperCase();
+  return normalized === "ADVANCED" ? "ADVANCED" : "BASIC";
+}
+
+function validateSellerConfigurationByType(sellerType, itemDisplayConfig) {
+  if (normalizeSellerType(sellerType) !== "ADVANCED" && (itemDisplayConfig?.categoryRules || []).length > 0) {
+    return "Category-based item display rules are available only for Advanced sellers.";
+  }
+  return "";
+}
+
 function normalizeItemDisplayConfig(config = {}) {
   const categoryRules = Array.isArray(config.categoryRules) ? config.categoryRules : [];
   return {
@@ -292,12 +304,23 @@ router.put(
     }
     const requestedStatus = "draft";
 
-    await client.query("BEGIN");
-
-    const sellerExists = await client.query(`SELECT id, name FROM sellers WHERE id = $1 LIMIT 1`, [sellerId]);
+    const sellerExists = await client.query(
+      `SELECT id, name, seller_type
+       FROM sellers
+       WHERE id = $1
+       LIMIT 1`,
+      [sellerId]
+    );
     if (sellerExists.rowCount === 0) {
       throw new Error("Seller not found");
     }
+    const sellerType = normalizeSellerType(sellerExists.rows[0].seller_type);
+    const sellerTypeValidationError = validateSellerConfigurationByType(sellerType, itemDisplayConfig);
+    if (sellerTypeValidationError) {
+      return res.status(400).json({ message: sellerTypeValidationError, field: "itemDisplayConfig.categoryRules" });
+    }
+
+    await client.query("BEGIN");
 
     const profileResult = await client.query(
       `INSERT INTO seller_configuration_profiles (
@@ -459,10 +482,30 @@ router.post("/:sellerId/publish", requirePermission(PERMISSIONS.CONFIGURATION_PU
       return res.status(403).json({ message: "You can only publish your own seller configuration" });
     }
 
+    const sellerResult = await client.query(
+      `SELECT id, seller_type
+       FROM sellers
+       WHERE id = $1
+       LIMIT 1`,
+      [sellerId]
+    );
+    if (sellerResult.rowCount === 0) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+    const sellerType = normalizeSellerType(sellerResult.rows[0].seller_type);
+
     await client.query("BEGIN");
     const config = await loadSellerConfiguration(client, sellerId);
     if (!config) {
       throw new Error("No seller configuration found to publish");
+    }
+    const sellerTypeValidationError = validateSellerConfigurationByType(
+      sellerType,
+      normalizeItemDisplayConfig(config.itemDisplayConfig || config.modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG)
+    );
+    if (sellerTypeValidationError) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: sellerTypeValidationError, field: "itemDisplayConfig.categoryRules" });
     }
 
     const versionNoResult = await client.query(

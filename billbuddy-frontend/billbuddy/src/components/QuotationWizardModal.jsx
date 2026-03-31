@@ -36,8 +36,12 @@ export default function QuotationWizardModal(props) {
     quotationWizardSubmitting,
     error,
     quotationWizardNotice,
+    quotationWizardCustomerGstValidation,
+    quotationWizardShippingGstValidation,
     quotationWizardMaterialSuggestions,
     quotationWizardVisibleVariantFields,
+    validateQuotationWizardCustomerGst,
+    validateQuotationWizardShippingGst,
     handleQuotationWizardMaterialInput,
     handleQuotationWizardMaterialSelect,
     handleQuotationWizardVariantSelection,
@@ -76,6 +80,34 @@ export default function QuotationWizardModal(props) {
   const activeWizardHelp = wizardStepHelp[quotationWizard.step] || wizardStepHelp.customer;
   const isRevision = quotationWizard.mode === "revise";
   const isEditingItem = Boolean(quotationWizard.editingItemId);
+  const isCustomerGstLocked = quotationWizard.customerMode === "new"
+    && quotationWizardCustomerGstValidation?.status === "verified"
+    && String(quotationWizardCustomerGstValidation?.gstNumber || "") === String(quotationWizard.customer.gstNumber || "").trim().toUpperCase();
+  const renderAutosuggestInput = ({ id, value, onChange, options, placeholder, disabled = false, className = "" }) => {
+    const normalizedOptions = Array.from(
+      new Set((Array.isArray(options) ? options : [])
+        .map((option) => String(option || "").trim())
+        .filter(Boolean))
+    );
+    return (
+      <>
+        <input
+          type="text"
+          list={id}
+          className={className}
+          value={value ?? ""}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+        />
+        <datalist id={id}>
+          {normalizedOptions.map((option) => (
+            <option key={`${id}-${option}`} value={option} />
+          ))}
+        </datalist>
+      </>
+    );
+  };
 
   return (
     <div className="modal-overlay" onClick={closeQuotationWizard}>
@@ -176,12 +208,50 @@ export default function QuotationWizardModal(props) {
               </div>
             ) : (
               <div className="quotation-wizard-grid">
-                <input placeholder="Customer name" value={quotationWizard.customer.name} onChange={(e) => updateQuotationWizardCustomerField("name", e.target.value)} />
-                <input placeholder="Firm name" value={quotationWizard.customer.firmName} onChange={(e) => updateQuotationWizardCustomerField("firmName", e.target.value)} />
+                <input placeholder="Customer name" value={quotationWizard.customer.name} onChange={(e) => updateQuotationWizardCustomerField("name", e.target.value)} disabled={isCustomerGstLocked} />
+                <input placeholder="Firm name" value={quotationWizard.customer.firmName} onChange={(e) => updateQuotationWizardCustomerField("firmName", e.target.value)} disabled={isCustomerGstLocked} />
                 <input placeholder="Mobile" value={quotationWizard.customer.mobile} onChange={(e) => updateQuotationWizardCustomerField("mobile", e.target.value)} />
                 <input placeholder="Email" type="email" value={quotationWizard.customer.email} onChange={(e) => updateQuotationWizardCustomerField("email", e.target.value)} />
-                <textarea className="wizard-full" rows={3} placeholder="Address" value={quotationWizard.customer.address} onChange={(e) => updateQuotationWizardCustomerField("address", e.target.value)} />
-                <input placeholder="Customer GST Number (optional)" value={quotationWizard.customer.gstNumber} onChange={(e) => updateQuotationWizardCustomerField("gstNumber", e.target.value.toUpperCase())} />
+                <textarea className="wizard-full" rows={3} placeholder="Address" value={quotationWizard.customer.address} onChange={(e) => updateQuotationWizardCustomerField("address", e.target.value)} disabled={isCustomerGstLocked} />
+                <div className="wizard-full" style={{ display: "grid", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      placeholder="Customer GST Number (optional)"
+                      value={quotationWizard.customer.gstNumber}
+                      onChange={(e) => updateQuotationWizardCustomerField("gstNumber", e.target.value.toUpperCase())}
+                      onBlur={async () => {
+                        const gstNumber = String(quotationWizard.customer.gstNumber || "").trim();
+                        if (!gstNumber) return;
+                        try {
+                          await validateQuotationWizardCustomerGst(gstNumber, { applyProfile: true });
+                        } catch {
+                          // Error is surfaced through the shared app error banner.
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="ghost-btn"
+                      onClick={async () => {
+                        const gstNumber = String(quotationWizard.customer.gstNumber || "").trim();
+                        if (!gstNumber) return;
+                        try {
+                          await validateQuotationWizardCustomerGst(gstNumber, { applyProfile: true });
+                        } catch {
+                          // Error is surfaced through the shared app error banner.
+                        }
+                      }}
+                      disabled={quotationWizardCustomerGstValidation?.status === "verifying" || !String(quotationWizard.customer.gstNumber || "").trim()}
+                    >
+                      {quotationWizardCustomerGstValidation?.status === "verifying" ? "Verifying..." : "Verify GST"}
+                    </button>
+                  </div>
+                  {quotationWizardCustomerGstValidation?.message ? (
+                    <small style={{ color: quotationWizardCustomerGstValidation.status === "error" ? "#b42318" : "var(--muted)" }}>
+                      {quotationWizardCustomerGstValidation.message}
+                    </small>
+                  ) : null}
+                </div>
                 <div className="wizard-full customer-shipping-section wizard-shipping-section">
                   <div className="customer-shipping-head">
                     <div>
@@ -203,7 +273,27 @@ export default function QuotationWizardModal(props) {
                           <input placeholder="Warehouse / label" value={entry.label || ""} onChange={(e) => updateQuotationWizardShippingAddress(index, "label", e.target.value)} />
                           <input placeholder="State" value={entry.state || ""} onChange={(e) => updateQuotationWizardShippingAddress(index, "state", e.target.value)} />
                           <input placeholder="Pincode" value={entry.pincode || ""} onChange={(e) => updateQuotationWizardShippingAddress(index, "pincode", e.target.value)} />
-                          <input placeholder="Warehouse GST Number (optional)" value={entry.gstNumber || ""} onChange={(e) => updateQuotationWizardShippingAddress(index, "gstNumber", e.target.value.toUpperCase())} />
+                          <div style={{ display: "grid", gap: "6px" }}>
+                            <input
+                              placeholder="Warehouse GST Number (optional)"
+                              value={entry.gstNumber || ""}
+                              onChange={(e) => updateQuotationWizardShippingAddress(index, "gstNumber", e.target.value.toUpperCase())}
+                              onBlur={async () => {
+                                const gstNumber = String(entry.gstNumber || "").trim();
+                                if (!gstNumber) return;
+                                try {
+                                  await validateQuotationWizardShippingGst(index, gstNumber);
+                                } catch {
+                                  // Message shown inline.
+                                }
+                              }}
+                            />
+                            {quotationWizardShippingGstValidation?.[index]?.message ? (
+                              <small style={{ color: quotationWizardShippingGstValidation[index]?.status === "error" ? "#b42318" : "var(--muted)" }}>
+                                {quotationWizardShippingGstValidation[index].message}
+                              </small>
+                            ) : null}
+                          </div>
                           <textarea className="wizard-full" rows={2} placeholder="Shipping address" value={entry.address || ""} onChange={(e) => updateQuotationWizardShippingAddress(index, "address", e.target.value)} />
                         </div>
                       </div>
@@ -223,7 +313,7 @@ export default function QuotationWizardModal(props) {
 
         {quotationWizard.step === "items" && (
           <div className="quotation-wizard-body">
-            <div className="quotation-wizard-grid">
+            <div className="quotation-wizard-grid three quotation-item-form-grid">
               <div className="wizard-material-picker wizard-full">
                 <label className="wizard-picker-label">Product / Service</label>
                 <input
@@ -269,16 +359,15 @@ export default function QuotationWizardModal(props) {
                   ? quotationWizard.itemForm[field.formKey] || ""
                   : quotationWizard.itemForm.customFields?.[field.key] || "";
                 return (
-                  <select
-                    key={`variant-${field.key}`}
-                    value={value}
-                    onChange={(e) => handleQuotationWizardVariantSelection(field.key, e.target.value)}
-                  >
-                    <option value="">Select {field.label}</option>
-                    {field.options.map((option) => (
-                      <option key={`${field.key}-${option}`} value={option}>{option}</option>
-                    ))}
-                  </select>
+                  <div key={`variant-${field.key}`}>
+                    {renderAutosuggestInput({
+                      id: `quotation-variant-${field.key}`,
+                      value,
+                      onChange: (e) => handleQuotationWizardVariantSelection(field.key, e.target.value),
+                      options: field.options,
+                      placeholder: `Select ${field.label}`
+                    })}
+                  </div>
                 );
               })}
 
@@ -316,25 +405,29 @@ export default function QuotationWizardModal(props) {
 
                     if (meta.inputType === "category-select") {
                       return (
-                        <select key={column.id} value={quotationWizard.itemForm.category} onChange={(e) => updateQuotationWizardItemForm("category", e.target.value)}>
-                          <option value="">{column.label}</option>
-                          <option value="Sheet">Sheet</option>
-                          <option value="Product">Product</option>
-                          <option value="Services">Services</option>
-                        </select>
+                        <div key={column.id}>
+                          {renderAutosuggestInput({
+                            id: `quotation-category-${column.id}`,
+                            value: quotationWizard.itemForm.category,
+                            onChange: (e) => updateQuotationWizardItemForm("category", e.target.value),
+                            options: ["Sheet", "Product", "Services"],
+                            placeholder: column.label
+                          })}
+                        </div>
                       );
                     }
 
                     if (meta.inputType === "unit-select") {
                       return (
-                        <select key={column.id} value={quotationWizard.itemForm.unit} onChange={(e) => updateQuotationWizardItemForm("unit", e.target.value)}>
-                          <option value="">{column.label}</option>
-                          <option value="mm">mm</option>
-                          <option value="in">in</option>
-                          <option value="ft">ft</option>
-                          <option value="sft">sft</option>
-                          <option value="nos">nos</option>
-                        </select>
+                        <div key={column.id}>
+                          {renderAutosuggestInput({
+                            id: `quotation-unit-${column.id}`,
+                            value: quotationWizard.itemForm.unit,
+                            onChange: (e) => updateQuotationWizardItemForm("unit", e.target.value),
+                            options: ["mm", "in", "ft", "sft", "nos"],
+                            placeholder: column.label
+                          })}
+                        </div>
                       );
                     }
 
@@ -378,18 +471,20 @@ export default function QuotationWizardModal(props) {
                   if (column.type === "dropdown") {
                     const dropdownOptions = isBoundToCatalogue ? [String(boundValue)] : (column.options || []);
                     return (
-                      <select
+                      <div
                         key={column.id}
                         className="wizard-full"
-                        value={value ?? ""}
-                        onChange={(e) => updateQuotationWizardCustomField(column.key, e.target.value)}
-                        disabled={isBoundToCatalogue}
                       >
-                        <option value="">Select {column.label}</option>
-                        {dropdownOptions.map((option) => (
-                          <option key={`${column.id}-${option}`} value={option}>{option}</option>
-                        ))}
-                      </select>
+                        {renderAutosuggestInput({
+                          id: `quotation-custom-${column.id}`,
+                          className: "wizard-full",
+                          value: value ?? "",
+                          onChange: (e) => updateQuotationWizardCustomField(column.key, e.target.value),
+                          options: dropdownOptions,
+                          placeholder: `Select ${column.label}`,
+                          disabled: isBoundToCatalogue
+                        })}
+                      </div>
                     );
                   }
 
@@ -454,8 +549,8 @@ export default function QuotationWizardModal(props) {
                             aria-label="Edit item"
                             title="Edit item"
                           >
-                            <span className="quotation-item-action-icon" aria-hidden="true">✎</span>
-                            <span className="quotation-item-action-label">Edit</span>
+                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u270E"}</span>
+                            <span className="quotation-item-action-label">Edit item</span>
                           </button>
                           <button
                             type="button"
@@ -464,8 +559,8 @@ export default function QuotationWizardModal(props) {
                             aria-label="Remove item"
                             title="Remove item"
                           >
-                            <span className="quotation-item-action-icon" aria-hidden="true">✕</span>
-                            <span className="quotation-item-action-label">Remove</span>
+                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u2715"}</span>
+                            <span className="quotation-item-action-label">Remove item</span>
                           </button>
                         </td>
                       </tr>
@@ -568,15 +663,15 @@ export default function QuotationWizardModal(props) {
 
         {quotationWizard.step !== "preview" && (
           <div className="quotation-wizard-footer">
-            <button type="button" className="ghost-btn" onClick={quotationWizard.step === "customer" ? closeQuotationWizard : handleQuotationWizardBack}>
+            <button type="button" className="ghost-btn quotation-wizard-footer-secondary" onClick={quotationWizard.step === "customer" ? closeQuotationWizard : handleQuotationWizardBack}>
               {quotationWizard.step === "customer" ? "Cancel" : "Back"}
             </button>
             {quotationWizard.step === "amounts" ? (
-              <button type="button" onClick={handleSubmitQuotationWizard} disabled={quotationWizardSubmitting || !quotationWizard.items.length}>
+              <button type="button" className="quotation-wizard-footer-primary" onClick={handleSubmitQuotationWizard} disabled={quotationWizardSubmitting || !quotationWizard.items.length}>
                 {quotationWizardSubmitting ? "Submitting..." : (isRevision ? "Save New Version" : "Submit Quotation")}
               </button>
             ) : (
-              <button type="button" onClick={handleQuotationWizardNext}>
+              <button type="button" className="quotation-wizard-footer-primary" onClick={handleQuotationWizardNext}>
                 Next
               </button>
             )}

@@ -229,3 +229,28 @@ Display rule:
 3. Implement Advanced Studio schema/rules engine.
 4. Implement GST behavior and conditional summary engine.
 5. Remove remaining hardcoded form/render/calculation branches.
+
+---
+
+## 17. Current Implementation Status (as of now)
+
+### 17.1 Completed
+- Seller onboarding gating implemented (settings -> configuration -> seed guidance).
+- Left nav allows `Help Center` and `Subscriptions` during onboarding lock.
+- Basic vs Advanced guard added for configuration studio category rules:
+  - Frontend hides/disables category overrides for `BASIC`.
+  - Backend rejects category rule save/publish for `BASIC`.
+- Quotation item table mobile actions compacted to icon buttons.
+- Quotation wizard footer adjusted to keep primary action visible on mobile.
+- Quotation item form updated to 3-column layout (material remains full width).
+- Dropdown-like quotation item fields moved to searchable autosuggest input style.
+
+### 17.2 Pending
+- GST conditional engine (customer GST trigger, item GST input, summary switch logic).
+- Global server error persistence (single app-level error surface across pages).
+- Final cleanup of hardcoded quotation rendering/calculation conditions.
+- Role dropdown cleanup in seller user creation (remove duplicate/irrelevant roles).
+- Advanced Studio deep capabilities:
+  - Category-to-field mapping engine end-to-end.
+  - Multi-dimension conversion configuration and runtime conversion resolver.
+  - Seller-scoped advanced hardcoded formula override mechanism.

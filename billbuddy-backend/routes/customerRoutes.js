@@ -2,6 +2,7 @@ const express = require("express");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
 const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
+const { normalizeGstNumber, validateAndFetchGstProfile } = require("../services/gstValidationService");
 
 const router = express.Router();
 
@@ -40,6 +41,21 @@ function normalizeShippingAddresses(shippingAddresses) {
   });
 }
 
+async function validateShippingAddressGstNumbers(shippingAddresses) {
+  const normalizedAddresses = normalizeShippingAddresses(shippingAddresses);
+  for (let index = 0; index < normalizedAddresses.length; index += 1) {
+    const gstNumber = normalizeGstNumber(normalizedAddresses[index]?.gstNumber || "");
+    if (!gstNumber) continue;
+    try {
+      await validateAndFetchGstProfile(gstNumber);
+    } catch (error) {
+      error.field = `shippingAddresses[${index}].gstNumber`;
+      throw error;
+    }
+  }
+  return normalizedAddresses;
+}
+
 router.get("/", requirePermission(PERMISSIONS.CUSTOMER_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
@@ -54,18 +70,54 @@ router.get("/", requirePermission(PERMISSIONS.CUSTOMER_VIEW), async (req, res) =
   }
 });
 
+router.post("/gst/validate", requirePermission(PERMISSIONS.CUSTOMER_CREATE), async (req, res) => {
+  try {
+    const gstNumber = normalizeGstNumber(req.body?.gstNumber || req.body?.gstin || "");
+    const profile = await validateAndFetchGstProfile(gstNumber);
+    return res.json({
+      valid: true,
+      profile: {
+        gstNumber: profile.gstNumber,
+        legalName: profile.legalName,
+        tradeName: profile.tradeName,
+        address: profile.address
+      }
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      message: error.message || "GST validation failed",
+      field: error.field || "gstNumber"
+    });
+  }
+});
+
 router.post("/", requirePermission(PERMISSIONS.CUSTOMER_CREATE), async (req, res) => {
   try {
     const { name, mobile, email, firmName, address, gstNumber, discountPercent, sellerId, monthlyBilling, shippingAddresses } = req.body;
-
-    if (!name) {
-      return res.status(400).json({ message: "name is required" });
-    }
 
     const tenantId = req.user.isPlatformAdmin ? Number(sellerId || getTenantId(req)) : getTenantId(req);
     if (!tenantId) {
       return res.status(400).json({ message: "sellerId is required" });
     }
+    const normalizedGstNumber = normalizeGstNumber(gstNumber);
+    let resolvedName = String(name || "").trim();
+    let resolvedFirmName = String(firmName || "").trim();
+    let resolvedAddress = String(address || "").trim();
+    let gstProfile = null;
+
+    if (normalizedGstNumber) {
+      gstProfile = await validateAndFetchGstProfile(normalizedGstNumber);
+      // GST-verified customer uses legal profile details and locks them on UI side.
+      resolvedName = gstProfile.legalName;
+      resolvedFirmName = gstProfile.tradeName || gstProfile.legalName;
+      resolvedAddress = gstProfile.address;
+    }
+
+    if (!resolvedName) {
+      return res.status(400).json({ message: "name is required" });
+    }
+
+    const normalizedShippingAddresses = await validateShippingAddressGstNumbers(shippingAddresses);
 
     const result = await pool.query(
       `INSERT INTO customers (seller_id, name, mobile, email, firm_name, address, gst_number, discount_percent, monthly_billing, shipping_addresses)
@@ -73,21 +125,35 @@ router.post("/", requirePermission(PERMISSIONS.CUSTOMER_CREATE), async (req, res
        RETURNING *`,
       [
         tenantId,
-        name,
+        resolvedName,
         mobile || null,
         email || null,
-        firmName || null,
-        address || null,
-        gstNumber ? String(gstNumber).trim().toUpperCase() : null,
+        resolvedFirmName || null,
+        resolvedAddress || null,
+        normalizedGstNumber || null,
         discountPercent || null,
         Boolean(monthlyBilling),
-        JSON.stringify(normalizeShippingAddresses(shippingAddresses))
+        JSON.stringify(normalizedShippingAddresses)
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({
+      ...result.rows[0],
+      gstVerified: Boolean(gstProfile),
+      gstProfile: gstProfile
+        ? {
+            gstNumber: gstProfile.gstNumber,
+            legalName: gstProfile.legalName,
+            tradeName: gstProfile.tradeName,
+            address: gstProfile.address
+          }
+        : null
+    });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({
+      message: error.message,
+      field: error.field || undefined
+    });
   }
 });
 

@@ -4599,6 +4599,7 @@ button:disabled {
   min-width: min(350px, calc(100vw - 20px));
   display: grid;
   gap: 16px;
+  overflow-x: hidden;
 }
 
 .quotation-wizard-steps {
@@ -4660,6 +4661,16 @@ button:disabled {
 
 .quotation-wizard-grid.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quotation-item-form-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 960px) {
+  .quotation-item-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .wizard-material-picker {
@@ -4787,20 +4798,36 @@ button:disabled {
 
 .quotation-wizard-footer {
   position: sticky;
-  bottom: -18px;
+  bottom: 0;
   display: flex;
   justify-content: space-between;
   gap: 10px;
   align-items: center;
-  padding-top: 16px;
+  padding-top: 12px;
+  padding-bottom: 6px;
   background: linear-gradient(180deg, rgba(249,243,239,0), rgba(249,243,239,0.98) 30%);
+  z-index: 2;
+}
+
+.quotation-wizard-footer-secondary {
+  flex: 0 0 auto;
+}
+
+.quotation-wizard-footer-primary {
+  margin-left: auto;
+  min-width: 108px;
 }
 
 .quotation-item-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-right: 6px;
+  justify-content: center;
+  gap: 0;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 6px;
+  margin-right: 4px;
 }
 
 .quotation-item-action-btn-danger {
@@ -4808,11 +4835,36 @@ button:disabled {
 }
 
 .quotation-item-action-icon {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
 }
 
-@media (max-width: 420px) {
+.quotation-item-action-label {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .quotation-wizard-modal {
+    width: min(100%, 420px);
+  }
+
+  .quotation-wizard-footer {
+    gap: 8px;
+  }
+
+  .quotation-wizard-footer-secondary {
+    min-width: 84px;
+  }
+
+  .quotation-wizard-footer-primary {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
   .quotation-item-action-btn {
     min-width: 34px;
     justify-content: center;
@@ -4822,6 +4874,10 @@ button:disabled {
 
   .quotation-item-action-label {
     display: none;
+  }
+
+  .quotation-item-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -5309,6 +5365,10 @@ button:disabled {
 
   .quotation-customer-card .quotation-suggest-meta:last-child {
     display: none;
+  }
+
+  .quotation-item-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

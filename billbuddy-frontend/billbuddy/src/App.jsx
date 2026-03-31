@@ -3335,6 +3335,13 @@ function App() {
   const [userForm, setUserForm] = useState(createInitialUserForm);
   const [userFormErrors, setUserFormErrors] = useState({});
   const [customerForm, setCustomerForm] = useState(createInitialCustomerForm);
+  const [customerGstValidation, setCustomerGstValidation] = useState({
+    status: "idle",
+    gstNumber: "",
+    profile: null,
+    message: ""
+  });
+  const [customerShippingGstValidation, setCustomerShippingGstValidation] = useState({});
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showUserEditModal, setShowUserEditModal] = useState(false);
@@ -4260,6 +4267,8 @@ function App() {
     quotationPreviewUrl,
     quotationPreviewError,
     quotationWizardNotice,
+    quotationWizardCustomerGstValidation,
+    quotationWizardShippingGstValidation,
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
     quotationWizardMaterialSuggestions,
@@ -4273,6 +4282,8 @@ function App() {
     openQuotationWizard,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
+    validateQuotationWizardCustomerGst,
+    validateQuotationWizardShippingGst,
     updateQuotationWizardShippingAddress,
     addQuotationWizardShippingAddress,
     removeQuotationWizardShippingAddress,
@@ -4638,9 +4649,48 @@ function App() {
       const customerRows = await apiFetch("/api/customers");
       setCustomers(customerRows);
       setCustomerForm(createInitialCustomerForm());
+      setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+      setCustomerShippingGstValidation({});
       setShowCustomerModal(false);
     } catch (err) {
       handleApiError(err);
+    }
+  }
+
+  async function validateCustomerGstForForm(rawGstNumber) {
+    const gstNumber = String(rawGstNumber || "").trim().toUpperCase();
+    if (!gstNumber) {
+      setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+      return null;
+    }
+
+    setCustomerGstValidation({ status: "verifying", gstNumber, profile: null, message: "" });
+    try {
+      const response = await apiFetch("/api/customers/gst/validate", {
+        method: "POST",
+        body: JSON.stringify({ gstNumber })
+      });
+      const profile = response.profile || null;
+      if (profile) {
+        setCustomerForm((prev) => ({
+          ...prev,
+          name: profile.legalName || prev.name,
+          firmName: profile.tradeName || profile.legalName || prev.firmName,
+          address: profile.address || prev.address,
+          gstNumber
+        }));
+      }
+      setCustomerGstValidation({
+        status: "verified",
+        gstNumber,
+        profile,
+        message: "GST verified. Legal name and address auto-filled."
+      });
+      return profile;
+    } catch (err) {
+      const errorMessage = err?.message || "Unable to validate GST number.";
+      setCustomerGstValidation({ status: "error", gstNumber, profile: null, message: errorMessage });
+      throw err;
     }
   }
 
@@ -4667,6 +4717,12 @@ function App() {
       ...prev,
       shippingAddresses: updateShippingAddressValue(prev.shippingAddresses, index, field, value)
     }));
+    if (field === "gstNumber") {
+      setCustomerShippingGstValidation((prev) => ({
+        ...prev,
+        [index]: { status: "idle", message: "" }
+      }));
+    }
   }
 
   function handleAddCustomerShippingAddress() {
@@ -4684,6 +4740,34 @@ function App() {
         shippingAddresses: nextAddresses.length ? applyShippingAddressGstReuse(nextAddresses) : [createEmptyShippingAddress()]
       };
     });
+  }
+
+  function closeCustomerModal() {
+    setShowCustomerModal(false);
+    setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+    setCustomerShippingGstValidation({});
+  }
+
+  async function validateCustomerShippingGst(index, rawGstNumber) {
+    const gstNumber = String(rawGstNumber || "").trim().toUpperCase();
+    if (!gstNumber) {
+      setCustomerShippingGstValidation((prev) => ({ ...prev, [index]: { status: "idle", message: "" } }));
+      return;
+    }
+    setCustomerShippingGstValidation((prev) => ({ ...prev, [index]: { status: "verifying", message: "" } }));
+    try {
+      await apiFetch("/api/customers/gst/validate", {
+        method: "POST",
+        body: JSON.stringify({ gstNumber })
+      });
+      setCustomerShippingGstValidation((prev) => ({ ...prev, [index]: { status: "verified", message: "GST verified." } }));
+    } catch (err) {
+      setCustomerShippingGstValidation((prev) => ({
+        ...prev,
+        [index]: { status: "error", message: err?.message || "Invalid GST number." }
+      }));
+      throw err;
+    }
   }
 
   async function handleCreateSingleProduct(event) {
@@ -4899,7 +4983,7 @@ function App() {
       return;
     }
     try {
-      const response = await apiFetch("/api/sellers/me/settings", {
+      const sellerSettingsRequest = apiFetch("/api/sellers/me/settings", {
         method: "PUT",
         body: JSON.stringify({
           themeKey: theme,
@@ -4912,7 +4996,40 @@ function App() {
           bankIfsc
         })
       });
+
+      const templateSettingsRequest = apiFetch("/api/quotations/templates/current", {
+        method: "PUT",
+        body: JSON.stringify({
+          templatePreset: quotationTemplate.template_preset,
+          templateThemeKey: quotationTemplate.template_theme_key || "default",
+          headerText: quotationTemplate.header_text,
+          bodyTemplate: quotationTemplate.body_template,
+          footerText: quotationTemplate.footer_text,
+          companyPhone: quotationTemplate.company_phone,
+          companyEmail: quotationTemplate.company_email,
+          companyAddress: quotationTemplate.company_address,
+          headerImageData: quotationTemplate.header_image_data,
+          showHeaderImage: quotationTemplate.show_header_image,
+          logoImageData: quotationTemplate.logo_image_data,
+          showLogoOnly: quotationTemplate.show_logo_only,
+          footerImageData: quotationTemplate.footer_image_data,
+          showFooterImage: quotationTemplate.show_footer_image,
+          accentColor: quotationTemplate.accent_color,
+          notesText: quotationTemplate.notes_text,
+          termsText: quotationTemplate.terms_text,
+          emailEnabled: quotationTemplate.email_enabled,
+          whatsappEnabled: quotationTemplate.whatsapp_enabled
+        })
+      });
+
+      const [response, savedTemplate] = await Promise.all([sellerSettingsRequest, templateSettingsRequest]);
       setSeller(response.seller);
+      if (savedTemplate) {
+        setQuotationTemplate((prev) => ({
+          ...prev,
+          ...savedTemplate
+        }));
+      }
       setError("Settings updated successfully.");
     } catch (err) {
       handleApiError(err);
@@ -6742,8 +6859,12 @@ function App() {
           quotationWizardSubmitting={quotationWizardSubmitting}
           error={error}
           quotationWizardNotice={quotationWizardNotice}
+          quotationWizardCustomerGstValidation={quotationWizardCustomerGstValidation}
+          quotationWizardShippingGstValidation={quotationWizardShippingGstValidation}
           quotationWizardMaterialSuggestions={quotationWizardMaterialSuggestions}
           quotationWizardVisibleVariantFields={quotationWizardVisibleVariantFields}
+          validateQuotationWizardCustomerGst={validateQuotationWizardCustomerGst}
+          validateQuotationWizardShippingGst={validateQuotationWizardShippingGst}
           handleQuotationWizardMaterialInput={handleQuotationWizardMaterialInput}
           handleQuotationWizardMaterialSelect={handleQuotationWizardMaterialSelect}
           handleQuotationWizardVariantSelection={handleQuotationWizardVariantSelection}
@@ -6759,21 +6880,64 @@ function App() {
         />
 
         {showCustomerModal && (
-          <div className="modal-overlay" onClick={() => setShowCustomerModal(false)}>
+          <div className="modal-overlay" onClick={closeCustomerModal}>
             <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
               <div className="section-head">
                 <h3>Create Customer</h3>
-                <button type="button" className="ghost-btn" onClick={() => setShowCustomerModal(false)}>Close</button>
+                <button type="button" className="ghost-btn" onClick={closeCustomerModal}>Close</button>
               </div>
               {error && <div className="notice error">{error}</div>}
               <form className="auth-card customer-form-card" onSubmit={handleCreateCustomer}>
                 <div className="customer-form-grid">
-                  <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required />
-                  <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} />
+                  <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
+                  <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
                   <input placeholder="Mobile" value={customerForm.mobile} onChange={(e) => setCustomerForm((prev) => ({ ...prev, mobile: e.target.value }))} />
                   <input placeholder="Email" type="email" value={customerForm.email} onChange={(e) => setCustomerForm((prev) => ({ ...prev, email: e.target.value }))} />
-                  <textarea className="customer-form-wide" rows={3} placeholder="Billing / primary address" value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} />
-                  <input placeholder="Customer GST Number (optional)" value={customerForm.gstNumber} onChange={(e) => setCustomerForm((prev) => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))} />
+                  <textarea className="customer-form-wide" rows={3} placeholder="Billing / primary address" value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
+                  <div className="customer-form-wide" style={{ display: "grid", gap: "8px" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <input
+                        placeholder="Customer GST Number (optional)"
+                        value={customerForm.gstNumber}
+                        onChange={(e) => {
+                          const nextGstNumber = e.target.value.toUpperCase();
+                          setCustomerForm((prev) => ({ ...prev, gstNumber: nextGstNumber }));
+                          if (String(customerGstValidation.gstNumber || "") !== String(nextGstNumber || "").trim()) {
+                            setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+                          }
+                        }}
+                        onBlur={async () => {
+                          const gstNumber = String(customerForm.gstNumber || "").trim();
+                          if (!gstNumber) return;
+                          try {
+                            await validateCustomerGstForForm(gstNumber);
+                          } catch {
+                            // Error is already set via handler.
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="ghost-btn"
+                        onClick={async () => {
+                          try {
+                            await validateCustomerGstForForm(customerForm.gstNumber);
+                            setError("");
+                          } catch (err) {
+                            handleApiError(err);
+                          }
+                        }}
+                        disabled={customerGstValidation.status === "verifying" || !String(customerForm.gstNumber || "").trim()}
+                      >
+                        {customerGstValidation.status === "verifying" ? "Verifying..." : "Verify GST"}
+                      </button>
+                    </div>
+                    {customerGstValidation.message ? (
+                      <small style={{ color: customerGstValidation.status === "error" ? "#b42318" : "var(--muted)" }}>
+                        {customerGstValidation.message}
+                      </small>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="customer-shipping-section">
                   <div className="customer-shipping-head">
@@ -6796,7 +6960,27 @@ function App() {
                           <input placeholder="Warehouse / label" value={entry.label || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "label", e.target.value)} />
                           <input placeholder="State" value={entry.state || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "state", e.target.value)} />
                           <input placeholder="Pincode" value={entry.pincode || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "pincode", e.target.value)} />
-                          <input placeholder="Warehouse GST Number (optional)" value={entry.gstNumber || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "gstNumber", e.target.value.toUpperCase())} />
+                          <div style={{ display: "grid", gap: "6px" }}>
+                            <input
+                              placeholder="Warehouse GST Number (optional)"
+                              value={entry.gstNumber || ""}
+                              onChange={(e) => handleCustomerShippingAddressChange(index, "gstNumber", e.target.value.toUpperCase())}
+                              onBlur={async () => {
+                                const gstNumber = String(entry.gstNumber || "").trim();
+                                if (!gstNumber) return;
+                                try {
+                                  await validateCustomerShippingGst(index, gstNumber);
+                                } catch {
+                                  // Message shown inline.
+                                }
+                              }}
+                            />
+                            {customerShippingGstValidation[index]?.message ? (
+                              <small style={{ color: customerShippingGstValidation[index]?.status === "error" ? "#b42318" : "var(--muted)" }}>
+                                {customerShippingGstValidation[index].message}
+                              </small>
+                            ) : null}
+                          </div>
                           <textarea className="customer-form-wide" rows={2} placeholder="Shipping address" value={entry.address || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "address", e.target.value)} />
                         </div>
                       </div>

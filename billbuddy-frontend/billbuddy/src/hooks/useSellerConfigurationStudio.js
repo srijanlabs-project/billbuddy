@@ -22,6 +22,12 @@ export default function useSellerConfigurationStudio({
 
   const configurationStudioSeller = isPlatformAdmin ? selectedSellerConfigSeller : seller;
   const activeSellerConfiguration = configurationStudioSeller ? getSellerConfiguration(configurationStudioSeller) : null;
+  const activeSellerType = String(
+    configurationStudioSeller?.sellerType
+    || configurationStudioSeller?.seller_type
+    || "BASIC"
+  ).trim().toUpperCase() === "ADVANCED" ? "ADVANCED" : "BASIC";
+  const isAdvancedSeller = activeSellerType === "ADVANCED";
 
   function getSellerConfiguration(sellerRow) {
     if (!sellerRow?.id) return createDefaultSellerConfiguration(sellerRow);
@@ -87,7 +93,12 @@ export default function useSellerConfigurationStudio({
           profileName: activeSellerConfiguration.profileName,
           status: "draft",
           modules: activeSellerConfiguration.modules,
-          itemDisplayConfig: activeSellerConfiguration.itemDisplayConfig,
+          itemDisplayConfig: {
+            ...(activeSellerConfiguration.itemDisplayConfig || {}),
+            categoryRules: isAdvancedSeller
+              ? (activeSellerConfiguration.itemDisplayConfig?.categoryRules || [])
+              : []
+          },
           catalogueFields: activeSellerConfiguration.catalogueFields,
           quotationColumns: activeSellerConfiguration.quotationColumns
         })

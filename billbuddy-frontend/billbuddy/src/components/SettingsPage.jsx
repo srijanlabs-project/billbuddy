@@ -459,6 +459,42 @@ export default function SettingsPage({
                     </label>
                   </div>
                 </section>
+
+                <section className="settings-panel">
+                  <div className="settings-panel-head">
+                    <h4>Company Contact Details</h4>
+                    <p>Used in quotation header/footer and onboarding completion checks.</p>
+                  </div>
+                  <div className="settings-two-column">
+                    <label className="settings-field">
+                      <span>Company Phone</span>
+                      <input
+                        type="text"
+                        value={quotationTemplate.company_phone || ""}
+                        onChange={(event) => updateTemplateField("company_phone", event.target.value)}
+                        placeholder="+91 9876543210"
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>Company Email</span>
+                      <input
+                        type="email"
+                        value={quotationTemplate.company_email || ""}
+                        onChange={(event) => updateTemplateField("company_email", event.target.value)}
+                        placeholder="sales@example.com"
+                      />
+                    </label>
+                    <label className="settings-field settings-field-wide">
+                      <span>Company Address</span>
+                      <textarea
+                        rows={3}
+                        value={quotationTemplate.company_address || ""}
+                        onChange={(event) => updateTemplateField("company_address", event.target.value)}
+                        placeholder="Enter full business address"
+                      />
+                    </label>
+                  </div>
+                </section>
               </div>
             </form>
           ) : null}
