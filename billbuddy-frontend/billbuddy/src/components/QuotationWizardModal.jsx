@@ -194,7 +194,17 @@ export default function QuotationWizardModal(props) {
                           setQuotationWizard((prev) => ({
                             ...prev,
                             selectedCustomerId: String(customer.id),
-                            customerSearch: customer.firm_name || customer.name || customer.mobile || ""
+                            customerSearch: customer.firm_name || customer.name || customer.mobile || "",
+                            customer: {
+                              ...prev.customer,
+                              name: customer.name || prev.customer.name,
+                              firmName: customer.firm_name || customer.name || prev.customer.firmName,
+                              mobile: customer.mobile || prev.customer.mobile,
+                              email: customer.email || prev.customer.email,
+                              address: customer.address || prev.customer.address,
+                              gstNumber: customer.gst_number || "",
+                              gstEnabled: Boolean(customer.gst_number)
+                            }
                           }))
                         }
                       >
@@ -205,6 +215,15 @@ export default function QuotationWizardModal(props) {
                     ))
                   )}
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(quotationWizard.customer.gstEnabled)}
+                    onChange={(e) => updateQuotationWizardCustomerField("gstEnabled", e.target.checked)}
+                    style={{ width: "auto" }}
+                  />
+                  GST quotation
+                </label>
               </div>
             ) : (
               <div className="quotation-wizard-grid">
@@ -252,6 +271,15 @@ export default function QuotationWizardModal(props) {
                     </small>
                   ) : null}
                 </div>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(quotationWizard.customer.gstEnabled)}
+                    onChange={(e) => updateQuotationWizardCustomerField("gstEnabled", e.target.checked)}
+                    style={{ width: "auto" }}
+                  />
+                  GST quotation
+                </label>
                 <div className="wizard-full customer-shipping-section wizard-shipping-section">
                   <div className="customer-shipping-head">
                     <div>

@@ -1,4 +1,5 @@
 const DEFAULT_TIMEOUT_MS = 12000;
+const DEFAULT_GST_ENDPOINT = "https://sheet.gstincheck.co.in/check/{api-key}/{gstin-number}";
 
 function normalizeGstNumber(value) {
   return String(value || "").trim().toUpperCase();
@@ -145,10 +146,19 @@ async function validateAndFetchGstProfile(gstNumber) {
     throw error;
   }
 
-  const endpoint = String(process.env.GST_VALIDATION_API_URL || "").trim();
-  const apiKey = String(process.env.GST_VALIDATION_API_KEY || "").trim();
-  if (!endpoint || !apiKey) {
-    const error = new Error("GST validation service is not configured");
+  const endpoint = String(
+    process.env.GST_VALIDATION_API_URL
+    || process.env.GST_API_URL
+    || DEFAULT_GST_ENDPOINT
+  ).trim();
+  const apiKey = String(
+    process.env.GST_VALIDATION_API_KEY
+    || process.env.GST_API_KEY
+    || process.env.GSTINCHECK_API_KEY
+    || ""
+  ).trim();
+  if (!apiKey) {
+    const error = new Error("GST validation API key is not configured");
     error.statusCode = 500;
     throw error;
   }

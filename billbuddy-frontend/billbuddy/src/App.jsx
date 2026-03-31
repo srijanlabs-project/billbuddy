@@ -1186,6 +1186,7 @@ function buildQuotationWizardRevisionState(details, {
       email: quotation.email || selectedCustomer?.email || "",
       address: quotation.address || selectedCustomer?.address || "",
       gstNumber: quotation.customer_gst_number || selectedCustomer?.gst_number || "",
+      gstEnabled: Boolean(Number(quotation.gst_amount || 0) > 0 || quotation.customer_gst_number || selectedCustomer?.gst_number),
       monthlyBilling: Boolean(quotation.customer_monthly_billing ?? selectedCustomer?.monthly_billing),
       shippingAddresses
     },
@@ -1386,6 +1387,7 @@ function createInitialQuotationWizardState(firstProduct = null) {
       email: "",
       address: "",
       gstNumber: "",
+      gstEnabled: false,
       monthlyBilling: false,
       shippingAddresses: [createEmptyShippingAddress()]
     },
