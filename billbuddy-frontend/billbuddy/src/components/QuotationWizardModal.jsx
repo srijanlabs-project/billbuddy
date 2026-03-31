@@ -293,7 +293,10 @@ export default function QuotationWizardModal(props) {
                     if (["width", "height", "unit"].includes(normalizedKey) && quotationWizardItemRules.isServices) {
                       return null;
                     }
-                    if (["thickness", "color_name", "other_info", "ps"].includes(normalizedKey) && !quotationWizardItemRules.isSheet) {
+                    if (["thickness", "color_name", "other_info"].includes(normalizedKey) && !quotationWizardItemRules.isSheet) {
+                      return null;
+                    }
+                    if (normalizedKey === "ps" && quotationWizardItemRules.isServices) {
                       return null;
                     }
 
