@@ -4586,6 +4586,7 @@ button:disabled {
 
 .quotation-wizard-modal {
   width: min(100%, 440px);
+  min-width: min(350px, calc(100vw - 20px));
   display: grid;
   gap: 16px;
 }

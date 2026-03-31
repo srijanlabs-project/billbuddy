@@ -384,13 +384,13 @@ export default function useQuotationWizard({
     return {
       ...baseItemForm,
       id: previousItemForm?.id ?? baseItemForm.id,
+      category: previousItemForm?.category || baseItemForm.category,
       otherInfo: previousItemForm?.otherInfo ?? baseItemForm.otherInfo,
       ps: previousItemForm?.ps ?? baseItemForm.ps,
       height: previousItemForm?.height ?? baseItemForm.height,
       width: previousItemForm?.width ?? baseItemForm.width,
       unit: previousItemForm?.unit ?? baseItemForm.unit,
       quantity: previousItemForm?.quantity ?? baseItemForm.quantity,
-      rate: previousItemForm?.rate ?? baseItemForm.rate,
       note: previousItemForm?.note ?? baseItemForm.note,
       customFields: getCatalogueDrivenQuotationCustomFields(
         selectedProduct,
