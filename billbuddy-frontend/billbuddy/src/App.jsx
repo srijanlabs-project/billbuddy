@@ -3185,6 +3185,7 @@ function App() {
   const [sellerSetupStatus, setSellerSetupStatus] = useState(null);
   const [theme, setTheme] = useState("matte-blue");
   const [brandColor, setBrandColor] = useState("#2563eb");
+  const [businessName, setBusinessName] = useState("");
   const [quotationNumberPrefix, setQuotationNumberPrefix] = useState("QTN");
   const [sellerGstNumber, setSellerGstNumber] = useState("");
   const [bankName, setBankName] = useState("");
@@ -3491,21 +3492,60 @@ function App() {
   }
 
   async function handleApiError(err) {
+    function humanizeErrorField(field) {
+      const normalized = String(field || "").trim();
+      if (!normalized) return "";
+      const map = {
+        mobile: "Mobile Number",
+        gstNumber: "GST Number",
+        "itemDisplayConfig.categoryRules": "Item Display Category Rules",
+        business_name: "Business Name",
+        quotation_prefix: "Quotation Prefix",
+        seller_gst_number: "Seller GST Number",
+        company_contact: "Company Contact",
+        company_address: "Company Address"
+      };
+      if (map[normalized]) return map[normalized];
+      const arrayMatch = normalized.match(/^shippingAddresses\[(\d+)\]\.gstNumber$/);
+      if (arrayMatch) {
+        return `Shipping Address ${Number(arrayMatch[1]) + 1} GST Number`;
+      }
+      return normalized
+        .replace(/[._]/g, " ")
+        .replace(/\[(\d+)\]/g, " $1 ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+    }
+
+    function normalizeErrorReason(message) {
+      const raw = String(message || "").trim();
+      if (!raw) return "Please check the entered values and try again.";
+      const lower = raw.toLowerCase();
+      if (lower.includes("character varying")) return "Entered value is too long for the allowed limit.";
+      if (lower.includes("duplicate key") || lower.includes("unique constraint")) return "This value already exists. Please use a different value.";
+      if (lower.includes("invalid input syntax")) return "Entered value format is invalid.";
+      return raw;
+    }
+
     setSuccessNotice("");
     if (err?.status === 401) {
       clearAuth("Session expired. Please login again.");
       setAuthReady(true);
       return;
     }
+    const reason = normalizeErrorReason(err?.message);
+    const fieldLabel = humanizeErrorField(err?.field);
+    const finalMessage = fieldLabel ? `${fieldLabel}: ${reason}` : reason;
     if (!err?.status || err.status >= 500) {
       setServerError({
         title: err?.status ? `Server error (${err.status})` : "Unable to reach server",
-        message: err?.message || "Something went wrong"
+        message: finalMessage
       });
       setError("");
       return;
     }
-    setError(err.message || "Something went wrong");
+    setError(finalMessage);
   }
 
   function updatePublicLeadField(field, value) {
@@ -3649,6 +3689,7 @@ function App() {
       if (currentSeller?.theme_key) {
         setTheme(currentSeller.theme_key);
       }
+      setBusinessName(currentSeller?.business_name || "");
       if (currentSeller?.brand_primary_color) {
         setBrandColor(currentSeller.brand_primary_color);
       }
@@ -4998,6 +5039,7 @@ function App() {
         body: JSON.stringify({
           themeKey: theme,
           brandPrimaryColor: brandColor,
+          businessName,
           quotationNumberPrefix,
           sellerGstNumber,
           bankName,
@@ -6291,7 +6333,7 @@ function App() {
       </aside>
 
       <div className="workspace">
-        <header className="topbar glass-panel">
+      <header className="topbar glass-panel">
           <div className={`topbar-main ${!isPlatformAdmin ? "topbar-main-seller" : ""}`}>
             {!isPlatformAdmin && (
               <div className="topbar-intro">
@@ -6756,6 +6798,8 @@ function App() {
             THEME_OPTIONS={THEME_OPTIONS}
             theme={theme}
             setTheme={setTheme}
+            businessName={businessName}
+            setBusinessName={setBusinessName}
             brandColor={brandColor}
             setBrandColor={setBrandColor}
             quotationNumberPrefix={quotationNumberPrefix}

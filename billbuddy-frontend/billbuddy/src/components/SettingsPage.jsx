@@ -46,6 +46,8 @@ export default function SettingsPage({
   THEME_OPTIONS,
   theme,
   setTheme,
+  businessName,
+  setBusinessName,
   quotationNumberPrefix,
   setQuotationNumberPrefix,
   sellerGstNumber,
@@ -404,6 +406,15 @@ export default function SettingsPage({
                     <p>Workspace appearance stays separate from quotation themes.</p>
                   </div>
                   <div className="settings-two-column">
+                    <label className="settings-field">
+                      <span>Business Name</span>
+                      <input
+                        type="text"
+                        value={businessName || ""}
+                        onChange={(event) => setBusinessName(event.target.value)}
+                        placeholder="Your registered business name"
+                      />
+                    </label>
                     <label className="settings-field">
                       <span>Workspace Theme</span>
                       <select value={theme} onChange={(event) => setTheme(event.target.value)}>

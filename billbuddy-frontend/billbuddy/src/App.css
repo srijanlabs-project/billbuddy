@@ -2723,6 +2723,8 @@ button:disabled {
 .error-toast {
   border-color: color-mix(in srgb, var(--danger) 26%, white);
   background: rgba(255, 238, 243, 0.94);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .notice.info {

@@ -241,6 +241,15 @@ function normalizeQuotationPrefix(value) {
     .slice(0, 20)) || "QTN";
 }
 
+function derivePrefixFromBusinessName(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "");
+  if (!normalized) return "QTN";
+  return normalized.slice(0, 3).padEnd(3, "X");
+}
+
 function normalizeCustomQuotationNumber(value) {
   const normalized = String(value || "")
     .trim()
@@ -251,13 +260,16 @@ function normalizeCustomQuotationNumber(value) {
 
 async function getNextSellerQuotationMeta(client, sellerId) {
   const sellerResult = await client.query(
-    `SELECT quotation_number_prefix
+    `SELECT quotation_number_prefix, business_name, name
      FROM sellers
      WHERE id = $1
      LIMIT 1`,
     [sellerId]
   );
-  const prefix = normalizeQuotationPrefix(sellerResult.rows[0]?.quotation_number_prefix);
+  const sellerRow = sellerResult.rows[0] || {};
+  const configuredPrefix = String(sellerRow.quotation_number_prefix || "").trim();
+  const fallbackPrefix = derivePrefixFromBusinessName(sellerRow.business_name || sellerRow.name || "");
+  const prefix = normalizeQuotationPrefix(configuredPrefix || fallbackPrefix);
   const serialResult = await client.query(
     `SELECT COALESCE(MAX(seller_quotation_serial), 0) + 1 AS next_serial
      FROM quotations

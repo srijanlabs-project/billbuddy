@@ -243,8 +243,6 @@ router.get("/me/setup-status", async (req, res) => {
 
     const missingSettings = [];
     if (!String(sellerRow.business_name || "").trim()) missingSettings.push("business_name");
-    if (!String(sellerRow.quotation_number_prefix || "").trim()) missingSettings.push("quotation_prefix");
-    if (!String(sellerRow.gst_number || "").trim()) missingSettings.push("seller_gst_number");
     const hasCompanyContact = Boolean(String(template.company_phone || "").trim() || String(template.company_email || "").trim());
     if (!hasCompanyContact) missingSettings.push("company_contact");
     if (!String(template.company_address || "").trim()) missingSettings.push("company_address");
@@ -284,7 +282,7 @@ router.get("/me/setup-status", async (req, res) => {
 
 router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
-    const { themeKey, brandPrimaryColor, quotationNumberPrefix, sellerGstNumber, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
+    const { themeKey, brandPrimaryColor, businessName, quotationNumberPrefix, sellerGstNumber, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
 
     if (!req.user?.sellerId) {
       return res.status(400).json({ message: "seller context missing" });
@@ -294,17 +292,19 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
       `UPDATE sellers
        SET theme_key = COALESCE($1, theme_key),
            brand_primary_color = COALESCE($2, brand_primary_color),
-           quotation_number_prefix = COALESCE($3, quotation_number_prefix),
-           gst_number = COALESCE($4, gst_number),
-           bank_name = COALESCE($5, bank_name),
-           bank_branch = COALESCE($6, bank_branch),
-           bank_account_no = COALESCE($7, bank_account_no),
-           bank_ifsc = COALESCE($8, bank_ifsc)
-       WHERE id = $9
+           business_name = COALESCE($3, business_name),
+           quotation_number_prefix = COALESCE($4, quotation_number_prefix),
+           gst_number = COALESCE($5, gst_number),
+           bank_name = COALESCE($6, bank_name),
+           bank_branch = COALESCE($7, bank_branch),
+           bank_account_no = COALESCE($8, bank_account_no),
+           bank_ifsc = COALESCE($9, bank_ifsc)
+       WHERE id = $10
        RETURNING *`,
       [
         themeKey || null,
         brandPrimaryColor || null,
+        businessName !== undefined ? (String(businessName || "").trim() || null) : null,
         quotationNumberPrefix ? normalizeQuotationPrefix(quotationNumberPrefix) : null,
         sellerGstNumber ? String(sellerGstNumber).trim().toUpperCase() : null,
         bankName || null,
