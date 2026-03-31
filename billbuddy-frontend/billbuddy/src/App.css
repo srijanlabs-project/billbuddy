@@ -4670,7 +4670,7 @@ button:disabled {
 }
 
 @media (max-width: 960px) {
-  .quotation-item-form-grid {
+  .quotation-wizard-grid.three.quotation-item-form-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
@@ -5370,6 +5370,10 @@ button:disabled {
   }
 
   .quotation-item-form-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .quotation-wizard-grid.three.quotation-item-form-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
