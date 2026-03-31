@@ -41,6 +41,14 @@ function toFormulaAmount(value) {
   return Number.isFinite(parsed) ? parsed : 1;
 }
 
+function parsePercentLike(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const numeric = Number(raw.replace(/%/g, "").trim());
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, numeric);
+}
+
 function getFeetFactor(unit) {
   const normalized = String(unit || "").trim().toLowerCase();
   if (normalized === "in") return 1 / 12;
@@ -158,7 +166,7 @@ function normalizeQuotationItems(items = []) {
   });
 }
 
-function computeQuotationTotals({ items, gstPercent, transportCharges, designCharges, discountAmount, advanceAmount, calculationColumns = [] }) {
+function computeQuotationTotals({ items, gstPercent, gstMode = false, transportCharges, designCharges, discountAmount, advanceAmount, calculationColumns = [] }) {
   const normalizedItems = normalizeQuotationItems(items);
   const calcColumns = Array.isArray(calculationColumns)
     ? calculationColumns.filter((column) => Boolean(column.included_in_calculation))
@@ -204,13 +212,20 @@ function computeQuotationTotals({ items, gstPercent, transportCharges, designCha
 
   const subtotal = computedLineItems.reduce((sum, item) => sum + item.totalPrice, 0);
   const gstPct = toAmount(gstPercent);
-  const gstAmount = subtotal * (gstPct / 100);
+  const gstAmount = gstMode
+    ? computedLineItems.reduce((sum, item) => {
+      const customFields = item.custom_fields || item.customFields || {};
+      const itemGstPercent = parsePercentLike(customFields.gst_percent);
+      const lineTax = Number((toAmount(item.totalPrice) * (itemGstPercent / 100)).toFixed(2));
+      return sum + lineTax;
+    }, 0)
+    : subtotal * (gstPct / 100);
   const transport = toAmount(transportCharges);
   const design = toAmount(designCharges);
-  const totalAmount = subtotal + gstAmount + transport + design;
-  const discount = toAmount(discountAmount);
+  const discount = gstMode ? 0 : toAmount(discountAmount);
+  const totalAmount = subtotal + gstAmount + transport + design - discount;
   const advance = toAmount(advanceAmount);
-  const balanceAmount = Math.max(Number((totalAmount - discount - advance).toFixed(2)), 0);
+  const balanceAmount = Math.max(Number((totalAmount - advance).toFixed(2)), 0);
 
   return {
     normalizedItems: computedLineItems,
@@ -984,6 +999,7 @@ async function createQuotationWithItems(payload) {
     customerMonthlyBilling,
     discountAmount,
     advanceAmount,
+    gstMode,
     customQuotationNumber,
     referenceRequestId
   } = payload;
@@ -1035,6 +1051,7 @@ async function createQuotationWithItems(payload) {
       computeQuotationTotals({
         items: displayReadyItems,
         gstPercent,
+        gstMode: Boolean(gstMode),
         transportCharges: toAmount(transportCharges) + toAmount(transportationCost),
         designCharges,
         discountAmount,

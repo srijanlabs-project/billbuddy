@@ -4243,6 +4243,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const totals = computeQuotationTotals({
       items: displayReadyItems,
       gstPercent: req.body.gstPercent ?? quotation.gst_percent ?? 0,
+      gstMode: Boolean(req.body.gstMode),
       transportCharges: req.body.transportCharges ?? quotation.transport_charges ?? 0,
       designCharges: req.body.designCharges ?? quotation.design_charges ?? 0,
       discountAmount: req.body.discountAmount ?? quotation.discount_amount ?? 0,

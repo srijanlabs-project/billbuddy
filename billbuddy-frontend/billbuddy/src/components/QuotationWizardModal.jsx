@@ -29,9 +29,13 @@ export default function QuotationWizardModal(props) {
     getQuotationItemRateValue,
     getQuotationItemTotalValue,
     quotationWizardGrossTotal,
+    quotationWizardGstAmount,
+    quotationWizardTotalAmount,
     quotationWizardDiscountAmount,
     quotationWizardAdvanceAmount,
     quotationWizardBalanceAmount,
+    quotationWizardGstMode,
+    showQuotationWizardNotice,
     formatDateIST,
     quotationWizardSubmitting,
     error,
@@ -617,7 +621,22 @@ export default function QuotationWizardModal(props) {
         {quotationWizard.step === "amounts" && (
           <div className="quotation-wizard-body">
             <div className="quotation-wizard-grid two">
-              <input placeholder="Discount Amount" type="number" min="0" value={quotationWizard.amounts.discountAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }))} />
+              <input
+                placeholder="Discount Amount"
+                type="number"
+                min="0"
+                value={quotationWizardGstMode ? "" : quotationWizard.amounts.discountAmount}
+                readOnly={quotationWizardGstMode}
+                onFocus={() => {
+                  if (quotationWizardGstMode) {
+                    showQuotationWizardNotice?.("Group discount is not applicable in case of GST quotation.");
+                  }
+                }}
+                onChange={(e) => {
+                  if (quotationWizardGstMode) return;
+                  setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, discountAmount: e.target.value } }));
+                }}
+              />
               <input placeholder="Advance Amount" type="number" min="0" value={quotationWizard.amounts.advanceAmount} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, advanceAmount: e.target.value } }))} />
               <input placeholder="Custom Quotation Number" type="text" maxLength="120" value={quotationWizard.amounts.customQuotationNumber || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, customQuotationNumber: e.target.value } }))} />
               <input placeholder="Reference Request ID" type="text" maxLength="120" value={quotationWizard.amounts.referenceRequestId || ""} onChange={(e) => setQuotationWizard((prev) => ({ ...prev, amounts: { ...prev.amounts, referenceRequestId: e.target.value } }))} />
@@ -655,8 +674,9 @@ export default function QuotationWizardModal(props) {
               <div className="preview-pane">
                 <h5>Summary</h5>
                 <span>Items: {quotationWizard.items.length}</span>
-                <span>Gross Total: {formatCurrency(quotationWizardGrossTotal)}</span>
-                <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>
+                <span>Sub Total: {formatCurrency(quotationWizardGrossTotal)}</span>
+                {quotationWizardGstMode ? <span>GST: {formatCurrency(quotationWizardGstAmount)}</span> : <span>Discount: {formatCurrency(quotationWizardDiscountAmount)}</span>}
+                <span>Total Amount: {formatCurrency(quotationWizardTotalAmount)}</span>
                 <span>Advance: {formatCurrency(quotationWizardAdvanceAmount)}</span>
                 <span>Custom Quotation Number: {quotationWizard.amounts.customQuotationNumber || "-"}</span>
                 <span>Reference Request ID: {quotationWizard.amounts.referenceRequestId || "-"}</span>

@@ -4294,9 +4294,12 @@ function App() {
     quotationWizardItemRules,
     quotationWizardItemReady,
     quotationWizardGrossTotal,
+    quotationWizardGstAmount,
+    quotationWizardTotalAmount,
     quotationWizardDiscountAmount,
     quotationWizardAdvanceAmount,
     quotationWizardBalanceAmount,
+    quotationWizardGstMode,
     openQuotationWizard,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
@@ -4318,7 +4321,8 @@ function App() {
     handleQuotationWizardNext,
     handleQuotationWizardBack,
     handleSubmitQuotationWizard,
-    downloadQuotationWizardPdf
+    downloadQuotationWizardPdf,
+    showQuotationWizardNotice
   } = useQuotationWizard({
     auth,
     products,
@@ -6876,9 +6880,13 @@ function App() {
           getQuotationItemRateValue={getQuotationItemRateValue}
           getQuotationItemTotalValue={getQuotationItemTotalValue}
           quotationWizardGrossTotal={quotationWizardGrossTotal}
+          quotationWizardGstAmount={quotationWizardGstAmount}
+          quotationWizardTotalAmount={quotationWizardTotalAmount}
           quotationWizardDiscountAmount={quotationWizardDiscountAmount}
           quotationWizardAdvanceAmount={quotationWizardAdvanceAmount}
           quotationWizardBalanceAmount={quotationWizardBalanceAmount}
+          quotationWizardGstMode={quotationWizardGstMode}
+          showQuotationWizardNotice={showQuotationWizardNotice}
           formatDateIST={formatDateIST}
           quotationWizardSubmitting={quotationWizardSubmitting}
           error={error}

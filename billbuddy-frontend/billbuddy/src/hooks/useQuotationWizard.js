@@ -15,6 +15,14 @@ function uniqueValues(values) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function parsePercentLike(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const numeric = Number(raw.replace(/%/g, "").trim());
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, numeric);
+}
+
 function buildSecondarySku(materialName) {
   const slug = String(materialName || "ITEM")
     .trim()
@@ -204,6 +212,7 @@ export default function useQuotationWizard({
 
   const quotationWizardItemRules = getQuotationWizardRules(quotationWizard.itemForm);
   const quotationWizardItemReady = validateQuotationWizardItem(quotationWizard.itemForm);
+  const quotationWizardGstMode = Boolean(quotationWizard.customer?.gstEnabled);
 
   const quotationWizardGrossTotal = useMemo(() => {
     return Number(
@@ -211,10 +220,22 @@ export default function useQuotationWizard({
     );
   }, [quotationWizard.items, calculateQuotationWizardItemTotal]);
 
-  const quotationWizardDiscountAmount = toQuotationWizardAmount(quotationWizard.amounts.discountAmount);
+  const quotationWizardGstAmount = useMemo(() => {
+    if (!quotationWizardGstMode) return 0;
+    const total = (quotationWizard.items || []).reduce((sum, item) => {
+      const lineTotal = calculateQuotationWizardItemTotal(item);
+      const itemGstPercent = parsePercentLike(item?.customFields?.gst_percent);
+      const lineTax = Number((lineTotal * (itemGstPercent / 100)).toFixed(2));
+      return sum + lineTax;
+    }, 0);
+    return Number(total.toFixed(2));
+  }, [quotationWizard.items, quotationWizardGstMode, calculateQuotationWizardItemTotal]);
+
+  const quotationWizardDiscountAmount = quotationWizardGstMode ? 0 : toQuotationWizardAmount(quotationWizard.amounts.discountAmount);
   const quotationWizardAdvanceAmount = toQuotationWizardAmount(quotationWizard.amounts.advanceAmount);
+  const quotationWizardTotalAmount = Number((quotationWizardGrossTotal + quotationWizardGstAmount - quotationWizardDiscountAmount).toFixed(2));
   const quotationWizardBalanceAmount = Math.max(
-    Number((quotationWizardGrossTotal - quotationWizardDiscountAmount - quotationWizardAdvanceAmount).toFixed(2)),
+    Number((quotationWizardTotalAmount - quotationWizardAdvanceAmount).toFixed(2)),
     0
   );
 
@@ -265,13 +286,22 @@ export default function useQuotationWizard({
   }
 
   function updateQuotationWizardCustomerField(field, value) {
-    setQuotationWizard((prev) => ({
-      ...prev,
-      customer: {
-        ...prev.customer,
-        [field]: value
+    setQuotationWizard((prev) => {
+      const next = {
+        ...prev,
+        customer: {
+          ...prev.customer,
+          [field]: value
+        }
+      };
+      if (field === "gstEnabled" && Boolean(value)) {
+        next.amounts = {
+          ...next.amounts,
+          discountAmount: ""
+        };
       }
-    }));
+      return next;
+    });
     if (field === "gstNumber") {
       const nextGst = String(value || "").trim().toUpperCase();
       if (String(quotationWizardCustomerGstValidation.gstNumber || "") !== nextGst) {
@@ -849,6 +879,7 @@ export default function useQuotationWizard({
           customQuotationNumber: String(quotationWizard.amounts.customQuotationNumber || "").trim() || null,
           items: buildQuotationWizardPayloadItems(quotationWizard.items),
           gstPercent: 0,
+          gstMode: quotationWizardGstMode,
           transportCharges: 0,
           designCharges: 0,
           discountAmount: quotationWizardDiscountAmount,
@@ -940,9 +971,13 @@ export default function useQuotationWizard({
     quotationWizardItemRules,
     quotationWizardItemReady,
     quotationWizardGrossTotal,
+    quotationWizardGstAmount,
+    quotationWizardTotalAmount,
     quotationWizardDiscountAmount,
     quotationWizardAdvanceAmount,
     quotationWizardBalanceAmount,
+    quotationWizardGstMode,
+    showQuotationWizardNotice: setQuotationWizardNotice,
     openQuotationWizard,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
