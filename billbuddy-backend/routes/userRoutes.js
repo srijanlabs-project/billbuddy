@@ -162,7 +162,7 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
     if (existingSellerUser.rowCount > 0) {
       await client.query("ROLLBACK");
       return res.status(409).json({
-        message: "Mobile number already exists in this seller account",
+        message: "Mobile number is already registered on the platform",
         field: "mobile"
       });
     }
@@ -274,7 +274,7 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     if (error.code === "23505") {
-      return res.status(409).json({ message: "Mobile number already exists", field: "mobile" });
+      return res.status(409).json({ message: "Mobile number is already registered on the platform", field: "mobile" });
     }
     res.status(500).json({ message: error.message });
   } finally {
