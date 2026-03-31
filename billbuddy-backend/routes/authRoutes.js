@@ -104,7 +104,8 @@ async function buildAuthUserPayload(user) {
     mobile: user.mobile,
     role: user.role_name || user.role || "Unknown",
     sellerId: user.seller_id ?? user.sellerId ?? null,
-    isPlatformAdmin: Boolean(user.is_platform_admin ?? user.isPlatformAdmin)
+    isPlatformAdmin: Boolean(user.is_platform_admin ?? user.isPlatformAdmin),
+    sellerType: String(user.seller_type || user.sellerType || "BASIC").toUpperCase() === "ADVANCED" ? "ADVANCED" : "BASIC"
   };
 
   return {
@@ -443,7 +444,7 @@ router.post("/login", async (req, res) => {
       `SELECT u.id, u.name, u.mobile, u.password, u.status, u.locked, u.seller_id, u.is_platform_admin,
               u.failed_login_attempts, u.locked_until,
               r.role_name,
-              s.status AS seller_status, s.is_locked AS seller_locked
+              s.status AS seller_status, s.is_locked AS seller_locked, s.seller_type
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
        LEFT JOIN sellers s ON s.id = u.seller_id

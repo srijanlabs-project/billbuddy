@@ -83,6 +83,8 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS bank_branch VARCHAR(200)`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS bank_account_no VARCHAR(80)`);
   await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS bank_ifsc VARCHAR(40)`);
+  await pool.query(`ALTER TABLE sellers ADD COLUMN IF NOT EXISTS seller_type VARCHAR(20) DEFAULT 'BASIC'`);
+  await pool.query(`UPDATE sellers SET seller_type = 'BASIC' WHERE seller_type IS NULL OR seller_type = ''`);
   await pool.query(`UPDATE sellers SET quotation_number_prefix = 'QTN' WHERE quotation_number_prefix IS NULL OR quotation_number_prefix = ''`);
 
   await pool.query(`

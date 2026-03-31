@@ -7,6 +7,11 @@ const { hashPassword, validatePasswordStrength } = require("../utils/passwords")
 
 const router = express.Router();
 
+function normalizeSellerType(value) {
+  const normalized = String(value || "BASIC").trim().toUpperCase();
+  return normalized === "ADVANCED" ? "ADVANCED" : "BASIC";
+}
+
 function normalizeQuotationPrefix(value) {
   return (String(value || "QTN")
     .trim()
@@ -169,6 +174,114 @@ router.get("/me", async (req, res) => {
   }
 });
 
+router.get("/me/setup-status", async (req, res) => {
+  try {
+    if (!req.user?.sellerId) {
+      return res.json({
+        sellerId: null,
+        sellerType: "BASIC",
+        stage: "ready",
+        settingsCompleted: true,
+        configurationCompleted: true,
+        quotationUnlocked: true,
+        seedStatus: { hasProducts: true, hasCustomers: true },
+        missingSettings: []
+      });
+    }
+
+    const sellerId = Number(req.user.sellerId);
+    const sellerResult = await pool.query(
+      `SELECT id, business_name, quotation_number_prefix, gst_number, seller_type
+       FROM sellers
+       WHERE id = $1
+       LIMIT 1`,
+      [sellerId]
+    );
+
+    if (sellerResult.rowCount === 0) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    const sellerRow = sellerResult.rows[0];
+
+    const templateResult = await pool.query(
+      `SELECT company_phone, company_email, company_address
+       FROM quotation_templates
+       WHERE seller_id = $1
+       ORDER BY updated_at DESC, id DESC
+       LIMIT 1`,
+      [sellerId]
+    );
+    const template = templateResult.rows[0] || {};
+
+    const profileResult = await pool.query(
+      `SELECT id
+       FROM seller_configuration_profiles
+       WHERE seller_id = $1
+         AND status = 'published'
+       ORDER BY published_at DESC NULLS LAST, updated_at DESC, id DESC
+       LIMIT 1`,
+      [sellerId]
+    );
+
+    let catalogueFieldCount = 0;
+    let quotationFieldCount = 0;
+    if (profileResult.rowCount > 0) {
+      const profileId = Number(profileResult.rows[0].id);
+      const [catalogueCountResult, quotationCountResult] = await Promise.all([
+        pool.query(`SELECT COUNT(*)::int AS count FROM seller_catalogue_fields WHERE profile_id = $1`, [profileId]),
+        pool.query(`SELECT COUNT(*)::int AS count FROM seller_quotation_columns WHERE profile_id = $1`, [profileId])
+      ]);
+      catalogueFieldCount = Number(catalogueCountResult.rows[0]?.count || 0);
+      quotationFieldCount = Number(quotationCountResult.rows[0]?.count || 0);
+    }
+
+    const [productCountResult, customerCountResult] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS count FROM products WHERE seller_id = $1`, [sellerId]),
+      pool.query(`SELECT COUNT(*)::int AS count FROM customers WHERE seller_id = $1`, [sellerId])
+    ]);
+
+    const missingSettings = [];
+    if (!String(sellerRow.business_name || "").trim()) missingSettings.push("business_name");
+    if (!String(sellerRow.quotation_number_prefix || "").trim()) missingSettings.push("quotation_prefix");
+    if (!String(sellerRow.gst_number || "").trim()) missingSettings.push("seller_gst_number");
+    const hasCompanyContact = Boolean(String(template.company_phone || "").trim() || String(template.company_email || "").trim());
+    if (!hasCompanyContact) missingSettings.push("company_contact");
+    if (!String(template.company_address || "").trim()) missingSettings.push("company_address");
+
+    const settingsCompleted = missingSettings.length === 0;
+    const configurationCompleted = profileResult.rowCount > 0 && catalogueFieldCount > 0 && quotationFieldCount > 0;
+    const hasProducts = Number(productCountResult.rows[0]?.count || 0) > 0;
+    const hasCustomers = Number(customerCountResult.rows[0]?.count || 0) > 0;
+    const quotationUnlocked = settingsCompleted && configurationCompleted;
+
+    let stage = "ready";
+    if (!settingsCompleted) stage = "settings";
+    else if (!configurationCompleted) stage = "configuration";
+    else if (!hasProducts || !hasCustomers) stage = "seed";
+
+    return res.json({
+      sellerId,
+      sellerType: normalizeSellerType(sellerRow.seller_type),
+      stage,
+      settingsCompleted,
+      configurationCompleted,
+      quotationUnlocked,
+      seedStatus: {
+        hasProducts,
+        hasCustomers
+      },
+      missingSettings,
+      configurationMetrics: {
+        catalogueFieldCount,
+        quotationFieldCount
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
     const { themeKey, brandPrimaryColor, quotationNumberPrefix, sellerGstNumber, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
@@ -299,7 +412,8 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
       businessAddress = null,
       city = null,
       state = null,
-      businessCategory = null
+      businessCategory = null,
+      sellerType = "BASIC"
     } = req.body;
 
     if (!name || !sellerCode) {
@@ -309,8 +423,8 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
     await client.query("BEGIN");
 
     const sellerResult = await client.query(
-      `INSERT INTO sellers (name, business_name, mobile, email, gst_number, business_address, city, state, business_category, seller_code, onboarding_status, status, trial_ends_at, subscription_plan, max_users, max_orders_per_month, is_locked, theme_key, brand_primary_color)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14, $15, $16, $17, $18)
+      `INSERT INTO sellers (name, business_name, mobile, email, gst_number, business_address, city, state, business_category, seller_code, onboarding_status, status, trial_ends_at, subscription_plan, max_users, max_orders_per_month, is_locked, theme_key, brand_primary_color, seller_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12, $13, $14, $15, $16, $17, $18, $19)
        RETURNING *`,
       [
         name,
@@ -330,7 +444,8 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
         maxOrdersPerMonth ? Number(maxOrdersPerMonth) : null,
         Boolean(isLocked),
         themeKey,
-        brandPrimaryColor
+        brandPrimaryColor,
+        normalizeSellerType(sellerType)
       ]
     );
 

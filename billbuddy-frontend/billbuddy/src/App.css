@@ -2874,6 +2874,16 @@ button:disabled {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.nav-item.locked {
+  opacity: 0.78;
+  border-color: color-mix(in srgb, var(--border) 82%, white);
+}
+
+.nav-item.locked:hover {
+  transform: none;
+  background: rgba(245, 236, 232, 0.7);
+}
+
 .sidebar::after {
   content: "Upgrade Your Workspace";
   display: flex;

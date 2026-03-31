@@ -1236,10 +1236,6 @@ function buildQuotationWizardRevisionState(details, {
   };
 }
 
-function normalizeLookupValue(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
 function normalizeForCompare(value) {
   if (value === null || value === undefined || value === "") return "";
   return String(value).trim().toLowerCase();
@@ -3186,6 +3182,7 @@ function App() {
   const [approvalDecisionNote, setApprovalDecisionNote] = useState("");
 
   const [seller, setSeller] = useState(null);
+  const [sellerSetupStatus, setSellerSetupStatus] = useState(null);
   const [theme, setTheme] = useState("matte-blue");
   const [brandColor, setBrandColor] = useState("#2563eb");
   const [quotationNumberPrefix, setQuotationNumberPrefix] = useState("QTN");
@@ -3406,6 +3403,24 @@ function App() {
   });
   const currentModules = isPlatformAdmin ? PLATFORM_MODULES : isSubUser ? SUB_USER_MODULES : sellerModules;
   const currentModuleMeta = isPlatformAdmin ? PLATFORM_MODULE_META : MODULE_META;
+  const sellerSetupStage = !isPlatformAdmin ? String(sellerSetupStatus?.stage || "ready").toLowerCase() : "ready";
+  const setupAllowedModules = useMemo(() => {
+    if (isPlatformAdmin || isSubUser) return null;
+    if (sellerSetupStage === "settings") return new Set(["Settings", "Help Center", "Subscriptions"]);
+    if (sellerSetupStage === "configuration") return new Set(["Settings", "Configuration Studio", "Help Center", "Subscriptions"]);
+    return null;
+  }, [isPlatformAdmin, isSubUser, sellerSetupStage]);
+  const getModuleSetupLockMessage = (module) => {
+    if (isPlatformAdmin || isSubUser || !setupAllowedModules || setupAllowedModules.has(module)) return "";
+    if (sellerSetupStage === "settings") {
+      return "Complete mandatory business settings to unlock other modules.";
+    }
+    if (sellerSetupStage === "configuration") {
+      return "Complete Configuration Studio setup to unlock other modules.";
+    }
+    return "";
+  };
+  const isModuleSetupLocked = (module) => Boolean(getModuleSetupLockMessage(module));
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
@@ -3452,6 +3467,7 @@ function App() {
   function clearAuth(message = "") {
     clearStoredAuth();
     setAuth(null);
+    setSellerSetupStatus(null);
     setServerError(null);
     if (message) setError(message);
     setSuccessNotice("");
@@ -3604,12 +3620,14 @@ function App() {
 
   async function loadSellerSettings() {
     try {
-      const [response, configResponse] = await Promise.all([
+      const [response, configResponse, setupStatusResponse] = await Promise.all([
         apiFetch("/api/sellers/me"),
-        apiFetch("/api/seller-configurations/current/me").catch(() => ({ config: null }))
+        apiFetch("/api/seller-configurations/current/me").catch(() => ({ config: null })),
+        apiFetch("/api/sellers/me/setup-status").catch(() => null)
       ]);
       const currentSeller = response?.seller || null;
       setSeller(currentSeller);
+      setSellerSetupStatus(setupStatusResponse);
       setCurrentSellerConfiguration(configResponse?.config || null);
       if (currentSeller?.theme_key) {
         setTheme(currentSeller.theme_key);
@@ -3873,6 +3891,8 @@ function App() {
 
       if (shouldLoadTemplateData) {
         await loadSellerSettings();
+      } else {
+        setSellerSetupStatus(null);
       }
       if (isPlatformAdmin) {
         await loadAdminData();
@@ -3924,6 +3944,18 @@ function App() {
       setActiveModule("Dashboard");
     }
   }, [activeModule, currentModules]);
+
+  useEffect(() => {
+    if (isPlatformAdmin || isSubUser || !setupAllowedModules) return;
+    if (setupAllowedModules.has(activeModule)) return;
+    if (sellerSetupStage === "settings") {
+      setActiveModule("Settings");
+      return;
+    }
+    if (sellerSetupStage === "configuration") {
+      setActiveModule("Configuration Studio");
+    }
+  }, [activeModule, isPlatformAdmin, isSubUser, sellerSetupStage, setupAllowedModules]);
 
   useEffect(() => {
     if (!isSubUser) {
@@ -4286,6 +4318,27 @@ function App() {
     handleApiError,
     setError
   });
+
+  function openQuotationWizardWithSetupGuard(initialState = null) {
+    if (isPlatformAdmin || sellerSetupStatus?.quotationUnlocked !== false) {
+      openQuotationWizard(initialState);
+      return;
+    }
+
+    if (sellerSetupStage === "settings") {
+      setError("Complete mandatory business settings before creating quotations.");
+      setActiveModule("Settings");
+      return;
+    }
+
+    if (sellerSetupStage === "configuration") {
+      setError("Complete Configuration Studio setup before creating quotations.");
+      setActiveModule("Configuration Studio");
+      return;
+    }
+
+    openQuotationWizard(initialState);
+  }
 
   const previewQuotationNumber = `${(quotationNumberPrefix || "QTN").trim() || "QTN"}-0001`;
 
@@ -5883,7 +5936,7 @@ function App() {
       createQuotationWizardItem,
       getCatalogueDrivenQuotationCustomFields
     });
-    openQuotationWizard(revisionState);
+    openQuotationWizardWithSetupGuard(revisionState);
     setError("");
   }
 
@@ -6058,8 +6111,13 @@ function App() {
             <button
               key={module}
               type="button"
-              className={activeModule === module ? "nav-item active" : "nav-item"}
+              className={`${activeModule === module ? "nav-item active" : "nav-item"}${isModuleSetupLocked(module) ? " locked" : ""}`}
               onClick={() => {
+                const setupLockMessage = getModuleSetupLockMessage(module);
+                if (setupLockMessage) {
+                  setError(setupLockMessage);
+                  return;
+                }
                 if (module === "Configuration Studio" && !isPlatformAdmin && seller) {
                   openSellerConfigurationStudio(seller);
                   return;
@@ -6069,6 +6127,7 @@ function App() {
             >
               <span className="nav-mark" aria-hidden="true" />
               <span className="nav-label">{module === "Orders" ? "Quotation" : module}</span>
+              {isModuleSetupLocked(module) && <span className="badge pending">Setup</span>}
               {module === "Approvals" && pendingApprovalCount > 0 && (
                 <span className="notification-count-pill">{pendingApprovalCount}</span>
               )}
@@ -6615,7 +6674,7 @@ function App() {
             quotations={quotations}
             dashboardData={dashboardData}
             QUICK_ACTIONS={QUICK_ACTIONS}
-            openQuotationWizard={openQuotationWizard}
+            openQuotationWizard={openQuotationWizardWithSetupGuard}
             setShowCustomerModal={setShowCustomerModal}
             dashboardRange={dashboardRange}
             setDashboardRange={setDashboardRange}
