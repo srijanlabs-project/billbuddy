@@ -3078,11 +3078,52 @@ function PublicLandingPage() {
   );
 }
 
+function ServerErrorPage({ errorInfo, onReturn }) {
+  const title = errorInfo?.title || "Something went wrong";
+  const message = errorInfo?.message || "A server error interrupted the request. Please try again.";
+
+  return (
+    <div className="auth-wrap public-page-shell">
+      <div className="app-ambience" aria-hidden="true">
+        <span className="shape shape-cube" />
+        <span className="shape shape-ring" />
+        <span className="shape shape-panel" />
+      </div>
+      <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+        <div className="auth-grid auth-grid-duo">
+          <div className="glass-card hero-card auth-showcase-card">
+            <p className="eyebrow">Quotsy Platform</p>
+            <h1>Server Error</h1>
+            <p>A backend issue stopped the last action before the app could finish normally.</p>
+          </div>
+          <div className="auth-public-side">
+            <div className="glass-card auth-card auth-panel-card">
+              <div className="auth-panel-copy">
+                <div className="auth-access-badge">Action Interrupted</div>
+                <h2>{title}</h2>
+                <p>{message}</p>
+              </div>
+              <div className="notice error">
+                This error is being shown in one place so it does not keep appearing across other screens.
+              </div>
+              <div className="modal-fixed-actions">
+                <button type="button" className="ghost-btn" onClick={onReturn}>Return to app</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [auth, setAuth] = useState(getStoredAuth());
   const [authReady, setAuthReady] = useState(false);
   const [bootstrapRequired, setBootstrapRequired] = useState(null);
   const [error, setError] = useState("");
+  const [serverError, setServerError] = useState(null);
   const [successNotice, setSuccessNotice] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3411,6 +3452,7 @@ function App() {
   function clearAuth(message = "") {
     clearStoredAuth();
     setAuth(null);
+    setServerError(null);
     if (message) setError(message);
     setSuccessNotice("");
   }
@@ -3420,6 +3462,14 @@ function App() {
     if (err?.status === 401) {
       clearAuth("Session expired. Please login again.");
       setAuthReady(true);
+      return;
+    }
+    if (!err?.status || err.status >= 500) {
+      setServerError({
+        title: err?.status ? `Server error (${err.status})` : "Unable to reach server",
+        message: err?.message || "Something went wrong"
+      });
+      setError("");
       return;
     }
     setError(err.message || "Something went wrong");
@@ -5874,6 +5924,15 @@ function App() {
 
   if (!authReady) {
     return <div className="auth-wrap"><div className="glass-card">Preparing dashboard...</div></div>;
+  }
+
+  if (serverError) {
+    return (
+      <ServerErrorPage
+        errorInfo={serverError}
+        onReturn={() => setServerError(null)}
+      />
+    );
   }
 
   if (!auth?.token && bootstrapRequired) {
