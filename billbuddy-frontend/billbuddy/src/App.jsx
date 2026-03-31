@@ -3295,6 +3295,7 @@ function App() {
   const [showSellerNotificationsModal, setShowSellerNotificationsModal] = useState(false);
 
   const [userForm, setUserForm] = useState(createInitialUserForm);
+  const [userFormErrors, setUserFormErrors] = useState({});
   const [customerForm, setCustomerForm] = useState(createInitialCustomerForm);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -4370,6 +4371,7 @@ function App() {
   async function handleCreateUser(event) {
     event.preventDefault();
     setError("");
+    setUserFormErrors({});
 
     if (!canCreateUser) {
       setError("You do not have permission to create users.");
@@ -4398,8 +4400,13 @@ function App() {
       const usersData = await apiFetch("/api/users");
       setUsers(usersData);
       setUserForm(createInitialUserForm());
+      setUserFormErrors({});
       setShowUserModal(false);
     } catch (err) {
+      if (err?.field === "mobile") {
+        setUserFormErrors({ mobile: err.message || "Invalid mobile number" });
+        return;
+      }
       handleApiError(err);
     }
   }
@@ -4409,6 +4416,7 @@ function App() {
 
     setError("");
     setShowUserModal(false);
+    setUserFormErrors({});
     setEditingUser(user);
     setUserForm({
       name: user.name || "",
@@ -4432,6 +4440,7 @@ function App() {
   function handleCloseEditUser() {
     setShowUserEditModal(false);
     setEditingUser(null);
+    setUserFormErrors({});
     setUserForm(createInitialUserForm());
   }
 
@@ -6325,7 +6334,9 @@ function App() {
             handleUpdateUser={handleUpdateUser}
             error={error}
             userForm={userForm}
+            userFormErrors={userFormErrors}
             setUserForm={setUserForm}
+            setUserFormErrors={setUserFormErrors}
             roles={roles}
           />
         ) : activeModule === "Approvals" ? (

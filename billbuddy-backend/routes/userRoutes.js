@@ -6,6 +6,24 @@ const { hashPassword, validatePasswordStrength } = require("../utils/passwords")
 
 const router = express.Router();
 
+function normalizeMobile(value) {
+  return String(value || "").trim().replace(/\s+/g, "");
+}
+
+function validateMobile(value) {
+  const normalized = normalizeMobile(value);
+  if (!normalized) {
+    return { valid: false, normalized, message: "Mobile number is required" };
+  }
+  if (!/^\+?[0-9]+$/.test(normalized)) {
+    return { valid: false, normalized, message: "Mobile must contain only digits and an optional leading +" };
+  }
+  if (normalized.length > 15) {
+    return { valid: false, normalized, message: "Mobile number must be 15 characters or fewer" };
+  }
+  return { valid: true, normalized };
+}
+
 function normalizeApprovalMode(value) {
   const normalized = String(value || "requester").trim().toLowerCase();
   if (["requester", "approver", "both"].includes(normalized)) {
@@ -112,6 +130,11 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
       return res.status(400).json({ message: passwordValidation.message });
     }
 
+    const mobileValidation = validateMobile(mobile);
+    if (!mobileValidation.valid) {
+      return res.status(400).json({ message: mobileValidation.message, field: "mobile" });
+    }
+
     const tenantId = req.user.isPlatformAdmin ? Number(sellerId || getTenantId(req)) : getTenantId(req);
     if (!tenantId) {
       return res.status(400).json({ message: "sellerId is required" });
@@ -127,6 +150,22 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
     }
 
     await client.query("BEGIN");
+
+    const existingSellerUser = await client.query(
+      `SELECT id
+       FROM users
+       WHERE seller_id = $1
+         AND mobile = $2
+       LIMIT 1`,
+      [tenantId, mobileValidation.normalized]
+    );
+    if (existingSellerUser.rowCount > 0) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        message: "Mobile number already exists in this seller account",
+        field: "mobile"
+      });
+    }
 
     if (normalizedApproverUserId) {
       const approverCheck = await client.query(
@@ -168,7 +207,7 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
       `INSERT INTO users (name, mobile, password, role_id, created_by, status, seller_id, is_platform_admin)
        VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE)
        RETURNING id`,
-      [name, mobile, await hashPassword(password), roleId, createdBy || req.user.id, status, tenantId]
+      [String(name).trim(), mobileValidation.normalized, await hashPassword(password), roleId, createdBy || req.user.id, status, tenantId]
     );
     const createdUserId = result.rows[0].id;
 
@@ -235,7 +274,7 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     if (error.code === "23505") {
-      return res.status(409).json({ message: "Mobile already exists" });
+      return res.status(409).json({ message: "Mobile number already exists", field: "mobile" });
     }
     res.status(500).json({ message: error.message });
   } finally {

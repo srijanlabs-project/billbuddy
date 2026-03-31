@@ -25,7 +25,9 @@ export default function UsersPage(props) {
     handleUpdateUser,
     error,
     userForm,
+    userFormErrors,
     setUserForm,
+    setUserFormErrors,
     roles
   } = props;
 
@@ -70,7 +72,7 @@ export default function UsersPage(props) {
         <h3>User Access Management</h3>
         <div className="toolbar-controls">
           <button className="ghost-btn" type="button" onClick={handleSeedRoles}>Seed Roles</button>
-          {canCreateUser && <button className="action-btn" type="button" onClick={() => setShowUserModal(true)}>Create New User</button>}
+          {canCreateUser && <button className="action-btn" type="button" onClick={() => { setUserFormErrors({}); setShowUserModal(true); }}>Create New User</button>}
         </div>
       </div>
       <div className="user-grid">
@@ -123,12 +125,26 @@ export default function UsersPage(props) {
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Create User</h3>
-              <button type="button" className="ghost-btn" onClick={() => setShowUserModal(false)}>Close</button>
+              <button type="button" className="ghost-btn" onClick={() => { setUserFormErrors({}); setShowUserModal(false); }}>Close</button>
             </div>
             {error && <div className="notice error">{error}</div>}
             <form className="auth-card compact-form" onSubmit={handleCreateUser}>
               <input placeholder="Name" value={userForm.name} onChange={(event) => setUserForm((prev) => ({ ...prev, name: event.target.value }))} required />
-              <input placeholder="Mobile" value={userForm.mobile} onChange={(event) => setUserForm((prev) => ({ ...prev, mobile: event.target.value }))} required />
+              <input
+                placeholder="Mobile"
+                value={userForm.mobile}
+                inputMode="tel"
+                maxLength={15}
+                onChange={(event) => {
+                  const nextValue = event.target.value.replace(/\s+/g, "");
+                  setUserForm((prev) => ({ ...prev, mobile: nextValue }));
+                  if (userFormErrors?.mobile) {
+                    setUserFormErrors((prev) => ({ ...prev, mobile: "" }));
+                  }
+                }}
+                required
+              />
+              {userFormErrors?.mobile ? <p style={{ marginTop: "-8px", marginBottom: "0", color: "#dc2626", fontSize: "0.85rem" }}>{userFormErrors.mobile}</p> : null}
               <input placeholder="Password" type="password" value={userForm.password} onChange={(event) => setUserForm((prev) => ({ ...prev, password: event.target.value }))} />
               <select value={userForm.roleId} onChange={(event) => setUserForm((prev) => ({ ...prev, roleId: event.target.value }))} required>
                 <option value="">Select Role</option>
