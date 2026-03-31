@@ -175,11 +175,13 @@ export function getQuotationItemTotalValue(item = {}) {
 
 export function getQuotationSummaryRows({
   totalAmount = 0,
+  gstAmount = 0,
   discountAmount = 0,
   advanceAmount = 0,
   balanceAmount = 0
 } = {}) {
   const rows = [{ label: "Total Amount", value: Number(totalAmount || 0) }];
+  if (Number(gstAmount || 0) > 0) rows.push({ label: "GST", value: Number(gstAmount || 0) });
   if (Number(discountAmount || 0) > 0) rows.push({ label: "Discount", value: Number(discountAmount || 0) });
   if (Number(advanceAmount || 0) > 0) rows.push({ label: "Advance", value: Number(advanceAmount || 0) });
   rows.push({ label: "Balance Amount", value: Number(balanceAmount || totalAmount || 0), accent: true });

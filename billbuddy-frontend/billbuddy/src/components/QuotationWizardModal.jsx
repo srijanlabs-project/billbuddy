@@ -80,6 +80,10 @@ export default function QuotationWizardModal(props) {
   const activeWizardHelp = wizardStepHelp[quotationWizard.step] || wizardStepHelp.customer;
   const isRevision = quotationWizard.mode === "revise";
   const isEditingItem = Boolean(quotationWizard.editingItemId);
+  const showItemGstField = Boolean(quotationWizard.customer?.gstEnabled);
+  const hasConfiguredItemGstField =
+    runtimeQuotationColumns.some((column) => String(column.normalizedKey || column.key || "").trim().toLowerCase() === "gst_percent")
+    || unsupportedRuntimeQuotationColumns.some((column) => String(column.key || "").trim().toLowerCase() === "gst_percent");
   const isCustomerGstLocked = quotationWizard.customerMode === "new"
     && quotationWizardCustomerGstValidation?.status === "verified"
     && String(quotationWizardCustomerGstValidation?.gstNumber || "") === String(quotationWizard.customer.gstNumber || "").trim().toUpperCase();
@@ -526,6 +530,19 @@ export default function QuotationWizardModal(props) {
                     />
                   );
                 })}
+
+              {showItemGstField && !hasConfiguredItemGstField ? (
+                <div>
+                  {renderAutosuggestInput({
+                    id: "quotation-item-gst-percent",
+                    value: quotationWizard.itemForm.customFields?.gst_percent ?? "",
+                    onChange: (e) => updateQuotationWizardCustomField("gst_percent", e.target.value),
+                    options: ["0", "5", "18"],
+                    placeholder: "GST %"
+                  })}
+                  <small className="muted">Type any % if it is not in the quick list.</small>
+                </div>
+              ) : null}
             </div>
 
             <div className="quotation-wizard-inline-actions">

@@ -916,6 +916,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
 
   const summaryRows = getQuotationSummaryRows({
     totalAmount: quotation.total_amount,
+    gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
     advanceAmount: quotation.advance_amount,
     balanceAmount: quotation.balance_amount || quotation.total_amount
@@ -1103,6 +1104,7 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
   const watermarkText = quotation.watermark_text || "";
   const totalsRows = getQuotationSummaryRows({
     totalAmount: quotation.total_amount,
+    gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
     advanceAmount: quotation.advance_amount,
     balanceAmount: quotation.balance_amount || quotation.total_amount
@@ -1502,6 +1504,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
   const totalsX = doc.page.margins.left + pageWidth - totalsWidth;
   const totals = getQuotationSummaryRows({
     totalAmount: quotation.total_amount,
+    gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
     advanceAmount: quotation.advance_amount,
     balanceAmount: quotation.balance_amount || quotation.total_amount
@@ -1954,6 +1957,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 
   const totals = getQuotationSummaryRows({
     totalAmount: quotation.total_amount,
+    gstAmount: quotation.gst_amount || quotation.tax_amount || 0,
     discountAmount: quotation.discount_amount,
     advanceAmount: quotation.advance_amount,
     balanceAmount: quotation.balance_amount || quotation.total_amount
@@ -2303,9 +2307,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     const totalsRows = [
       ["Subtotal", subtotal],
-      ["Discount", -discount],
-      ["Taxable", taxable],
-      ["GST", gst],
+      ...(discount > 0 ? [["Discount", -discount]] : []),
+      ...((discount > 0 || gst > 0) ? [["Taxable", taxable]] : []),
+      ...(gst > 0 ? [["GST", gst]] : []),
       ["Grand Total", grandTotal]
     ];
     let ty = y + 8;
@@ -2942,12 +2946,18 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     const totalInWords = amountToWordsIndian(quotation.balance_amount || quotation.total_amount || 0);
     drawCell(contentLeft, lowerTop, leftLowerWidth, 62, "Total in words", [totalInWords], { titleAlign: "center" });
-    drawCell(rightLowerX, lowerTop, rightLowerWidth, 110, "", [
+    const pdfTaxAmount = Number(quotation.tax_amount || 0);
+    const taxSummaryRows = [
       { label: "Taxable Amount", value: `${Number(quotation.total_amount || 0).toLocaleString("en-IN")}`, labelWidth: 154, labelSize: 7.9, valueSize: 8.9, spacing: 13 },
-      { label: "Add : GST", value: `${Number(quotation.tax_amount || 0).toLocaleString("en-IN")}`, labelWidth: 154, labelSize: 7.9, valueSize: 8.9, spacing: 13 },
-      { label: "Total Tax", value: `${Number(quotation.tax_amount || 0).toLocaleString("en-IN")}`, labelWidth: 154, labelSize: 7.9, valueSize: 8.9, spacing: 13 },
-      { label: "Total Amount After Tax", value: `Rs ${Number((quotation.total_amount || 0) + Number(quotation.tax_amount || 0)).toLocaleString("en-IN")}`, strong: true, spacing: 15, labelWidth: 176, labelSize: 7.2, valueSize: 9.1 }
-    ]);
+      ...(pdfTaxAmount > 0
+        ? [
+            { label: "Add : GST", value: `${pdfTaxAmount.toLocaleString("en-IN")}`, labelWidth: 154, labelSize: 7.9, valueSize: 8.9, spacing: 13 },
+            { label: "Total Tax", value: `${pdfTaxAmount.toLocaleString("en-IN")}`, labelWidth: 154, labelSize: 7.9, valueSize: 8.9, spacing: 13 }
+          ]
+        : []),
+      { label: "Total Amount After Tax", value: `Rs ${Number((quotation.total_amount || 0) + pdfTaxAmount).toLocaleString("en-IN")}`, strong: true, spacing: 15, labelWidth: 176, labelSize: 7.2, valueSize: 9.1 }
+    ];
+    drawCell(rightLowerX, lowerTop, rightLowerWidth, 110, "", taxSummaryRows);
 
     const bankTop = lowerTop + 62;
     drawCell(contentLeft, bankTop, leftLowerWidth, 110, "Bank Details", [
