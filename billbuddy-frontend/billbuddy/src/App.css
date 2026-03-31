@@ -4786,6 +4786,35 @@ button:disabled {
   background: linear-gradient(180deg, rgba(249,243,239,0), rgba(249,243,239,0.98) 30%);
 }
 
+.quotation-item-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 6px;
+}
+
+.quotation-item-action-btn-danger {
+  color: #b42318;
+}
+
+.quotation-item-action-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+@media (max-width: 420px) {
+  .quotation-item-action-btn {
+    min-width: 34px;
+    justify-content: center;
+    padding: 8px;
+    margin-right: 4px;
+  }
+
+  .quotation-item-action-label {
+    display: none;
+  }
+}
+
 .quotation-preview-frame {
   width: 100%;
   min-height: 72vh;

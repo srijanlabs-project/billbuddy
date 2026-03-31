@@ -1225,7 +1225,7 @@ function buildQuotationWizardRevisionState(details, {
     }),
     amounts: {
       discountAmount: String(quotation.discount_amount || ""),
-      advanceAmount: String(quotation.advance_amount || ""),
+      advanceAmount: String(quotation.advance_amount ?? quotation.advanceAmount ?? ""),
       customQuotationNumber: quotation.custom_quotation_number || "",
       deliveryDate: quotation.delivery_date || "",
       referenceRequestId: quotation.reference_request_id || "",
@@ -1558,7 +1558,7 @@ function buildQuotationWizardPayloadItems(items) {
         sku: null,
         colorName: item.color || null,
         importedColorNote: item.otherInfo || null,
-        psIncluded: false,
+        psIncluded: Boolean(item.ps),
         itemNote: item.note || null,
         pricingType: "UNIT",
         customFields: item.customFields || {}
@@ -5668,7 +5668,7 @@ function App() {
       transport_charges: Number(quotation.transport_charges || 0),
       design_charges: Number(quotation.design_charges || 0),
       discount_amount: Number(quotation.discount_amount || 0),
-      advance_amount: Number(quotation.advance_amount || 0),
+      advance_amount: Number(quotation.advance_amount ?? quotation.advanceAmount ?? 0),
       total_amount: Number(quotation.total_amount || 0),
       balance_amount: Number(quotation.balance_amount || 0),
       payment_status: quotation.payment_status || "",

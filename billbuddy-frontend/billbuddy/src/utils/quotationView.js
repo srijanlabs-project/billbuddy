@@ -35,6 +35,7 @@ export function getItemDisplayFieldValue(item = {}, key) {
     material_name: item.material_name || item.materialName || item.material_type || item.materialType || item.design_name || item.designName || item.sku || "",
     category: item.item_category || item.itemCategory || item.category || "",
     sku: item.sku || "",
+    ps: item.ps_included ?? item.psIncluded ?? item.ps ?? false,
     color_name: item.color_name || item.colorName || "",
     thickness: item.thickness || "",
     size: customFieldValue ?? item.size ?? "",

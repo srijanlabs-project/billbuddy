@@ -447,8 +447,26 @@ export default function QuotationWizardModal(props) {
                         <td>{formatCurrency(getQuotationItemRateValue(item))}</td>
                         <td>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</td>
                         <td>
-                          <button type="button" className="ghost-btn" onClick={() => startEditQuotationWizardItem(item.id)}>Edit</button>
-                          <button type="button" className="ghost-btn" onClick={() => handleRemoveQuotationWizardItem(item.id)}>Remove</button>
+                          <button
+                            type="button"
+                            className="ghost-btn quotation-item-action-btn"
+                            onClick={() => startEditQuotationWizardItem(item.id)}
+                            aria-label="Edit item"
+                            title="Edit item"
+                          >
+                            <span className="quotation-item-action-icon" aria-hidden="true">✎</span>
+                            <span className="quotation-item-action-label">Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn quotation-item-action-btn quotation-item-action-btn-danger"
+                            onClick={() => handleRemoveQuotationWizardItem(item.id)}
+                            aria-label="Remove item"
+                            title="Remove item"
+                          >
+                            <span className="quotation-item-action-icon" aria-hidden="true">✕</span>
+                            <span className="quotation-item-action-label">Remove</span>
+                          </button>
                         </td>
                       </tr>
                     ))}
