@@ -379,9 +379,19 @@ export default function useQuotationWizard({
     });
   }
 
-  function applyResolvedProduct(selectedProduct, existingCustomFields = {}) {
+  function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previousItemForm = null) {
+    const baseItemForm = createQuotationWizardItem(selectedProduct);
     return {
-      ...createQuotationWizardItem(selectedProduct),
+      ...baseItemForm,
+      id: previousItemForm?.id ?? baseItemForm.id,
+      otherInfo: previousItemForm?.otherInfo ?? baseItemForm.otherInfo,
+      ps: previousItemForm?.ps ?? baseItemForm.ps,
+      height: previousItemForm?.height ?? baseItemForm.height,
+      width: previousItemForm?.width ?? baseItemForm.width,
+      unit: previousItemForm?.unit ?? baseItemForm.unit,
+      quantity: previousItemForm?.quantity ?? baseItemForm.quantity,
+      rate: previousItemForm?.rate ?? baseItemForm.rate,
+      note: previousItemForm?.note ?? baseItemForm.note,
       customFields: getCatalogueDrivenQuotationCustomFields(
         selectedProduct,
         unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
@@ -412,7 +422,7 @@ export default function useQuotationWizard({
       if (matches.length === 1) {
         return {
           ...prev,
-          itemForm: applyResolvedProduct(matches[0], prev.itemForm.customFields)
+          itemForm: applyResolvedProduct(matches[0], prev.itemForm.customFields, nextItemForm)
         };
       }
       return {
@@ -435,7 +445,7 @@ export default function useQuotationWizard({
       if (matches.length === 1) {
         return {
           ...prev,
-          itemForm: applyResolvedProduct(matches[0], nextItemForm.customFields)
+          itemForm: applyResolvedProduct(matches[0], nextItemForm.customFields, nextItemForm)
         };
       }
       return {
@@ -508,7 +518,7 @@ export default function useQuotationWizard({
       setProducts(productRows);
       setQuotationWizard((prev) => ({
         ...prev,
-        itemForm: applyResolvedProduct(createdProduct, prev.itemForm.customFields)
+        itemForm: applyResolvedProduct(createdProduct, prev.itemForm.customFields, prev.itemForm)
       }));
       setQuotationWizardNotice("Saved to the secondary catalogue and selected for this quotation.");
     } catch (err) {
