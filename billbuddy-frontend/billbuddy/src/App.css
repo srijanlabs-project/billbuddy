@@ -4618,7 +4618,8 @@ button:disabled {
   color: var(--muted);
   text-align: center;
   font-weight: 700;
-  font-size:12px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .quotation-wizard-step.active {
@@ -5351,13 +5352,17 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 
-  .quotation-wizard-steps,
   .quotation-wizard-grid.two,
   .quotation-wizard-grid.three,
   .quotation-wizard-summary-grid,
   .seller-subscription-summary,
   .seller-config-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .quotation-wizard-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .quotation-customer-card,
@@ -5751,6 +5756,17 @@ button:disabled {
 
   .labs-footer-bottom {
     text-align: left;
+  }
+
+  .quotation-wizard-steps {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .quotation-wizard-step {
+    font-size: 10px;
+    padding: 2px 4px;
+    letter-spacing: 0;
   }
 }
 
