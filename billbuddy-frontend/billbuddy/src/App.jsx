@@ -5771,8 +5771,7 @@ function App() {
         method: "PATCH",
         body: JSON.stringify({
           subscriptionPlan: subscriptionModalDraft.planCode || null,
-          trialEndsAt: subscriptionModalDraft.trialEndAt || null,
-          status: subscriptionModalDraft.status || undefined
+          trialEndsAt: subscriptionModalDraft.trialEndAt || null
         })
       });
 

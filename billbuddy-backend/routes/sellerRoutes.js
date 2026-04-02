@@ -758,9 +758,26 @@ router.patch("/:id/lifecycle", requirePermission(PERMISSIONS.SELLER_EDIT), requi
               req.user.id
             ]
           );
+        } else {
+          await client.query(
+            `UPDATE subscriptions
+             SET plan_id = $1,
+                 trial_end_at = COALESCE($2, trial_end_at),
+                 updated_by = $3,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $4`,
+            [
+              planResult.rows[0].id,
+              trialEndsAt || null,
+              req.user.id,
+              Number(existingSubscription.rows[0].id)
+            ]
+          );
         }
       }
     }
+
+    await syncSellerSubscriptionCache(client, Number(id));
 
     await pool.query(
       `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
