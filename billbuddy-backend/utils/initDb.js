@@ -661,6 +661,19 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_formula_definitions_scope_order ON platform_formula_definitions(target_scope, display_order, id)`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_formula_definitions_unique_scope_key ON platform_formula_definitions(target_scope, COALESCE(target_seller_id, 0), formula_key)`);
   await pool.query(`
+    INSERT INTO platform_formula_definitions
+      (formula_key, label, definition_text, formula_expression, included_in_calculation, target_scope, target_seller_id, display_order, is_active)
+    VALUES
+      ('area_sqft', 'Area SqFt', 'Computed area in square feet from width/height and selected unit.', '(width * unit_factor_sqft) * (height * unit_factor_sqft)', FALSE, 'GLOBAL', NULL, 10, TRUE),
+      ('area_sqm', 'Area SqM', 'Computed area in square meters from width/height and selected unit.', '(width * unit_factor_sqm) * (height * unit_factor_sqm)', FALSE, 'GLOBAL', NULL, 11, TRUE),
+      ('area_sqin', 'Area SqIn', 'Computed area in square inches from width/height and selected unit.', '(width * unit_factor_sqin) * (height * unit_factor_sqin)', FALSE, 'GLOBAL', NULL, 12, TRUE),
+      ('line_amount_std', 'Line Amount (Std)', 'Standard amount using quantity and rate.', 'quantity * rate', FALSE, 'GLOBAL', NULL, 20, TRUE),
+      ('line_amount_sqft', 'Line Amount (SqFt)', 'Area-based amount in square feet.', 'area_sqft * quantity * rate', FALSE, 'GLOBAL_ADVANCED', NULL, 21, TRUE),
+      ('line_amount_sqm', 'Line Amount (SqM)', 'Area-based amount in square meters.', 'area_sqm * quantity * rate', FALSE, 'GLOBAL_ADVANCED', NULL, 22, TRUE),
+      ('line_amount_sqin', 'Line Amount (SqIn)', 'Area-based amount in square inches.', 'area_sqin * quantity * rate', FALSE, 'GLOBAL_ADVANCED', NULL, 23, TRUE)
+    ON CONFLICT DO NOTHING
+  `);
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS platform_unit_conversions (
       id SERIAL PRIMARY KEY,
       unit_code VARCHAR(20) NOT NULL UNIQUE,
