@@ -911,6 +911,13 @@ async function initializeDatabase() {
     [defaultSellerId]
   );
 
+  // Normalize legacy seeded service heading to expected quotation heading.
+  await pool.query(
+    `UPDATE quotation_templates
+     SET header_text = 'Quotation'
+     WHERE LOWER(COALESCE(header_text, '')) = 'service proposal'`
+  );
+
   await pool.query(
     `INSERT INTO message_decode_rules (seller_id)
      VALUES ($1)

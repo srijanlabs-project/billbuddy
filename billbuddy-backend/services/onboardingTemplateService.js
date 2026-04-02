@@ -231,7 +231,7 @@ function createTemplateForCategory(category) {
   if (templateGroup === "service") {
     return {
       templatePreset: "commercial_offer",
-      headerText: "Service Proposal",
+      headerText: "Quotation",
       bodyTemplate: "Dear {{customer_name}}, thank you for your interest. Please find our service quotation {{quotation_number}}.",
       footerText: "We look forward to working with you.",
       accentColor: "#2563eb",
