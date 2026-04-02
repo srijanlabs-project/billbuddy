@@ -23,6 +23,7 @@ const {
   createQuotationVersionSnapshot,
   toAmount,
   getSellerCustomQuotationColumns,
+  getPlatformUnitConversionMap,
   validateQuotationItemRateLimits,
   validateCustomQuotationFields,
   applyComputedQuotationFields,
@@ -4245,7 +4246,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     }));
 
     const customColumns = await getSellerCustomQuotationColumns(client, tenantId);
-    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
+    const unitConversionMap = await getPlatformUnitConversionMap(client);
+    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns, { unitConversionMap });
     validateCustomQuotationFields(computedItems, customColumns);
     const displayReadyItems = await applyQuotationItemDisplayConfig(client, tenantId, computedItems);
 

@@ -49,6 +49,25 @@ function normalizeDisplayOrder(value) {
   return Math.max(0, Math.round(parsed));
 }
 
+function normalizeUnitCode(value) {
+  const unitCode = String(value || "").trim().toLowerCase();
+  if (!unitCode) {
+    throw new Error("unitCode is required");
+  }
+  if (!/^[a-z][a-z0-9_]{0,19}$/.test(unitCode)) {
+    throw new Error("unitCode must be lowercase alphanumeric/underscore and start with a letter");
+  }
+  return unitCode;
+}
+
+function normalizeToMeterFactor(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    throw new Error("toMeterFactor must be a positive number");
+  }
+  return Number(numeric.toFixed(8));
+}
+
 async function assertAdvancedSeller(client, sellerId) {
   const result = await client.query(
     `SELECT id, name, seller_type
@@ -263,6 +282,114 @@ router.delete("/:id", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatf
       return res.status(404).json({ message: "Formula not found" });
     }
 
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/unit-conversions", requirePermission(PERMISSIONS.SETTINGS_VIEW), requirePlatformAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,
+              unit_code,
+              to_meter_factor,
+              display_order,
+              is_active,
+              created_at,
+              updated_at
+       FROM platform_unit_conversions
+       ORDER BY display_order ASC, unit_code ASC`
+    );
+    return res.json({ unitConversions: result.rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/unit-conversions", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const unitCode = normalizeUnitCode(req.body?.unitCode);
+    const toMeterFactor = normalizeToMeterFactor(req.body?.toMeterFactor);
+    const displayOrder = normalizeDisplayOrder(req.body?.displayOrder);
+    const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
+
+    const result = await pool.query(
+      `INSERT INTO platform_unit_conversions
+       (unit_code, to_meter_factor, display_order, is_active, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $5)
+       RETURNING *`,
+      [unitCode, toMeterFactor, displayOrder, isActive, req.user.id]
+    );
+    return res.status(201).json({ unitConversion: result.rows[0] });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Unit code already exists" });
+    }
+    return res.status(400).json({ message: error.message });
+  }
+});
+
+router.patch("/unit-conversions/:id", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid unit conversion id" });
+    }
+
+    const existing = await pool.query(
+      `SELECT *
+       FROM platform_unit_conversions
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    if (!existing.rowCount) {
+      return res.status(404).json({ message: "Unit conversion not found" });
+    }
+
+    const current = existing.rows[0];
+    const unitCode = req.body?.unitCode !== undefined ? normalizeUnitCode(req.body.unitCode) : current.unit_code;
+    const toMeterFactor = req.body?.toMeterFactor !== undefined ? normalizeToMeterFactor(req.body.toMeterFactor) : Number(current.to_meter_factor);
+    const displayOrder = req.body?.displayOrder !== undefined ? normalizeDisplayOrder(req.body.displayOrder) : Number(current.display_order || 0);
+    const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : Boolean(current.is_active);
+
+    const updated = await pool.query(
+      `UPDATE platform_unit_conversions
+       SET unit_code = $1,
+           to_meter_factor = $2,
+           display_order = $3,
+           is_active = $4,
+           updated_by = $5,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6
+       RETURNING *`,
+      [unitCode, toMeterFactor, displayOrder, isActive, req.user.id, id]
+    );
+    return res.json({ unitConversion: updated.rows[0] });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Unit code already exists" });
+    }
+    return res.status(400).json({ message: error.message });
+  }
+});
+
+router.delete("/unit-conversions/:id", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid unit conversion id" });
+    }
+    const deleted = await pool.query(
+      `DELETE FROM platform_unit_conversions
+       WHERE id = $1
+       RETURNING id`,
+      [id]
+    );
+    if (!deleted.rowCount) {
+      return res.status(404).json({ message: "Unit conversion not found" });
+    }
     return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ message: error.message });

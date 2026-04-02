@@ -46,10 +46,14 @@ export default function SettingsPage({
   seller,
   sellers,
   platformFormulaRules,
+  platformUnitConversions,
   platformFormulaLoading,
   handleCreatePlatformFormula,
   handleUpdatePlatformFormula,
   handleDeletePlatformFormula,
+  handleCreatePlatformUnitConversion,
+  handleUpdatePlatformUnitConversion,
+  handleDeletePlatformUnitConversion,
   THEME_OPTIONS,
   theme,
   setTheme,
@@ -100,6 +104,13 @@ export default function SettingsPage({
     isActive: true
   });
   const [editingFormulaId, setEditingFormulaId] = useState(null);
+  const [unitDraft, setUnitDraft] = useState({
+    unitCode: "",
+    toMeterFactor: "",
+    displayOrder: "0",
+    isActive: true
+  });
+  const [editingUnitId, setEditingUnitId] = useState(null);
   const [themeLibraryTier, setThemeLibraryTier] = useState(
     () => QUOTATION_THEME_OPTIONS[quotationTemplate.template_theme_key || "default"]?.accessTier || "FREE"
   );
@@ -162,6 +173,16 @@ export default function SettingsPage({
       isActive: true
     });
     setEditingFormulaId(null);
+  }
+
+  function resetUnitDraft() {
+    setUnitDraft({
+      unitCode: "",
+      toMeterFactor: "",
+      displayOrder: "0",
+      isActive: true
+    });
+    setEditingUnitId(null);
   }
 
   function handleThemeSelection(themeKey) {
@@ -364,6 +385,32 @@ export default function SettingsPage({
         displayOrder: String(rule.display_order ?? 500),
         includedInCalculation: Boolean(rule.included_in_calculation),
         isActive: Boolean(rule.is_active)
+      });
+    }
+
+    async function submitUnitForm(event) {
+      event.preventDefault();
+      const payload = {
+        unitCode: unitDraft.unitCode,
+        toMeterFactor: unitDraft.toMeterFactor,
+        displayOrder: unitDraft.displayOrder,
+        isActive: Boolean(unitDraft.isActive)
+      };
+      if (editingUnitId) {
+        await handleUpdatePlatformUnitConversion(editingUnitId, payload);
+      } else {
+        await handleCreatePlatformUnitConversion(payload);
+      }
+      resetUnitDraft();
+    }
+
+    function startEditUnit(unitRow) {
+      setEditingUnitId(Number(unitRow.id));
+      setUnitDraft({
+        unitCode: unitRow.unit_code || "",
+        toMeterFactor: String(unitRow.to_meter_factor ?? ""),
+        displayOrder: String(unitRow.display_order ?? 0),
+        isActive: Boolean(unitRow.is_active)
       });
     }
 
@@ -580,6 +627,122 @@ export default function SettingsPage({
                             type="button"
                             className="ghost-btn compact-btn"
                             onClick={() => handleDeletePlatformFormula(rule.id)}
+                            disabled={platformFormulaLoading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          </section>
+
+          <section className="settings-card compact-settings-card">
+            <div className="settings-card-head">
+              <div>
+                <span>Unit Conversion</span>
+                <h3>Unit To Meter Factors</h3>
+                <p>These factors power formula tokens like unit_factor_sqft, unit_factor_sqm, unit_factor_sqin.</p>
+              </div>
+            </div>
+
+            <form className="settings-form-grid settings-form-grid-wide" onSubmit={submitUnitForm}>
+              <section className="settings-panel">
+                <div className="settings-panel-head">
+                  <h4>{editingUnitId ? "Edit Unit Conversion" : "Create Unit Conversion"}</h4>
+                  <p>Example: cm to 0.01, ft to 0.3048, in to 0.0254.</p>
+                </div>
+                <div className="settings-two-column">
+                  <label className="settings-field">
+                    <span>Unit Code</span>
+                    <input
+                      value={unitDraft.unitCode}
+                      onChange={(event) => setUnitDraft((prev) => ({ ...prev, unitCode: event.target.value.toLowerCase() }))}
+                      placeholder="cm"
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>To Meter Factor</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.00000001"
+                      value={unitDraft.toMeterFactor}
+                      onChange={(event) => setUnitDraft((prev) => ({ ...prev, toMeterFactor: event.target.value }))}
+                      placeholder="0.01"
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>Display Order</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={unitDraft.displayOrder}
+                      onChange={(event) => setUnitDraft((prev) => ({ ...prev, displayOrder: event.target.value }))}
+                      disabled={platformFormulaLoading}
+                    />
+                  </label>
+                  <label className="settings-inline-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(unitDraft.isActive)}
+                      onChange={(event) => setUnitDraft((prev) => ({ ...prev, isActive: event.target.checked }))}
+                      disabled={platformFormulaLoading}
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+                <div className="settings-form-actions">
+                  <button type="submit" className="primary-button" disabled={platformFormulaLoading}>
+                    {platformFormulaLoading ? "Saving..." : editingUnitId ? "Update Unit" : "Create Unit"}
+                  </button>
+                  {editingUnitId ? (
+                    <button type="button" className="secondary-button" onClick={resetUnitDraft} disabled={platformFormulaLoading}>
+                      Cancel Edit
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            </form>
+
+            <section className="settings-panel">
+              <div className="settings-panel-head">
+                <h4>Configured Unit Conversions</h4>
+                <p>{platformFormulaLoading ? "Refreshing..." : `${(platformUnitConversions || []).length} units configured.`}</p>
+              </div>
+              {!platformUnitConversions?.length ? (
+                <p className="muted">No unit conversions configured yet.</p>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Unit</th>
+                      <th>To Meter</th>
+                      <th>Order</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(platformUnitConversions || []).map((unitRow) => (
+                      <tr key={unitRow.id}>
+                        <td><strong>{unitRow.unit_code}</strong></td>
+                        <td>{unitRow.to_meter_factor}</td>
+                        <td>{unitRow.display_order}</td>
+                        <td>{unitRow.is_active ? "Active" : "Inactive"}</td>
+                        <td>
+                          <button type="button" className="ghost-btn compact-btn" onClick={() => startEditUnit(unitRow)} disabled={platformFormulaLoading}>Edit</button>
+                          <button
+                            type="button"
+                            className="ghost-btn compact-btn"
+                            onClick={() => handleDeletePlatformUnitConversion(unitRow.id)}
                             disabled={platformFormulaLoading}
                           >
                             Delete

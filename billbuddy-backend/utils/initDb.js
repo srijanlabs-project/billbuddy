@@ -660,6 +660,38 @@ async function initializeDatabase() {
   await pool.query(`UPDATE platform_formula_definitions SET formula_expression = COALESCE(NULLIF(formula_expression, ''), '0')`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_formula_definitions_scope_order ON platform_formula_definitions(target_scope, display_order, id)`);
   await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_formula_definitions_unique_scope_key ON platform_formula_definitions(target_scope, COALESCE(target_seller_id, 0), formula_key)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_unit_conversions (
+      id SERIAL PRIMARY KEY,
+      unit_code VARCHAR(20) NOT NULL UNIQUE,
+      to_meter_factor NUMERIC(14,8) NOT NULL,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS unit_code VARCHAR(20)`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS to_meter_factor NUMERIC(14,8)`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE platform_unit_conversions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_unit_conversions_order ON platform_unit_conversions(display_order, unit_code)`);
+  await pool.query(`
+    INSERT INTO platform_unit_conversions (unit_code, to_meter_factor, display_order, is_active)
+    VALUES
+      ('mm', 0.001, 1, TRUE),
+      ('cm', 0.01, 2, TRUE),
+      ('in', 0.0254, 3, TRUE),
+      ('ft', 0.3048, 4, TRUE),
+      ('m', 1, 5, TRUE)
+    ON CONFLICT (unit_code) DO NOTHING
+  `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS leads (

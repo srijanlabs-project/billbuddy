@@ -49,14 +49,50 @@ function parsePercentLike(value) {
   return Math.max(0, numeric);
 }
 
-function getFeetFactor(unit) {
-  const normalized = String(unit || "").trim().toLowerCase();
-  if (normalized === "in") return 1 / 12;
-  if (normalized === "mm") return 0.00328084;
-  return 1;
+const BASE_LINEAR_UNIT_METERS = Object.freeze({
+  sqft: 0.3048,
+  sqm: 1,
+  sqin: 0.0254
+});
+
+function getDefaultUnitConversionMap() {
+  return {
+    mm: 0.001,
+    cm: 0.01,
+    in: 0.0254,
+    ft: 0.3048,
+    m: 1
+  };
 }
 
-function buildComputedFieldContext(item) {
+async function getPlatformUnitConversionMap(clientOrPool) {
+  const result = await clientOrPool.query(
+    `SELECT unit_code, to_meter_factor
+     FROM platform_unit_conversions
+     WHERE is_active = TRUE
+     ORDER BY display_order ASC, unit_code ASC`
+  );
+  const map = getDefaultUnitConversionMap();
+  result.rows.forEach((row) => {
+    const unitCode = String(row.unit_code || "").trim().toLowerCase();
+    const numeric = Number(row.to_meter_factor);
+    if (!unitCode || !Number.isFinite(numeric) || numeric <= 0) return;
+    map[unitCode] = numeric;
+  });
+  return map;
+}
+
+function getUnitMeterFactor(unit, conversionMap = null) {
+  const map = conversionMap || getDefaultUnitConversionMap();
+  const normalized = String(unit || "").trim().toLowerCase();
+  const explicit = Number(map[normalized]);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+  const ftFallback = Number(map.ft);
+  if (Number.isFinite(ftFallback) && ftFallback > 0) return ftFallback;
+  return 0.3048;
+}
+
+function buildComputedFieldContext(item, contextOptions = {}) {
   const customFields = item.custom_fields || item.customFields || {};
   const rawWidth = item.dimension_width ?? item.dimensionWidth;
   const rawHeight = item.dimension_height ?? item.dimensionHeight;
@@ -65,12 +101,28 @@ function buildComputedFieldContext(item) {
   const width = toAmount(rawWidth);
   const height = toAmount(rawHeight);
   const unit = String(item.dimension_unit || item.dimensionUnit || item.unit || "ft").trim().toLowerCase();
-  const unitFactor = getFeetFactor(unit);
-  const widthFt = hasWidth ? Number((width * unitFactor).toFixed(6)) : null;
-  const heightFt = hasHeight ? Number((height * unitFactor).toFixed(6)) : null;
+  const conversionMap = contextOptions.unitConversionMap || getDefaultUnitConversionMap();
+  const unitToMeter = getUnitMeterFactor(unit, conversionMap);
+  const unitFactorSqft = Number((unitToMeter / BASE_LINEAR_UNIT_METERS.sqft).toFixed(8));
+  const unitFactorSqm = Number((unitToMeter / BASE_LINEAR_UNIT_METERS.sqm).toFixed(8));
+  const unitFactorSqin = Number((unitToMeter / BASE_LINEAR_UNIT_METERS.sqin).toFixed(8));
+
+  const widthFt = hasWidth ? Number((width * unitFactorSqft).toFixed(6)) : null;
+  const heightFt = hasHeight ? Number((height * unitFactorSqft).toFixed(6)) : null;
+  const widthSqmBase = hasWidth ? Number((width * unitFactorSqm).toFixed(6)) : null;
+  const heightSqmBase = hasHeight ? Number((height * unitFactorSqm).toFixed(6)) : null;
+  const widthSqinBase = hasWidth ? Number((width * unitFactorSqin).toFixed(6)) : null;
+  const heightSqinBase = hasHeight ? Number((height * unitFactorSqin).toFixed(6)) : null;
+
   const areaSqft = (!hasWidth && !hasHeight)
     ? null
     : Number((((widthFt ?? 1) * (heightFt ?? 1))).toFixed(6));
+  const areaSqm = (!hasWidth && !hasHeight)
+    ? null
+    : Number((((widthSqmBase ?? 1) * (heightSqmBase ?? 1))).toFixed(6));
+  const areaSqin = (!hasWidth && !hasHeight)
+    ? null
+    : Number((((widthSqinBase ?? 1) * (heightSqinBase ?? 1))).toFixed(6));
   const context = {
     quantity: toAmount(item.quantity),
     rate: toAmount(item.unitPrice ?? item.unit_price),
@@ -79,10 +131,22 @@ function buildComputedFieldContext(item) {
     total_price: toAmount(item.totalPrice ?? item.total_price),
     width,
     height,
-    unit_factor: unitFactor,
+    unit_factor: unitFactorSqft,
+    unit_factor_sqft: unitFactorSqft,
+    unit_factor_sqm: unitFactorSqm,
+    unit_factor_sqin: unitFactorSqin,
+    width_base_sqft: widthFt,
+    height_base_sqft: heightFt,
+    width_base_sqm: widthSqmBase,
+    height_base_sqm: heightSqmBase,
+    width_base_sqin: widthSqinBase,
+    height_base_sqin: heightSqinBase,
     width_ft: widthFt,
     height_ft: heightFt,
-    area_sqft: areaSqft
+    area_sqft: areaSqft,
+    area_sqm: areaSqm,
+    area_sqin: areaSqin,
+    area_base: areaSqft
   };
 
   Object.entries(customFields).forEach(([key, value]) => {
@@ -1010,7 +1074,7 @@ function validateCustomQuotationFields(items, customColumns = []) {
   });
 }
 
-function applyComputedQuotationFields(items, customColumns = []) {
+function applyComputedQuotationFields(items, customColumns = [], contextOptions = {}) {
   if (!Array.isArray(items) || items.length === 0 || !Array.isArray(customColumns) || customColumns.length === 0) {
     return items;
   }
@@ -1028,7 +1092,7 @@ function applyComputedQuotationFields(items, customColumns = []) {
 
     formulaColumns.forEach((column) => {
       if (!column.column_key || !column.formula_expression) return;
-      const context = buildComputedFieldContext(nextItem);
+      const context = buildComputedFieldContext(nextItem, contextOptions);
       const computedValue = evaluateFormulaExpression(column.formula_expression, context);
       if (computedValue !== null) {
         nextItem.custom_fields[column.column_key] = computedValue;
@@ -1085,6 +1149,7 @@ async function createQuotationWithItems(payload) {
 
     const currentSubscription = await assertQuotationCreationAllowed(client, sellerId);
     const customColumns = await getSellerCustomQuotationColumns(client, sellerId);
+    const unitConversionMap = await getPlatformUnitConversionMap(client);
 
     const customerCheck = await client.query(
       `SELECT id FROM customers WHERE id = $1 AND seller_id = $2 LIMIT 1`,
@@ -1106,7 +1171,7 @@ async function createQuotationWithItems(payload) {
     }
 
     const normalizedItems = normalizeQuotationItems(items);
-    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns);
+    const computedItems = applyComputedQuotationFields(normalizedItems, customColumns, { unitConversionMap });
     validateCustomQuotationFields(computedItems, customColumns);
     const displayReadyItems = await applyQuotationItemDisplayConfig(client, sellerId, computedItems);
     const { normalizedItems: computedLineItems, subtotal, gstAmount, transport, design, totalAmount, discountAmount: discount, advanceAmount: advance, balanceAmount } =
@@ -1371,6 +1436,7 @@ module.exports = {
   logOrderEvent,
   createQuotationVersionSnapshot,
   getSellerCustomQuotationColumns,
+  getPlatformUnitConversionMap,
   validateQuotationItemRateLimits,
   collectQuotationPriceExceptionReasons,
   evaluateQuotationApproval,

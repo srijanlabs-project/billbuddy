@@ -3269,6 +3269,7 @@ function App() {
 
   const [sellers, setSellers] = useState([]);
   const [platformFormulaRules, setPlatformFormulaRules] = useState([]);
+  const [platformUnitConversions, setPlatformUnitConversions] = useState([]);
   const [platformFormulaLoading, setPlatformFormulaLoading] = useState(false);
   const [plans, setPlans] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
@@ -3792,7 +3793,7 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
@@ -3800,7 +3801,8 @@ function App() {
         apiFetch("/api/subscriptions"),
         apiFetch("/api/notifications"),
         apiFetch("/api/security-gates").catch(() => []),
-        apiFetch("/api/formulas").catch(() => ({ formulas: [] }))
+        apiFetch("/api/formulas").catch(() => ({ formulas: [] })),
+        apiFetch("/api/formulas/unit-conversions").catch(() => ({ unitConversions: [] }))
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -3810,6 +3812,7 @@ function App() {
       setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
       setGoLiveGates(Array.isArray(gateRows) ? gateRows : []);
       setPlatformFormulaRules(Array.isArray(formulaResponse?.formulas) ? formulaResponse.formulas : []);
+      setPlatformUnitConversions(Array.isArray(unitConversionResponse?.unitConversions) ? unitConversionResponse.unitConversions : []);
     } catch (err) {
       handleApiError(err);
     }
@@ -3821,6 +3824,19 @@ function App() {
       setPlatformFormulaLoading(true);
       const response = await apiFetch("/api/formulas");
       setPlatformFormulaRules(Array.isArray(response?.formulas) ? response.formulas : []);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function refreshPlatformUnitConversions() {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      const response = await apiFetch("/api/formulas/unit-conversions");
+      setPlatformUnitConversions(Array.isArray(response?.unitConversions) ? response.unitConversions : []);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -3869,6 +3885,56 @@ function App() {
       await apiFetch(`/api/formulas/${formulaId}`, { method: "DELETE" });
       await refreshPlatformFormulaRules();
       setError("Formula deleted successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleCreatePlatformUnitConversion(payload) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch("/api/formulas/unit-conversions", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      await refreshPlatformUnitConversions();
+      setError("Unit conversion created successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleUpdatePlatformUnitConversion(id, payload) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/unit-conversions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+      });
+      await refreshPlatformUnitConversions();
+      setError("Unit conversion updated successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleDeletePlatformUnitConversion(id) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/unit-conversions/${id}`, {
+        method: "DELETE"
+      });
+      await refreshPlatformUnitConversions();
+      setError("Unit conversion deleted successfully.");
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -6927,10 +6993,14 @@ function App() {
             seller={seller}
             sellers={sellers}
             platformFormulaRules={platformFormulaRules}
+            platformUnitConversions={platformUnitConversions}
             platformFormulaLoading={platformFormulaLoading}
             handleCreatePlatformFormula={handleCreatePlatformFormula}
             handleUpdatePlatformFormula={handleUpdatePlatformFormula}
             handleDeletePlatformFormula={handleDeletePlatformFormula}
+            handleCreatePlatformUnitConversion={handleCreatePlatformUnitConversion}
+            handleUpdatePlatformUnitConversion={handleUpdatePlatformUnitConversion}
+            handleDeletePlatformUnitConversion={handleDeletePlatformUnitConversion}
             THEME_OPTIONS={THEME_OPTIONS}
             theme={theme}
             setTheme={setTheme}
