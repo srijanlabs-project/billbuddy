@@ -47,17 +47,15 @@ const COOKIE_CONSENT_STORAGE_KEY = "quotsyCookieConsent";
 
 const SELLER_MODULES = [
   "Dashboard",
-  "Help Center",
-  "Roles & Permissions",
-  "Users",
-  "Approvals",
   "Orders",
   "Products",
   "Customers",
-  "Configuration Studio",
+  "Approvals",
   "Subscriptions",
-  "Payments",
-  "Reports & Analytics",
+  "Help Center",
+  "Roles & Permissions",
+  "Users",
+  "Configuration Studio",
   "Settings"
 ];
 
