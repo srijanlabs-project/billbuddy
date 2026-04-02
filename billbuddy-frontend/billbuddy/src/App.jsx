@@ -1923,6 +1923,19 @@ function PublicLeadCapturePage({
   businessCategoryOptions,
   getBusinessSegments
 }) {
+  return (
+    <PublicAcquisitionSignupPage
+      mode="lead"
+      form={form}
+      submitting={submitting}
+      successMessage={successMessage}
+      errorMessage={errorMessage}
+      onChange={onChange}
+      onSubmit={onSubmit}
+      businessCategoryOptions={businessCategoryOptions}
+      getBusinessSegments={getBusinessSegments}
+    />
+  );
   const segmentOptions = getBusinessSegments(form.businessType);
   return (
     <div className="auth-wrap lead-capture-shell">
@@ -2370,6 +2383,202 @@ function PublicQuotsyFeaturesPage() {
   );
 }
 
+function PublicAcquisitionSignupPage({
+  mode,
+  form,
+  submitting,
+  successMessage,
+  errorMessage,
+  onChange,
+  onSubmit,
+  businessCategoryOptions,
+  getBusinessSegments
+}) {
+  const isDemoMode = mode === "demo";
+  const [showPassword, setShowPassword] = useState(false);
+  const categoryKey = isDemoMode ? "businessCategory" : "businessType";
+  const categoryValue = form[categoryKey] || "";
+  const segmentOptions = getBusinessSegments(categoryValue);
+  const shouldShowSampleDataChoices = isDemoMode || Boolean(form.interestedInDemo);
+
+  return (
+    <div className="auth-wrap lead-capture-shell public-page-shell">
+      <div className="app-ambience" aria-hidden="true">
+        <span className="shape shape-cube" />
+        <span className="shape shape-ring" />
+        <span className="shape shape-panel" />
+      </div>
+      <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+        <PublicPageHeader activePath={isDemoMode ? "/try-demo" : "/lead"} />
+        <div className="auth-grid lead-capture-grid">
+          <div className="glass-card hero-card auth-showcase-card">
+            <p className="eyebrow">{isDemoMode ? "Quotsy Demo" : "Quotsy Lead Capture"}</p>
+            <h1>{isDemoMode ? "Register for Demo" : "Share Your Requirement"}</h1>
+            <p>
+              {isDemoMode
+                ? "Create your seller workspace in minutes and start a 14-day trial with category-aware setup."
+                : "Use this same guided form to share your requirement, and convert to demo whenever you are ready."}
+            </p>
+            <div className="auth-value-stack">
+              <div className="auth-value-card auth-value-card-blue">
+                <span className="auth-value-icon" aria-hidden="true" />
+                <div>
+                  <strong>One Unified Form</strong>
+                  <span>Lead and demo onboarding now follow one consistent form experience.</span>
+                </div>
+              </div>
+              <div className="auth-value-card auth-value-card-indigo">
+                <span className="auth-value-icon" aria-hidden="true" />
+                <div>
+                  <strong>Category-Aware Setup</strong>
+                  <span>Business category and segment selections drive setup and sample data options.</span>
+                </div>
+              </div>
+              <div className="auth-value-card auth-value-card-mustard">
+                <span className="auth-value-icon" aria-hidden="true" />
+                <div>
+                  <strong>Fast Start</strong>
+                  <span>Complete the form once and move to login or demo flow without re-entering data.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="auth-public-side">
+            <div className="glass-card auth-card auth-panel-card auth-demo-panel">
+              <div className="auth-panel-tabs" role="tablist" aria-label="Public onboarding navigation">
+                <a className="auth-panel-tab auth-panel-tab-link" href="/login">Login</a>
+                <a className={`auth-panel-tab ${!isDemoMode ? "active" : "auth-panel-tab-link"}`} href="/lead">Lead Form</a>
+                <a className={`auth-panel-tab ${isDemoMode ? "active" : "auth-panel-tab-link"}`} href="/try-demo">Demo Signup</a>
+              </div>
+              <div className="auth-panel-divider" />
+              <div className="auth-panel-copy">
+                <h2>{isDemoMode ? "Register for Demo" : "Submit Lead"}</h2>
+                <p>{isDemoMode ? "Create your demo workspace instantly." : "Share your details and we will continue your onboarding."}</p>
+              </div>
+              {successMessage && <div className="notice">{successMessage}</div>}
+              {errorMessage && <div className="notice error">{errorMessage}</div>}
+              <form className="auth-form-shell auth-demo-form" onSubmit={onSubmit}>
+                <label className="auth-field auth-field-caps">
+                  <span>Your Name</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <input placeholder="Enter your name" value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
+                  </div>
+                </label>
+                <label className="auth-field auth-field-caps">
+                  <span>Mobile Number</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <input placeholder="Enter mobile number" value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
+                  </div>
+                </label>
+                {isDemoMode ? (
+                  <label className="auth-field auth-field-caps">
+                    <span>Password</span>
+                    <div className="auth-input-shell">
+                      <span className="auth-input-icon"><LockFieldIcon /></span>
+                      <input
+                        placeholder="Create password"
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => onChange("password", e.target.value)}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="auth-input-toggle"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((current) => !current)}
+                      >
+                        <EyeFieldIcon open={showPassword} />
+                      </button>
+                    </div>
+                  </label>
+                ) : null}
+                <label className="auth-field auth-field-caps">
+                  <span>Email</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <input placeholder="Enter email address" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
+                  </div>
+                </label>
+                <label className="auth-field auth-field-caps">
+                  <span>Business Name</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <input placeholder="Enter business name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
+                  </div>
+                </label>
+                <label className="auth-field auth-field-caps">
+                  <span>Business Category</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <select value={categoryValue} onChange={(e) => onChange(categoryKey, e.target.value)}>
+                      <option value="">Select business category</option>
+                      {businessCategoryOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+                <label className="auth-field auth-field-caps">
+                  <span>Business Segment</span>
+                  <div className="auth-input-shell">
+                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                    <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!categoryValue}>
+                      <option value="">{categoryValue ? "Select segment" : "Select category first"}</option>
+                      {segmentOptions.map((option) => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
+                </label>
+                {!isDemoMode ? (
+                  <label className="seller-toggle">
+                    <input type="checkbox" checked={Boolean(form.interestedInDemo)} onChange={(e) => onChange("interestedInDemo", e.target.checked)} style={{ width: "auto" }} />
+                    Interested in Demo
+                  </label>
+                ) : null}
+                {shouldShowSampleDataChoices ? (
+                  <label className="auth-field auth-field-caps">
+                    <span>Demo Data Preference</span>
+                    <div className="auth-choice-group">
+                      <label className="auth-choice-pill">
+                        <input type="radio" name={`sampleData-${mode}`} checked={Boolean(form.wantsSampleData)} onChange={() => onChange("wantsSampleData", true)} />
+                        <span>Use sample data</span>
+                      </label>
+                      <label className="auth-choice-pill">
+                        <input type="radio" name={`sampleData-${mode}`} checked={!form.wantsSampleData} onChange={() => onChange("wantsSampleData", false)} />
+                        <span>I will use my own data</span>
+                      </label>
+                    </div>
+                  </label>
+                ) : null}
+                {!isDemoMode ? (
+                  <label className="auth-field auth-field-caps">
+                    <span>Requirement</span>
+                    <div className="auth-input-shell">
+                      <span className="auth-input-icon"><PhoneFieldIcon /></span>
+                      <textarea rows={3} placeholder="Share your requirement" value={form.requirement} onChange={(e) => onChange("requirement", e.target.value)} />
+                    </div>
+                  </label>
+                ) : null}
+                <button type="submit" className="auth-submit-btn" disabled={submitting}>
+                  {submitting
+                    ? (isDemoMode ? "Creating demo..." : "Submitting lead...")
+                    : (isDemoMode ? "Create Demo Account ->" : "Submit Lead ->")}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PublicDemoSignupPage({
   form,
   submitting,
@@ -2378,9 +2587,21 @@ function PublicDemoSignupPage({
   onChange,
   onSubmit,
   businessCategoryOptions,
-  getBusinessSegments,
-  onBrandingImageChange
+  getBusinessSegments
 }) {
+  return (
+    <PublicAcquisitionSignupPage
+      mode="demo"
+      form={form}
+      submitting={submitting}
+      successMessage={successMessage}
+      errorMessage={errorMessage}
+      onChange={onChange}
+      onSubmit={onSubmit}
+      businessCategoryOptions={businessCategoryOptions}
+      getBusinessSegments={getBusinessSegments}
+    />
+  );
   const [showPassword, setShowPassword] = useState(false);
   const segmentOptions = getBusinessSegments(form.businessCategory);
   const demoValueCards = [
@@ -2497,20 +2718,6 @@ function PublicDemoSignupPage({
                 </div>
               </label>
               <label className="auth-field auth-field-caps">
-                <span>City</span>
-                <div className="auth-input-shell">
-                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                  <input placeholder="Enter city" value={form.city} onChange={(e) => onChange("city", e.target.value)} />
-                </div>
-              </label>
-              <label className="auth-field auth-field-caps">
-                <span>State</span>
-                <div className="auth-input-shell">
-                  <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                  <input placeholder="Enter state" value={form.state} onChange={(e) => onChange("state", e.target.value)} />
-                </div>
-              </label>
-              <label className="auth-field auth-field-caps">
                 <span>Business Category</span>
                 <div className="auth-input-shell">
                   <span className="auth-input-icon"><PhoneFieldIcon /></span>
@@ -2545,26 +2752,6 @@ function PublicDemoSignupPage({
                     <input type="radio" name="sampleData" checked={!form.wantsSampleData} onChange={() => onChange("wantsSampleData", false)} />
                     <span>I will use my own data</span>
                   </label>
-                </div>
-              </label>
-              <label className="auth-field auth-field-caps">
-                <span>Branding for Quotation</span>
-                <div className="auth-choice-group">
-                  <label className="auth-choice-pill">
-                    <input type="radio" name="brandingMode" checked={form.brandingMode === "header"} onChange={() => onChange("brandingMode", "header")} />
-                    <span>Upload Header Image</span>
-                  </label>
-                  <label className="auth-choice-pill">
-                    <input type="radio" name="brandingMode" checked={form.brandingMode === "logo"} onChange={() => onChange("brandingMode", "logo")} />
-                    <span>Upload Company Logo</span>
-                  </label>
-                </div>
-              </label>
-              <label className="auth-field auth-field-caps">
-                <span>{form.brandingMode === "logo" ? "Company Logo" : "Quotation Header Image"}</span>
-                <div className="auth-upload-block">
-                  <input type="file" accept="image/*" onChange={(e) => onBrandingImageChange(form.brandingMode === "logo" ? "logoImageData" : "headerImageData", e)} />
-                  <small>{form.brandingMode === "logo" ? (form.logoImageData ? "Logo uploaded" : "Optional upload") : (form.headerImageData ? "Header image uploaded" : "Optional upload")}</small>
                 </div>
               </label>
               <div className="auth-panel-footer-note">
@@ -3214,14 +3401,9 @@ function App() {
     password: "",
     email: "",
     businessName: "",
-    city: "",
-    state: "",
     businessCategory: "",
     businessSegment: "",
-    wantsSampleData: true,
-    brandingMode: "header",
-    headerImageData: null,
-    logoImageData: null
+    wantsSampleData: true
   });
   const [publicLeadForm, setPublicLeadForm] = useState({
     name: "",
@@ -3648,23 +3830,6 @@ function App() {
     }));
   }
 
-  async function handlePublicDemoBrandingImageChange(targetField, event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const dataUrl = await fileToDataUrl(file);
-      setPublicDemoForm((prev) => ({
-        ...prev,
-        [targetField]: dataUrl
-      }));
-    } catch (err) {
-      handleApiError(err);
-    } finally {
-      event.target.value = "";
-    }
-  }
-
   async function handleLeadConvertBrandingImageChange(targetField, event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -3998,14 +4163,9 @@ function App() {
         password: "",
         email: "",
         businessName: "",
-        city: "",
-        state: "",
         businessCategory: "",
         businessSegment: "",
-        wantsSampleData: true,
-        brandingMode: "header",
-        headerImageData: null,
-        logoImageData: null
+        wantsSampleData: true
       });
       window.history.replaceState({}, "", "/");
     } catch (err) {
@@ -6410,7 +6570,6 @@ function App() {
         onSubmit={handleSubmitPublicDemo}
         businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
         getBusinessSegments={getBusinessSegments}
-        onBrandingImageChange={handlePublicDemoBrandingImageChange}
       />
     );
   }
