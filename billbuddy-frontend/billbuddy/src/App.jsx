@@ -100,7 +100,7 @@ const BILLING_CYCLE_OPTIONS = [
 
 const SUBSCRIPTION_STATUS_OPTIONS = [
   { value: "trial", label: "Trial" },
-  { value: "active", label: "Active" },
+  { value: "active", label: "Active (Paid)" },
   { value: "expired", label: "Expired" },
   { value: "cancelled", label: "Cancelled" },
   { value: "suspended", label: "Suspended" }
@@ -5772,7 +5772,7 @@ function App() {
         body: JSON.stringify({
           subscriptionPlan: subscriptionModalDraft.planCode || null,
           trialEndsAt: subscriptionModalDraft.trialEndAt || null,
-          status: subscriptionModalDraft.status === "active" ? "active" : undefined
+          status: subscriptionModalDraft.status || undefined
         })
       });
 

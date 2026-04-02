@@ -88,6 +88,10 @@ router.patch("/:id", requirePermission(PERMISSIONS.SUBSCRIPTION_MANAGE), async (
         [planCode]
       );
       resolvedPlanId = planLookup.rows[0]?.id || null;
+      if (!resolvedPlanId) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: `Plan code '${planCode}' not found` });
+      }
     }
 
     const result = await client.query(
