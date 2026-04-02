@@ -412,6 +412,7 @@ export default function QuotationWizardModal(props) {
                   .filter((column) => column.visibleInForm)
                   .map((column) => {
                     const normalizedKey = column.normalizedKey || column.key;
+                    const normalizedType = String(column.type || "").toLowerCase();
                     const meta = column.meta || {};
                     if (normalizedKey === "material_name") return null;
                     if (quotationWizardVisibleVariantFields.some((field) => field.key === normalizedKey)) return null;
@@ -422,7 +423,22 @@ export default function QuotationWizardModal(props) {
                       return null;
                     }
 
-                    if (column.type === "checkbox" || meta.inputType === "checkbox") {
+                    if (normalizedKey === "ps" && normalizedType === "dropdown") {
+                      return (
+                        <div key={column.id} className="wizard-full">
+                          {renderAutosuggestInput({
+                            id: `quotation-ps-${column.id}`,
+                            className: "wizard-full",
+                            value: quotationWizard.itemForm.customFields?.[column.key] ?? "",
+                            onChange: (e) => updateQuotationWizardCustomField(column.key, e.target.value),
+                            options: column.options || [],
+                            placeholder: `Select ${column.label}`
+                          })}
+                        </div>
+                      );
+                    }
+
+                    if (normalizedType === "checkbox" || (!normalizedType && meta.inputType === "checkbox")) {
                       return (
                         <label key={column.id} className="seller-toggle wizard-full">
                           <input

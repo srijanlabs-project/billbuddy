@@ -293,8 +293,17 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
       return `Rs ${Number(getQuotationItemTotalValue(item)).toLocaleString("en-IN")}`;
     case "color_name":
       return item.color_name || item.colorName || item.imported_color_note || item.importedColorNote || "-";
-    case "ps":
+    case "ps": {
+      const customFields = item.custom_fields || item.customFields || {};
+      const normalizedKey = normalizeQuotationColumnKey(columnKey);
+      const directRaw = customFields[columnKey] ?? customFields[normalizedKey];
+      const fallbackEntry = Object.entries(customFields).find(([key]) => normalizeQuotationColumnKey(key) === normalizedKey);
+      const raw = directRaw ?? (fallbackEntry ? fallbackEntry[1] : undefined);
+      if (raw !== undefined && raw !== null && String(raw).trim() !== "") {
+        return typeof raw === "boolean" ? (raw ? "Yes" : "No") : String(raw);
+      }
       return item.ps_included ?? item.psIncluded ?? item.ps ? "Yes" : "-";
+    }
     case "note":
     case "item_note":
       return item.item_note || item.itemNote || "-";
