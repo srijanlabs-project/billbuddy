@@ -118,29 +118,133 @@ const LEAD_STATUS_OPTIONS = [
 ];
 
 const BUSINESS_CATEGORY_SEGMENTS = {
-  "Traders & Distributors": [
-    "Wholesale traders",
-    "Electrical / hardware / building materials",
-    "FMCG distributors",
-    "Industrial suppliers"
+  "Retail & Commerce": [
+    "Grocery & Kirana",
+    "Supermarkets & Hypermarkets",
+    "Fashion & Apparel",
+    "Footwear",
+    "Electronics & Gadgets",
+    "Furniture & Home Decor",
+    "Jewelry & Accessories",
+    "Books & Stationery",
+    "Toys & Gifts",
+    "Pet Supplies"
   ],
-  "Manufacturers & Fabricators": [
-    "Steel / aluminium / glass fabricators",
-    "Furniture manufacturers",
-    "Machinery / equipment makers",
-    "Custom product businesses"
+  "Food & Beverage (F&B)": [
+    "Restaurants (Casual Dining / Fine Dining)",
+    "QSR (Quick Service Restaurants)",
+    "Cloud Kitchens",
+    "Cafes & Bakeries",
+    "Sweet Shops / Mithai",
+    "Juice & Beverage Shops",
+    "Catering Services",
+    "Tiffin / Meal Services"
   ],
-  "Contractors & Project-Based Businesses": [
-    "Interior contractors",
-    "Civil contractors",
-    "Electrical / plumbing contractors",
-    "EPC / project vendors"
+  "Services (Local + Professional)": [
+    "Salons & Beauty Parlours",
+    "Spa & Wellness",
+    "Laundry & Dry Cleaning",
+    "Repair Services (Mobile, Electronics, Appliances)",
+    "Home Services (Plumbing, Electrical, Carpentry)",
+    "Event Services (Photography, Decorators)",
+    "Travel & Ticketing",
+    "Packers & Movers"
   ],
-  "Service Providers (B2B & B2C)": [
-    "Marketing agencies",
-    "IT / software vendors",
-    "Event companies",
-    "Consulting firms"
+  "Healthcare & Pharma": [
+    "Hospitals",
+    "Clinics (General / Specialist)",
+    "Diagnostic Labs",
+    "Pharmacies / Medical Stores",
+    "Physiotherapy Centers",
+    "Ayurveda / Homeopathy",
+    "Fitness Centers / Gyms"
+  ],
+  "Education & Training": [
+    "Schools",
+    "Colleges",
+    "Coaching Institutes",
+    "Online Learning Platforms",
+    "Skill Development Centers",
+    "Music / Dance / Art Classes",
+    "Tuition Centers"
+  ],
+  "Manufacturing & Industrial": [
+    "FMCG Manufacturing",
+    "Textile Manufacturing",
+    "Automotive Parts",
+    "Electronics Manufacturing",
+    "Packaging Units",
+    "Chemical & Pharma Manufacturing",
+    "Food Processing Units"
+  ],
+  "Wholesale & Distribution (Critical for India GT)": [
+    "FMCG Distributors",
+    "Stockists",
+    "Super Stockists",
+    "B2B Traders",
+    "Importers & Exporters",
+    "Commodity Traders"
+  ],
+  "Real Estate & Infrastructure": [
+    "Builders & Developers",
+    "Real Estate Brokers",
+    "Property Management",
+    "Construction Companies",
+    "Interior Designers",
+    "Architects"
+  ],
+  "Financial Services": [
+    "Banks",
+    "NBFCs",
+    "Insurance Agencies",
+    "Loan Providers",
+    "Investment Advisors",
+    "Fintech Platforms",
+    "Payment Gateways"
+  ],
+  "Logistics & Transportation": [
+    "Courier Services",
+    "Last-Mile Delivery",
+    "Fleet Operators",
+    "Warehousing",
+    "Cold Storage",
+    "Freight & Cargo"
+  ],
+  "Technology & Digital Businesses": [
+    "SaaS Companies",
+    "IT Services",
+    "Software Development Firms",
+    "Digital Marketing Agencies",
+    "Web & App Development",
+    "AI/ML Solutions",
+    "Cybersecurity Firms"
+  ],
+  "Media, Entertainment & Advertising": [
+    "Advertising Agencies",
+    "Digital Media",
+    "Production Houses",
+    "Event Management Companies",
+    "Influencer Agencies",
+    "OOH & Digital Signage"
+  ],
+  "Agriculture & Allied": [
+    "Farmers / Producers",
+    "Agri Input Suppliers (Seeds, Fertilizers)",
+    "Dairy Farms",
+    "Poultry & Fisheries",
+    "Agri Tech Platforms"
+  ],
+  "Hospitality & Tourism": [
+    "Hotels & Resorts",
+    "Homestays",
+    "Travel Agencies",
+    "Tour Operators"
+  ],
+  "Government & Non-Profit": [
+    "Government Bodies",
+    "NGOs",
+    "Trusts & Foundations",
+    "Associations"
   ]
 };
 
@@ -6820,6 +6924,7 @@ function App() {
           <SettingsPage
             currentModuleMeta={currentModuleMeta}
             isPlatformAdmin={isPlatformAdmin}
+            seller={seller}
             sellers={sellers}
             platformFormulaRules={platformFormulaRules}
             platformFormulaLoading={platformFormulaLoading}

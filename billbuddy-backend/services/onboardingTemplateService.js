@@ -9,36 +9,140 @@ const DEFAULT_MODULES = {
 };
 
 const BUSINESS_CATEGORY_SEGMENTS = {
-  "Traders & Distributors": [
-    "Wholesale traders",
-    "Electrical / hardware / building materials",
-    "FMCG distributors",
-    "Industrial suppliers"
+  "Retail & Commerce": [
+    "Grocery & Kirana",
+    "Supermarkets & Hypermarkets",
+    "Fashion & Apparel",
+    "Footwear",
+    "Electronics & Gadgets",
+    "Furniture & Home Decor",
+    "Jewelry & Accessories",
+    "Books & Stationery",
+    "Toys & Gifts",
+    "Pet Supplies"
   ],
-  "Manufacturers & Fabricators": [
-    "Steel / aluminium / glass fabricators",
-    "Furniture manufacturers",
-    "Machinery / equipment makers",
-    "Custom product businesses"
+  "Food & Beverage (F&B)": [
+    "Restaurants (Casual Dining / Fine Dining)",
+    "QSR (Quick Service Restaurants)",
+    "Cloud Kitchens",
+    "Cafes & Bakeries",
+    "Sweet Shops / Mithai",
+    "Juice & Beverage Shops",
+    "Catering Services",
+    "Tiffin / Meal Services"
   ],
-  "Contractors & Project-Based Businesses": [
-    "Interior contractors",
-    "Civil contractors",
-    "Electrical / plumbing contractors",
-    "EPC / project vendors"
+  "Services (Local + Professional)": [
+    "Salons & Beauty Parlours",
+    "Spa & Wellness",
+    "Laundry & Dry Cleaning",
+    "Repair Services (Mobile, Electronics, Appliances)",
+    "Home Services (Plumbing, Electrical, Carpentry)",
+    "Event Services (Photography, Decorators)",
+    "Travel & Ticketing",
+    "Packers & Movers"
   ],
-  "Service Providers (B2B & B2C)": [
-    "Marketing agencies",
-    "IT / software vendors",
-    "Event companies",
-    "Consulting firms"
+  "Healthcare & Pharma": [
+    "Hospitals",
+    "Clinics (General / Specialist)",
+    "Diagnostic Labs",
+    "Pharmacies / Medical Stores",
+    "Physiotherapy Centers",
+    "Ayurveda / Homeopathy",
+    "Fitness Centers / Gyms"
+  ],
+  "Education & Training": [
+    "Schools",
+    "Colleges",
+    "Coaching Institutes",
+    "Online Learning Platforms",
+    "Skill Development Centers",
+    "Music / Dance / Art Classes",
+    "Tuition Centers"
+  ],
+  "Manufacturing & Industrial": [
+    "FMCG Manufacturing",
+    "Textile Manufacturing",
+    "Automotive Parts",
+    "Electronics Manufacturing",
+    "Packaging Units",
+    "Chemical & Pharma Manufacturing",
+    "Food Processing Units"
+  ],
+  "Wholesale & Distribution (Critical for India GT)": [
+    "FMCG Distributors",
+    "Stockists",
+    "Super Stockists",
+    "B2B Traders",
+    "Importers & Exporters",
+    "Commodity Traders"
+  ],
+  "Real Estate & Infrastructure": [
+    "Builders & Developers",
+    "Real Estate Brokers",
+    "Property Management",
+    "Construction Companies",
+    "Interior Designers",
+    "Architects"
+  ],
+  "Financial Services": [
+    "Banks",
+    "NBFCs",
+    "Insurance Agencies",
+    "Loan Providers",
+    "Investment Advisors",
+    "Fintech Platforms",
+    "Payment Gateways"
+  ],
+  "Logistics & Transportation": [
+    "Courier Services",
+    "Last-Mile Delivery",
+    "Fleet Operators",
+    "Warehousing",
+    "Cold Storage",
+    "Freight & Cargo"
+  ],
+  "Technology & Digital Businesses": [
+    "SaaS Companies",
+    "IT Services",
+    "Software Development Firms",
+    "Digital Marketing Agencies",
+    "Web & App Development",
+    "AI/ML Solutions",
+    "Cybersecurity Firms"
+  ],
+  "Media, Entertainment & Advertising": [
+    "Advertising Agencies",
+    "Digital Media",
+    "Production Houses",
+    "Event Management Companies",
+    "Influencer Agencies",
+    "OOH & Digital Signage"
+  ],
+  "Agriculture & Allied": [
+    "Farmers / Producers",
+    "Agri Input Suppliers (Seeds, Fertilizers)",
+    "Dairy Farms",
+    "Poultry & Fisheries",
+    "Agri Tech Platforms"
+  ],
+  "Hospitality & Tourism": [
+    "Hotels & Resorts",
+    "Homestays",
+    "Travel Agencies",
+    "Tour Operators"
+  ],
+  "Government & Non-Profit": [
+    "Government Bodies",
+    "NGOs",
+    "Trusts & Foundations",
+    "Associations"
   ]
 };
 
 function normalizeCategory(value) {
   const input = String(value || "").trim().toLowerCase();
   const match = Object.keys(BUSINESS_CATEGORY_SEGMENTS).find((entry) => entry.toLowerCase() === input);
-  return match || "Manufacturers & Fabricators";
+  return match || "Retail & Commerce";
 }
 
 function normalizeSegment(category, segment) {
@@ -47,6 +151,34 @@ function normalizeSegment(category, segment) {
   const input = String(segment || "").trim().toLowerCase();
   const match = allowed.find((entry) => entry.toLowerCase() === input);
   return match || allowed[0] || null;
+}
+
+function resolveCategoryTemplateGroup(category) {
+  const normalizedCategory = normalizeCategory(category);
+
+  const distributionCategories = new Set([
+    "Traders & Distributors",
+    "Retail & Commerce",
+    "Food & Beverage (F&B)",
+    "Wholesale & Distribution (Critical for India GT)"
+  ]);
+  if (distributionCategories.has(normalizedCategory)) return "distribution";
+
+  const manufacturingCategories = new Set([
+    "Manufacturers & Fabricators",
+    "Manufacturing & Industrial",
+    "Agriculture & Allied",
+    "Logistics & Transportation"
+  ]);
+  if (manufacturingCategories.has(normalizedCategory)) return "manufacturing";
+
+  const projectCategories = new Set([
+    "Contractors & Project-Based Businesses",
+    "Real Estate & Infrastructure"
+  ]);
+  if (projectCategories.has(normalizedCategory)) return "project";
+
+  return "service";
 }
 
 function createBaseCatalogueFields() {
@@ -71,7 +203,8 @@ function createBaseQuotationColumns() {
 
 function createTemplateForCategory(category) {
   const normalizedCategory = normalizeCategory(category);
-  if (normalizedCategory === "Traders & Distributors") {
+  const templateGroup = resolveCategoryTemplateGroup(normalizedCategory);
+  if (templateGroup === "distribution") {
     return {
       templatePreset: "invoice_classic",
       headerText: "Quotation",
@@ -83,7 +216,7 @@ function createTemplateForCategory(category) {
     };
   }
 
-  if (normalizedCategory === "Contractors & Project-Based Businesses") {
+  if (templateGroup === "project") {
     return {
       templatePreset: "executive_boardroom",
       headerText: "Quotation",
@@ -95,7 +228,7 @@ function createTemplateForCategory(category) {
     };
   }
 
-  if (normalizedCategory === "Service Providers (B2B & B2C)") {
+  if (templateGroup === "service") {
     return {
       templatePreset: "commercial_offer",
       headerText: "Service Proposal",
@@ -121,13 +254,14 @@ function createTemplateForCategory(category) {
 function buildCategoryTemplate(category, segment) {
   const normalizedCategory = normalizeCategory(category);
   const normalizedSegment = normalizeSegment(normalizedCategory, segment);
+  const templateGroup = resolveCategoryTemplateGroup(normalizedCategory);
   const catalogueFields = createBaseCatalogueFields();
   const quotationColumns = createBaseQuotationColumns();
   let sampleProducts = [];
   let sampleCustomers = [];
   let modules = { ...DEFAULT_MODULES };
 
-  if (normalizedCategory === "Traders & Distributors") {
+  if (templateGroup === "distribution") {
     catalogueFields.splice(3, 0,
       { key: "material_group", label: "Brand", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 4 },
       { key: "color_name", label: "Colour", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 5 },
@@ -145,7 +279,7 @@ function buildCategoryTemplate(category, segment) {
     sampleCustomers = [
       { name: "Metro Retail", firm_name: "Metro Retail", mobile: "9000000001", address: "Warehouse District", gst_number: "27ABCDE1234F1Z5" }
     ];
-  } else if (normalizedCategory === "Manufacturers & Fabricators") {
+  } else if (templateGroup === "manufacturing") {
     catalogueFields.splice(3, 0,
       { key: "thickness", label: "Thickness", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 4 },
       { key: "color_name", label: "Colour", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 5 },
@@ -165,7 +299,7 @@ function buildCategoryTemplate(category, segment) {
     sampleCustomers = [
       { name: "Sai Projects", firm_name: "Sai Projects", mobile: "9000000002", address: "MIDC Industrial Area", gst_number: "27ABCDE1234F1Z5" }
     ];
-  } else if (normalizedCategory === "Contractors & Project-Based Businesses") {
+  } else if (templateGroup === "project") {
     catalogueFields.splice(3, 0,
       { key: "scope_type", label: "Scope Type", type: "dropdown", options: ["Material", "Labour", "Turnkey"], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 4 }
     );

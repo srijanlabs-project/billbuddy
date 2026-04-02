@@ -43,6 +43,7 @@ function formatTierLabel(value) {
 export default function SettingsPage({
   currentModuleMeta,
   isPlatformAdmin,
+  seller,
   sellers,
   platformFormulaRules,
   platformFormulaLoading,
@@ -667,6 +668,22 @@ export default function SettingsPage({
                         value={businessName || ""}
                         onChange={(event) => setBusinessName(event.target.value)}
                         placeholder="Your registered business name"
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>Business Category</span>
+                      <input
+                        type="text"
+                        value={seller?.business_category || "Not set during onboarding"}
+                        readOnly
+                      />
+                    </label>
+                    <label className="settings-field">
+                      <span>Business Segment</span>
+                      <input
+                        type="text"
+                        value={seller?.business_segment || "Not set during onboarding"}
+                        readOnly
                       />
                     </label>
                     <label className="settings-field">
