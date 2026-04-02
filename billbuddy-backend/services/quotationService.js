@@ -223,7 +223,7 @@ function computeQuotationTotals({ items, gstPercent, gstMode = false, transportC
   const transport = toAmount(transportCharges);
   const design = toAmount(designCharges);
   const discount = gstMode ? 0 : toAmount(discountAmount);
-  const totalAmount = subtotal + gstAmount + transport + design - discount;
+  const totalAmount = subtotal + gstAmount - discount;
   const advance = toAmount(advanceAmount);
   const balanceAmount = Math.max(Number((totalAmount - advance).toFixed(2)), 0);
 
