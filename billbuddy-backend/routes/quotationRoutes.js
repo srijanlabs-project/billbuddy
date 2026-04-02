@@ -2133,7 +2133,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const surface = themeConfig.surface;
     const headerFill = themeConfig.header;
     const borderWidth = 0.5;
-    const sellerName = template?.company_name || template?.header_text || seller?.business_name || seller?.name || "Quotation";
+    const sellerName = template?.company_name || seller?.business_name || seller?.name || template?.header_text || "Quotation";
     const pageBottom = doc.page.height - doc.page.margins.bottom;
     let y = doc.page.margins.top;
 
@@ -2442,7 +2442,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       template?.body_template || "Dear {{customer_name}}, please find our commercial quotation {{quotation_number}} for your review.",
       quotation
     );
-    const sellerName = template?.header_text || template?.company_name || "Quotation";
+    const sellerName = template?.company_name || seller?.business_name || seller?.name || template?.header_text || "Quotation";
     const summaryRows = [
       { label: "SUB TOTAL", value: `Rs ${Number(quotation.subtotal || quotation.total_amount || 0).toLocaleString("en-IN")}` },
       ...(Number(quotation.discount_amount || 0) ? [{ label: "-DISCOUNT", value: `Rs ${Number(quotation.discount_amount || 0).toLocaleString("en-IN")}` }] : []),
@@ -2717,7 +2717,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const muted = "#4b5563";
     const line = "#cfd6e1";
     const customerName = quotation.firm_name || quotation.customer_name || "Customer";
-    const sellerName = template?.company_name || template?.header_text || "Quotation";
+    const sellerName = template?.company_name || seller?.business_name || seller?.name || template?.header_text || "Quotation";
     const companyAddressLines = String(template?.company_address || "-").split(/\r?\n/).filter(Boolean);
     const metaTop = contentTop;
 
