@@ -43,6 +43,12 @@ function formatTierLabel(value) {
 export default function SettingsPage({
   currentModuleMeta,
   isPlatformAdmin,
+  sellers,
+  platformFormulaRules,
+  platformFormulaLoading,
+  handleCreatePlatformFormula,
+  handleUpdatePlatformFormula,
+  handleDeletePlatformFormula,
   THEME_OPTIONS,
   theme,
   setTheme,
@@ -81,6 +87,18 @@ export default function SettingsPage({
   fixedFreeFooterBanner
 }) {
   const [activeTab, setActiveTab] = useState("business");
+  const [formulaDraft, setFormulaDraft] = useState({
+    formulaKey: "",
+    label: "",
+    definitionText: "",
+    formulaExpression: "",
+    targetScope: "GLOBAL",
+    targetSellerId: "",
+    displayOrder: "500",
+    includedInCalculation: true,
+    isActive: true
+  });
+  const [editingFormulaId, setEditingFormulaId] = useState(null);
   const [themeLibraryTier, setThemeLibraryTier] = useState(
     () => QUOTATION_THEME_OPTIONS[quotationTemplate.template_theme_key || "default"]?.accessTier || "FREE"
   );
@@ -128,6 +146,21 @@ export default function SettingsPage({
 
   function updateTemplateField(field, value) {
     setQuotationTemplate((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function resetFormulaDraft() {
+    setFormulaDraft({
+      formulaKey: "",
+      label: "",
+      definitionText: "",
+      formulaExpression: "",
+      targetScope: "GLOBAL",
+      targetSellerId: "",
+      displayOrder: "500",
+      includedInCalculation: true,
+      isActive: true
+    });
+    setEditingFormulaId(null);
   }
 
   function handleThemeSelection(themeKey) {
@@ -293,6 +326,46 @@ export default function SettingsPage({
   }
 
   if (isPlatformAdmin) {
+    const advancedSellers = (sellers || []).filter(
+      (sellerRow) => String(sellerRow.seller_type || sellerRow.sellerType || "BASIC").trim().toUpperCase() === "ADVANCED"
+    );
+
+    async function submitFormulaForm(event) {
+      event.preventDefault();
+      const payload = {
+        formulaKey: formulaDraft.formulaKey,
+        label: formulaDraft.label,
+        definitionText: formulaDraft.definitionText,
+        formulaExpression: formulaDraft.formulaExpression,
+        targetScope: formulaDraft.targetScope,
+        targetSellerId: formulaDraft.targetScope === "SELLER_ADVANCED" ? Number(formulaDraft.targetSellerId || 0) : null,
+        displayOrder: formulaDraft.displayOrder,
+        includedInCalculation: Boolean(formulaDraft.includedInCalculation),
+        isActive: Boolean(formulaDraft.isActive)
+      };
+      if (editingFormulaId) {
+        await handleUpdatePlatformFormula(editingFormulaId, payload);
+      } else {
+        await handleCreatePlatformFormula(payload);
+      }
+      resetFormulaDraft();
+    }
+
+    function startEditFormula(rule) {
+      setEditingFormulaId(Number(rule.id));
+      setFormulaDraft({
+        formulaKey: rule.formula_key || "",
+        label: rule.label || "",
+        definitionText: rule.definition_text || "",
+        formulaExpression: rule.formula_expression || "",
+        targetScope: rule.target_scope || "GLOBAL",
+        targetSellerId: rule.target_seller_id ? String(rule.target_seller_id) : "",
+        displayOrder: String(rule.display_order ?? 500),
+        includedInCalculation: Boolean(rule.included_in_calculation),
+        isActive: Boolean(rule.is_active)
+      });
+    }
+
     return (
       <section className="workspace settings-workspace">
         <header className="section-head settings-page-head">
@@ -336,6 +409,187 @@ export default function SettingsPage({
               <button className="secondary-button" type="button" onClick={() => setActiveModule("Notifications")}>Open Notification Center</button>
               <button className="secondary-button" type="button" onClick={() => setActiveModule("Configuration Studio")}>Open Configuration Studio</button>
             </div>
+          </section>
+
+          <section className="settings-card compact-settings-card">
+            <div className="settings-card-head">
+              <div>
+                <span>Formula Management</span>
+                <h3>Platform Formula Library</h3>
+                <p>Create shared formulas for all sellers, all advanced sellers, or a specific advanced seller.</p>
+              </div>
+            </div>
+
+            <form className="settings-form-grid settings-form-grid-wide" onSubmit={submitFormulaForm}>
+              <section className="settings-panel">
+                <div className="settings-panel-head">
+                  <h4>{editingFormulaId ? "Edit Formula" : "Create Formula"}</h4>
+                  <p>Scopes: Global, Global Advanced, or Specific Seller (Advanced only).</p>
+                </div>
+
+                <div className="settings-two-column">
+                  <label className="settings-field">
+                    <span>Formula Key</span>
+                    <input
+                      value={formulaDraft.formulaKey}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, formulaKey: event.target.value }))}
+                      placeholder="area_sqft"
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>Label</span>
+                    <input
+                      value={formulaDraft.label}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, label: event.target.value }))}
+                      placeholder="Area SqFt"
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-field settings-field-wide">
+                    <span>Formula Expression</span>
+                    <input
+                      value={formulaDraft.formulaExpression}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, formulaExpression: event.target.value }))}
+                      placeholder="(width * unit_factor) * (height * unit_factor)"
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-field settings-field-wide">
+                    <span>Definition</span>
+                    <input
+                      value={formulaDraft.definitionText}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, definitionText: event.target.value }))}
+                      placeholder="Derived area in square feet"
+                      disabled={platformFormulaLoading}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>Target Scope</span>
+                    <select
+                      value={formulaDraft.targetScope}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, targetScope: event.target.value, targetSellerId: event.target.value === "SELLER_ADVANCED" ? prev.targetSellerId : "" }))}
+                      disabled={platformFormulaLoading}
+                    >
+                      <option value="GLOBAL">Global</option>
+                      <option value="GLOBAL_ADVANCED">Global Advanced</option>
+                      <option value="SELLER_ADVANCED">Specific Seller</option>
+                    </select>
+                  </label>
+                  {formulaDraft.targetScope === "SELLER_ADVANCED" ? (
+                    <label className="settings-field">
+                      <span>Advanced Seller</span>
+                      <select
+                        value={formulaDraft.targetSellerId}
+                        onChange={(event) => setFormulaDraft((prev) => ({ ...prev, targetSellerId: event.target.value }))}
+                        disabled={platformFormulaLoading}
+                        required
+                      >
+                        <option value="">Select Seller</option>
+                        {advancedSellers.map((sellerRow) => (
+                          <option key={sellerRow.id} value={sellerRow.id}>{sellerRow.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <label className="settings-field">
+                    <span>Display Order</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formulaDraft.displayOrder}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, displayOrder: event.target.value }))}
+                      disabled={platformFormulaLoading}
+                    />
+                  </label>
+                  <label className="settings-inline-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formulaDraft.includedInCalculation)}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, includedInCalculation: event.target.checked }))}
+                      disabled={platformFormulaLoading}
+                    />
+                    <span>Included in Calculation</span>
+                  </label>
+                  <label className="settings-inline-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formulaDraft.isActive)}
+                      onChange={(event) => setFormulaDraft((prev) => ({ ...prev, isActive: event.target.checked }))}
+                      disabled={platformFormulaLoading}
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+
+                <div className="settings-form-actions">
+                  <button type="submit" className="primary-button" disabled={platformFormulaLoading}>
+                    {platformFormulaLoading ? "Saving..." : editingFormulaId ? "Update Formula" : "Create Formula"}
+                  </button>
+                  {editingFormulaId ? (
+                    <button type="button" className="secondary-button" onClick={resetFormulaDraft} disabled={platformFormulaLoading}>
+                      Cancel Edit
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            </form>
+
+            <section className="settings-panel">
+              <div className="settings-panel-head">
+                <h4>Configured Formulas</h4>
+                <p>{platformFormulaLoading ? "Refreshing..." : `${(platformFormulaRules || []).length} formulas configured.`}</p>
+              </div>
+              {!platformFormulaRules?.length ? (
+                <p className="muted">No formulas configured yet.</p>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Scope</th>
+                      <th>Expression</th>
+                      <th>Calc</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(platformFormulaRules || []).map((rule) => (
+                      <tr key={rule.id}>
+                        <td>
+                          <strong>{rule.formula_key}</strong>
+                          <small className="muted">{rule.label}</small>
+                        </td>
+                        <td>
+                          {rule.target_scope}
+                          {rule.target_scope === "SELLER_ADVANCED" ? (
+                            <small className="muted">{rule.target_seller_name || rule.target_seller_id}</small>
+                          ) : null}
+                        </td>
+                        <td><code>{rule.formula_expression}</code></td>
+                        <td>{rule.included_in_calculation ? "Yes" : "No"}</td>
+                        <td>{rule.is_active ? "Active" : "Inactive"}</td>
+                        <td>
+                          <button type="button" className="ghost-btn compact-btn" onClick={() => startEditFormula(rule)} disabled={platformFormulaLoading}>Edit</button>
+                          <button
+                            type="button"
+                            className="ghost-btn compact-btn"
+                            onClick={() => handleDeletePlatformFormula(rule.id)}
+                            disabled={platformFormulaLoading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
           </section>
         </div>
       </section>

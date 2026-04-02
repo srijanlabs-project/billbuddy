@@ -3164,6 +3164,8 @@ function App() {
   const [bankIfsc, setBankIfsc] = useState("");
 
   const [sellers, setSellers] = useState([]);
+  const [platformFormulaRules, setPlatformFormulaRules] = useState([]);
+  const [platformFormulaLoading, setPlatformFormulaLoading] = useState(false);
   const [plans, setPlans] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -3686,14 +3688,15 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
         apiFetch("/api/leads"),
         apiFetch("/api/subscriptions"),
         apiFetch("/api/notifications"),
-        apiFetch("/api/security-gates").catch(() => [])
+        apiFetch("/api/security-gates").catch(() => []),
+        apiFetch("/api/formulas").catch(() => ({ formulas: [] }))
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -3702,8 +3705,70 @@ function App() {
       setSubscriptions(Array.isArray(subscriptionRows) ? subscriptionRows : []);
       setNotifications(Array.isArray(notificationRows) ? notificationRows : []);
       setGoLiveGates(Array.isArray(gateRows) ? gateRows : []);
+      setPlatformFormulaRules(Array.isArray(formulaResponse?.formulas) ? formulaResponse.formulas : []);
     } catch (err) {
       handleApiError(err);
+    }
+  }
+
+  async function refreshPlatformFormulaRules() {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      const response = await apiFetch("/api/formulas");
+      setPlatformFormulaRules(Array.isArray(response?.formulas) ? response.formulas : []);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleCreatePlatformFormula(payload) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch("/api/formulas", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+      await refreshPlatformFormulaRules();
+      setError("Formula created successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleUpdatePlatformFormula(formulaId, payload) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/${formulaId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+      });
+      await refreshPlatformFormulaRules();
+      setError("Formula updated successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleDeletePlatformFormula(formulaId) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/${formulaId}`, { method: "DELETE" });
+      await refreshPlatformFormulaRules();
+      setError("Formula deleted successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
     }
   }
 
@@ -6755,6 +6820,12 @@ function App() {
           <SettingsPage
             currentModuleMeta={currentModuleMeta}
             isPlatformAdmin={isPlatformAdmin}
+            sellers={sellers}
+            platformFormulaRules={platformFormulaRules}
+            platformFormulaLoading={platformFormulaLoading}
+            handleCreatePlatformFormula={handleCreatePlatformFormula}
+            handleUpdatePlatformFormula={handleUpdatePlatformFormula}
+            handleDeletePlatformFormula={handleDeletePlatformFormula}
             THEME_OPTIONS={THEME_OPTIONS}
             theme={theme}
             setTheme={setTheme}

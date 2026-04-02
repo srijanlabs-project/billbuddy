@@ -896,7 +896,69 @@ async function getSellerCustomQuotationColumns(clientOrPool, sellerId) {
     [sellerId]
   );
 
-  return result.rows.filter((column) => !BUILT_IN_QUOTATION_KEYS.has(String(column.column_key || "").trim().toLowerCase()));
+  const sellerColumns = result.rows.filter((column) => !BUILT_IN_QUOTATION_KEYS.has(String(column.column_key || "").trim().toLowerCase()));
+
+  const sellerMeta = await clientOrPool.query(
+    `SELECT seller_type
+     FROM sellers
+     WHERE id = $1
+     LIMIT 1`,
+    [sellerId]
+  );
+  const isAdvancedSeller = String(sellerMeta.rows?.[0]?.seller_type || "BASIC").trim().toUpperCase() === "ADVANCED";
+
+  const platformFormulasResult = await clientOrPool.query(
+    `SELECT pfd.formula_key AS column_key,
+            pfd.label,
+            'formula'::varchar AS column_type,
+            '[]'::jsonb AS option_values,
+            pfd.definition_text,
+            pfd.formula_expression,
+            FALSE AS required,
+            FALSE AS visible_in_form,
+            pfd.included_in_calculation,
+            pfd.display_order,
+            pfd.target_scope
+     FROM platform_formula_definitions pfd
+     WHERE pfd.is_active = TRUE
+       AND (
+         pfd.target_scope = 'GLOBAL'
+         OR (pfd.target_scope = 'GLOBAL_ADVANCED' AND $2::boolean = TRUE)
+         OR (pfd.target_scope = 'SELLER_ADVANCED' AND pfd.target_seller_id = $1 AND $2::boolean = TRUE)
+       )
+     ORDER BY
+       CASE
+         WHEN pfd.target_scope = 'SELLER_ADVANCED' THEN 1
+         WHEN pfd.target_scope = 'GLOBAL_ADVANCED' THEN 2
+         ELSE 3
+       END,
+       pfd.display_order ASC,
+       pfd.id ASC`,
+    [sellerId, isAdvancedSeller]
+  );
+
+  const merged = [];
+  const seenKeys = new Set();
+
+  platformFormulasResult.rows.forEach((column) => {
+    const key = String(column.column_key || "").trim().toLowerCase();
+    if (!key || BUILT_IN_QUOTATION_KEYS.has(key) || seenKeys.has(key)) return;
+    seenKeys.add(key);
+    merged.push(column);
+  });
+
+  sellerColumns.forEach((column) => {
+    const key = String(column.column_key || "").trim().toLowerCase();
+    if (!key || BUILT_IN_QUOTATION_KEYS.has(key)) return;
+    const existingIndex = merged.findIndex((entry) => String(entry.column_key || "").trim().toLowerCase() === key);
+    if (existingIndex >= 0) {
+      merged[existingIndex] = column;
+      return;
+    }
+    merged.push(column);
+  });
+
+  return merged;
 }
 
 function validateCustomQuotationFields(items, customColumns = []) {

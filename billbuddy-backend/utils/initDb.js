@@ -623,6 +623,43 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_seller_catalogue_fields_profile_order ON seller_catalogue_fields(profile_id, display_order, id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_seller_quotation_columns_profile_order ON seller_quotation_columns(profile_id, display_order, id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_seller_configuration_versions_profile_created ON seller_configuration_versions(profile_id, created_at DESC, id DESC)`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_formula_definitions (
+      id SERIAL PRIMARY KEY,
+      formula_key VARCHAR(120) NOT NULL,
+      label VARCHAR(160) NOT NULL,
+      definition_text TEXT,
+      formula_expression TEXT NOT NULL,
+      included_in_calculation BOOLEAN NOT NULL DEFAULT TRUE,
+      target_scope VARCHAR(30) NOT NULL DEFAULT 'GLOBAL',
+      target_seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+      display_order INTEGER NOT NULL DEFAULT 500,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS formula_key VARCHAR(120)`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS label VARCHAR(160)`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS definition_text TEXT`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS formula_expression TEXT`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS included_in_calculation BOOLEAN NOT NULL DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS target_scope VARCHAR(30) NOT NULL DEFAULT 'GLOBAL'`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS target_seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 500`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE platform_formula_definitions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`UPDATE platform_formula_definitions SET target_scope = 'GLOBAL' WHERE target_scope IS NULL OR target_scope = ''`);
+  await pool.query(`UPDATE platform_formula_definitions SET formula_key = COALESCE(NULLIF(formula_key, ''), 'formula_' || id::text)`);
+  await pool.query(`UPDATE platform_formula_definitions SET label = COALESCE(NULLIF(label, ''), formula_key)`);
+  await pool.query(`UPDATE platform_formula_definitions SET formula_expression = COALESCE(NULLIF(formula_expression, ''), '0')`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_formula_definitions_scope_order ON platform_formula_definitions(target_scope, display_order, id)`);
+  await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_formula_definitions_unique_scope_key ON platform_formula_definitions(target_scope, COALESCE(target_seller_id, 0), formula_key)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS leads (
