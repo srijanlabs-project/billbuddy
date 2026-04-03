@@ -119,6 +119,7 @@ export default function SettingsPage({
   const previewBody = renderTemplateText(quotationTemplate.body_template, quotationPreview);
   const previewFooter = renderTemplateText(quotationTemplate.footer_text, quotationPreview);
   const showHeaderImage = Boolean(quotationTemplate.show_header_image && quotationTemplate.header_image_data);
+  const hasVerifiedSellerGst = Boolean(String(seller?.gst_number || "").trim());
   const showLogoOnly = Boolean(!showHeaderImage && quotationTemplate.show_logo_only && quotationTemplate.logo_image_data);
   const currentPlanTier = getPlanTemplateAccessTier(currentSellerSubscription);
   const isFreePlan = currentPlanTier === "FREE";
@@ -945,11 +946,16 @@ export default function SettingsPage({
                       <textarea
                         rows={3}
                         value={quotationTemplate.company_address || ""}
-                        readOnly
-                        disabled
-                        placeholder="Auto-filled from validated Seller GST"
+                        onChange={(event) => updateTemplateField("company_address", event.target.value)}
+                        readOnly={hasVerifiedSellerGst || !canEditSettings}
+                        disabled={hasVerifiedSellerGst || !canEditSettings}
+                        placeholder={hasVerifiedSellerGst ? "Auto-filled from validated Seller GST" : "Enter company address"}
                       />
-                      <small style={{ color: "var(--muted)" }}>Address is auto-synced from validated Seller GST and cannot be edited separately.</small>
+                      <small style={{ color: "var(--muted)" }}>
+                        {hasVerifiedSellerGst
+                          ? "GST is verified, so company address is auto-synced and locked."
+                          : "Without verified GST, you can edit company address manually."}
+                      </small>
                     </label>
                   </div>
                 </section>

@@ -5498,6 +5498,7 @@ function App() {
           businessName,
           quotationNumberPrefix,
           sellerGstNumber,
+          companyAddress: quotationTemplate.company_address,
           bankName,
           bankBranch,
           bankAccountNo,

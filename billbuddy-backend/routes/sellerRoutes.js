@@ -283,7 +283,7 @@ router.get("/me/setup-status", async (req, res) => {
 
 router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (req, res) => {
   try {
-    const { themeKey, brandPrimaryColor, businessName, quotationNumberPrefix, sellerGstNumber, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
+    const { themeKey, brandPrimaryColor, businessName, quotationNumberPrefix, sellerGstNumber, companyAddress, bankName, bankBranch, bankAccountNo, bankIfsc } = req.body;
 
     if (!req.user?.sellerId) {
       return res.status(400).json({ message: "seller context missing" });
@@ -291,7 +291,7 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
 
     const normalizedSellerGst = normalizeGstNumber(sellerGstNumber);
     let resolvedBusinessName = businessName !== undefined ? (String(businessName || "").trim() || null) : null;
-    let resolvedBusinessAddress = null;
+    let resolvedBusinessAddress = String(companyAddress || "").trim() || null;
 
     if (normalizedSellerGst) {
       const sellerGstProfile = await validateAndFetchGstProfile(normalizedSellerGst);
