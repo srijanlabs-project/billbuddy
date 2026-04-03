@@ -192,7 +192,7 @@ router.get("/me/setup-status", async (req, res) => {
 
     const sellerId = Number(req.user.sellerId);
     const sellerResult = await pool.query(
-      `SELECT id, business_name, quotation_number_prefix, gst_number, seller_type
+      `SELECT id, business_name, business_address, quotation_number_prefix, gst_number, seller_type
        FROM sellers
        WHERE id = $1
        LIMIT 1`,
