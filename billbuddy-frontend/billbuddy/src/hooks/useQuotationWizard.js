@@ -175,9 +175,27 @@ export default function useQuotationWizard({
 
   const quotationWizardMaterialSuggestions = useMemo(() => {
     const term = normalizeComparableValue(quotationWizard.itemForm.materialName);
-    const names = uniqueValues((products || []).map((product) => String(product.material_name || "").trim())).sort((a, b) => a.localeCompare(b));
     if (term.length < 2) return [];
-    return names.filter((name) => normalizeComparableValue(name).includes(term)).slice(0, 10);
+    const deduped = [];
+    const seen = new Set();
+
+    (products || []).forEach((product) => {
+      const materialName = String(product.material_name || "").trim();
+      if (!materialName) return;
+      if (!normalizeComparableValue(materialName).includes(term)) return;
+      const source = String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? "secondary" : "primary";
+      const dedupeKey = `${materialName.toLowerCase()}__${source}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      deduped.push({
+        materialName,
+        source
+      });
+    });
+
+    return deduped
+      .sort((left, right) => left.materialName.localeCompare(right.materialName))
+      .slice(0, 10);
   }, [products, quotationWizard.itemForm.materialName]);
 
   const quotationWizardMaterialProducts = useMemo(() => {
@@ -464,7 +482,11 @@ export default function useQuotationWizard({
     }));
   }
 
-  function handleQuotationWizardMaterialSelect(materialName) {
+  function handleQuotationWizardMaterialSelect(selection) {
+    const materialName = typeof selection === "string"
+      ? selection
+      : String(selection?.materialName || "").trim();
+    if (!materialName) return;
     setError("");
     setQuotationWizardNotice("");
     setQuotationWizard((prev) => {

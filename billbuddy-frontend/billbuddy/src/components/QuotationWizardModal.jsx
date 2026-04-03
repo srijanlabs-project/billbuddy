@@ -363,15 +363,17 @@ export default function QuotationWizardModal(props) {
                 ) : null}
                 {quotationWizardMaterialSuggestions.length > 0 && quotationWizard.itemForm.materialName.trim() ? (
                   <div className="wizard-suggestion-list">
-                    {quotationWizardMaterialSuggestions.map((materialName) => (
+                    {quotationWizardMaterialSuggestions.map((suggestion) => (
                       <button
                         type="button"
-                        key={materialName}
-                        className={`wizard-suggestion-row ${quotationWizard.itemForm.materialName === materialName ? "active" : ""}`}
-                        onClick={() => handleQuotationWizardMaterialSelect(materialName)}
+                        key={`${suggestion.materialName}-${suggestion.source}`}
+                        className={`wizard-suggestion-row ${quotationWizard.itemForm.materialName === suggestion.materialName ? "active" : ""}`}
+                        onClick={() => handleQuotationWizardMaterialSelect(suggestion)}
                       >
-                        <span className="quotation-suggest-main">{materialName}</span>
-                        <span className="quotation-suggest-meta">Tap to select</span>
+                        <span className="quotation-suggest-main">{suggestion.materialName}</span>
+                        <span className="quotation-suggest-meta">
+                          {suggestion.source === "secondary" ? "Secondary Catalogue" : "Main Catalogue"}
+                        </span>
                       </button>
                     ))}
                   </div>

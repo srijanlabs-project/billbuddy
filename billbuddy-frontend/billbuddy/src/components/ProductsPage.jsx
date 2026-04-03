@@ -2,6 +2,9 @@ export default function ProductsPage(props) {
   const {
     activeModule,
     products,
+    filteredProducts,
+    productSourceFilter,
+    setProductSourceFilter,
     handleDownloadProductTemplate,
     handleExcelProductUpload,
     setShowSingleProductModal,
@@ -15,6 +18,7 @@ export default function ProductsPage(props) {
     PAGE_SIZE,
     getProductFieldDisplayValue,
     handleEditProduct,
+    handleMoveProductToPrimary,
     renderPagination,
     setProductPage,
     showProductUploadModal,
@@ -79,7 +83,12 @@ export default function ProductsPage(props) {
       <div className="section-head">
         <h3>Product Catalogue</h3>
         <div className="toolbar-controls">
-          <span>{products.length} total</span>
+          <span>{filteredProducts.length} shown / {products.length} total</span>
+          <select value={productSourceFilter} onChange={(e) => setProductSourceFilter(e.target.value)}>
+            <option value="all">All Catalogue</option>
+            <option value="primary">Main Catalogue</option>
+            <option value="secondary">Secondary Catalogue</option>
+          </select>
           <button type="button" className="ghost-btn" onClick={handleDownloadProductTemplate}>Download Template</button>
           {canCreateProduct && (
             <>
@@ -105,13 +114,14 @@ export default function ProductsPage(props) {
             {visibleCatalogueTableFields.map((field) => (
               <th key={field.id}>{field.label}</th>
             ))}
+            <th>Source</th>
             <th>Action</th>
           </tr>
         </thead>
         <tbody>
-          {products.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <tr>
-              <td colSpan={visibleCatalogueTableFields.length + 2} className="muted">No products uploaded yet.</td>
+              <td colSpan={visibleCatalogueTableFields.length + 3} className="muted">No products found for selected catalogue source.</td>
             </tr>
           ) : (
             pagedProducts.map((product, index) => (
@@ -121,8 +131,16 @@ export default function ProductsPage(props) {
                   <td key={`${product.id}-${field.id}`}>{getProductFieldDisplayValue(product, field.normalizedKey || field.key)}</td>
                 ))}
                 <td>
+                  {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? "Secondary" : "Main"}
+                </td>
+                <td>
                   {canEditProduct ? (
-                    <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
+                      {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? (
+                        <button type="button" className="ghost-btn" onClick={() => handleMoveProductToPrimary(product)}>Move to Main</button>
+                      ) : null}
+                    </div>
                   ) : (
                     <span>-</span>
                   )}
@@ -132,7 +150,7 @@ export default function ProductsPage(props) {
           )}
         </tbody>
       </table>
-      {renderPagination(productPage, setProductPage, products.length)}
+      {renderPagination(productPage, setProductPage, filteredProducts.length)}
 
       {showProductUploadModal && (
         <div className="modal-overlay" onClick={() => {

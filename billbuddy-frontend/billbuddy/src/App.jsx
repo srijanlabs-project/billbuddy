@@ -604,6 +604,7 @@ const SUPPORTED_QUOTATION_COLUMN_META = {
 function clearStoredAuth() {
   try {
     sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   } catch {
     // Ignore storage cleanup failures.
   }
@@ -611,10 +612,10 @@ function clearStoredAuth() {
 
 function getStoredAuth() {
   try {
-    const raw = sessionStorage.getItem(AUTH_STORAGE_KEY);
-    if (!raw) {
-      return null;
-    }
+    const rawSession = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    const rawLocal = localStorage.getItem(AUTH_STORAGE_KEY);
+    const raw = rawSession || rawLocal;
+    if (!raw) return null;
 
     const parsed = JSON.parse(raw);
     if (!parsed?.token) {
@@ -3622,6 +3623,7 @@ function App() {
   const [sellerPage, setSellerPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
   const [productPage, setProductPage] = useState(1);
+  const [productSourceFilter, setProductSourceFilter] = useState("all");
   const [userPage, setUserPage] = useState(1);
   const [subUserAction, setSubUserAction] = useState("");
   const [subUserSearchInput, setSubUserSearchInput] = useState("");
@@ -3737,7 +3739,17 @@ function App() {
       rememberMe: shouldRemember,
       sessionExpiresAt: authData.sessionExpiresAt || (shouldRemember ? new Date(Date.now() + REMEMBER_ME_DURATION_MS).toISOString() : null)
     };
-    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextAuth));
+    try {
+      sessionStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      if (shouldRemember) {
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextAuth));
+      } else {
+        sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextAuth));
+      }
+    } catch {
+      // Keep auth in-memory if browser storage is unavailable.
+    }
     setAuth(nextAuth);
   }
 
@@ -4647,7 +4659,11 @@ function App() {
   const pagedOrders = useMemo(() => filteredOrders.slice((orderPage - 1) * PAGE_SIZE, orderPage * PAGE_SIZE), [filteredOrders, orderPage]);
   const pagedSellers = useMemo(() => filteredSellers.slice((sellerPage - 1) * PAGE_SIZE, sellerPage * PAGE_SIZE), [filteredSellers, sellerPage]);
   const pagedCustomers = useMemo(() => customers.slice((customerPage - 1) * PAGE_SIZE, customerPage * PAGE_SIZE), [customers, customerPage]);
-  const pagedProducts = useMemo(() => products.slice((productPage - 1) * PAGE_SIZE, productPage * PAGE_SIZE), [products, productPage]);
+  const filteredProducts = useMemo(() => {
+    if (productSourceFilter === "all") return products;
+    return products.filter((product) => String(product.catalogue_source || "primary").toLowerCase() === productSourceFilter);
+  }, [products, productSourceFilter]);
+  const pagedProducts = useMemo(() => filteredProducts.slice((productPage - 1) * PAGE_SIZE, productPage * PAGE_SIZE), [filteredProducts, productPage]);
   const pagedUsers = useMemo(() => users.slice((userPage - 1) * PAGE_SIZE, userPage * PAGE_SIZE), [users, userPage]);
   const unreadNotificationsCount = useMemo(() => {
     if (isPlatformAdmin) {
@@ -4669,6 +4685,10 @@ function App() {
     setQuotations(quotationRows);
     return quotationRows;
   }
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [productSourceFilter]);
 
   const {
     showMessageSimulatorModal,
@@ -5292,6 +5312,34 @@ function App() {
         [fieldKey]: value
       }
     }));
+  }
+
+  async function handleMoveProductToPrimary(product) {
+    try {
+      if (!canEditProduct) {
+        throw new Error("You do not have permission to move products.");
+      }
+      if (!product?.id) {
+        throw new Error("Product not found.");
+      }
+      if (String(product.catalogue_source || "primary").toLowerCase() === "primary") {
+        setError("This product is already in main catalogue.");
+        return;
+      }
+
+      await apiFetch(`/api/products/${product.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          catalogueSource: "primary"
+        })
+      });
+
+      const productRows = await apiFetch("/api/products");
+      setProducts(productRows);
+      setError("Product moved from secondary to main catalogue.");
+    } catch (err) {
+      handleApiError(err);
+    }
   }
 
   async function handleExcelProductUpload(event) {
@@ -7096,6 +7144,9 @@ function App() {
           <ProductsPage
             activeModule={activeModule}
             products={products}
+            filteredProducts={filteredProducts}
+            productSourceFilter={productSourceFilter}
+            setProductSourceFilter={setProductSourceFilter}
             handleDownloadProductTemplate={handleDownloadProductTemplate}
             handleExcelProductUpload={handleExcelProductUpload}
             setShowSingleProductModal={setShowSingleProductModal}
@@ -7109,6 +7160,7 @@ function App() {
             PAGE_SIZE={PAGE_SIZE}
             getProductFieldDisplayValue={getProductFieldDisplayValue}
             handleEditProduct={handleEditProduct}
+            handleMoveProductToPrimary={handleMoveProductToPrimary}
             renderPagination={renderPagination}
             setProductPage={setProductPage}
             showProductUploadModal={showProductUploadModal}
