@@ -1,11 +1,21 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 function getAuthToken() {
-  const raw = sessionStorage.getItem("billbuddyAuth");
+  const rawSession = sessionStorage.getItem("billbuddyAuth");
+  const rawLocal = localStorage.getItem("billbuddyAuth");
+  const raw = rawSession || rawLocal;
   if (!raw) return null;
 
   try {
     const parsed = JSON.parse(raw);
+    if (parsed?.sessionExpiresAt) {
+      const expiresAt = new Date(parsed.sessionExpiresAt).getTime();
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        sessionStorage.removeItem("billbuddyAuth");
+        localStorage.removeItem("billbuddyAuth");
+        return null;
+      }
+    }
     return parsed?.token || null;
   } catch {
     return null;
