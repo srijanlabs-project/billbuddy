@@ -41,11 +41,31 @@ function normalizeShippingAddresses(shippingAddresses) {
   });
 }
 
-async function validateShippingAddressGstNumbers(shippingAddresses) {
+function extractPanFromGst(gstNumber) {
+  const normalized = normalizeGstNumber(gstNumber);
+  return normalized ? normalized.slice(2, 12) : "";
+}
+
+async function validateShippingAddressGstNumbers(shippingAddresses, primaryCustomerGstNumber = "") {
   const normalizedAddresses = normalizeShippingAddresses(shippingAddresses);
+  const normalizedPrimaryGst = normalizeGstNumber(primaryCustomerGstNumber);
+  const primaryPan = extractPanFromGst(normalizedPrimaryGst);
   for (let index = 0; index < normalizedAddresses.length; index += 1) {
     const gstNumber = normalizeGstNumber(normalizedAddresses[index]?.gstNumber || "");
     if (!gstNumber) continue;
+    if (!normalizedPrimaryGst) {
+      const validationError = new Error("Shipping GST can be added only when primary customer GST is present.");
+      validationError.statusCode = 400;
+      validationError.field = `shippingAddresses[${index}].gstNumber`;
+      throw validationError;
+    }
+    const shippingPan = extractPanFromGst(gstNumber);
+    if (primaryPan && shippingPan && primaryPan !== shippingPan) {
+      const panMismatchError = new Error("Shipping GST must belong to the same business PAN as customer GST.");
+      panMismatchError.statusCode = 400;
+      panMismatchError.field = `shippingAddresses[${index}].gstNumber`;
+      throw panMismatchError;
+    }
     try {
       await validateAndFetchGstProfile(gstNumber);
     } catch (error) {
@@ -166,7 +186,7 @@ router.post("/", requirePermission(PERMISSIONS.CUSTOMER_CREATE), async (req, res
       return res.status(400).json({ message: "name is required" });
     }
 
-    const normalizedShippingAddresses = await validateShippingAddressGstNumbers(shippingAddresses);
+    const normalizedShippingAddresses = await validateShippingAddressGstNumbers(shippingAddresses, normalizedGstNumber);
 
     await client.query("BEGIN");
     transactionOpen = true;
@@ -284,7 +304,7 @@ router.patch("/:id", requirePermission(PERMISSIONS.CUSTOMER_EDIT), async (req, r
     }
 
     const normalizedShippingAddresses = hasShipping
-      ? await validateShippingAddressGstNumbers(shippingAddresses)
+      ? await validateShippingAddressGstNumbers(shippingAddresses, normalizedGstNumber)
       : normalizeShippingAddresses(existingCustomer.shipping_addresses);
 
     const beforeState = toAuditState(existingCustomer);

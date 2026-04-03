@@ -276,10 +276,21 @@ export default function SettingsPage({
 
         <div className="settings-preview-footer-grid">
           <div className="settings-preview-notes-block">
-            <h6>Notes</h6>
-            <p>{quotationTemplate.notes_text || presetMeta.defaults.notes_text}</p>
-            <h6>Terms & Conditions</h6>
-            <p>{quotationTemplate.terms_text || presetMeta.defaults.terms_text}</p>
+            {Boolean(quotationTemplate.show_notes ?? true) ? (
+              <>
+                <h6>Notes</h6>
+                <p>{quotationTemplate.notes_text || presetMeta.defaults.notes_text || "-"}</p>
+              </>
+            ) : null}
+            {Boolean(quotationTemplate.show_terms ?? true) ? (
+              <>
+                <h6>Terms & Conditions</h6>
+                <p>{quotationTemplate.terms_text || presetMeta.defaults.terms_text || "-"}</p>
+              </>
+            ) : null}
+            {!Boolean(quotationTemplate.show_notes ?? true) && !Boolean(quotationTemplate.show_terms ?? true) ? (
+              <p style={{ marginTop: 6 }}>Notes and Terms are hidden in PDF.</p>
+            ) : null}
           </div>
           <div className="settings-preview-summary-block">
             {[
@@ -934,9 +945,11 @@ export default function SettingsPage({
                       <textarea
                         rows={3}
                         value={quotationTemplate.company_address || ""}
-                        onChange={(event) => updateTemplateField("company_address", event.target.value)}
-                        placeholder="Enter full business address"
+                        readOnly
+                        disabled
+                        placeholder="Auto-filled from validated Seller GST"
                       />
+                      <small style={{ color: "var(--muted)" }}>Address is auto-synced from validated Seller GST and cannot be edited separately.</small>
                     </label>
                   </div>
                 </section>
@@ -1289,6 +1302,9 @@ export default function SettingsPage({
                   </div>
                   <div className="settings-two-column">
                     {[
+                      ["show_bank_details", "Show Bank Details in PDF"],
+                      ["show_notes", "Show Notes in PDF"],
+                      ["show_terms", "Show Terms & Conditions in PDF"],
                       ["email_enabled", "Enable Email Sharing"],
                       ["whatsapp_enabled", "Enable WhatsApp Sharing"]
                     ].map(([field, label]) => (

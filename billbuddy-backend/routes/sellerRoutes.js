@@ -3,6 +3,7 @@ const pool = require("../db/db");
 const { requirePlatformAdmin } = require("../middleware/auth");
 const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 const { syncSellerSubscriptionCache, getCurrentSubscription, isSubscriptionExpired, getQuotationWatermark } = require("../services/subscriptionService");
+const { normalizeGstNumber, validateAndFetchGstProfile } = require("../services/gstValidationService");
 const { hashPassword, validatePasswordStrength } = require("../utils/passwords");
 
 const router = express.Router();
@@ -205,7 +206,7 @@ router.get("/me/setup-status", async (req, res) => {
     const sellerRow = sellerResult.rows[0];
 
     const templateResult = await pool.query(
-      `SELECT company_phone, company_email, company_address
+      `SELECT company_phone, company_email
        FROM quotation_templates
        WHERE seller_id = $1
        ORDER BY updated_at DESC, id DESC
@@ -245,7 +246,7 @@ router.get("/me/setup-status", async (req, res) => {
     if (!String(sellerRow.business_name || "").trim()) missingSettings.push("business_name");
     const hasCompanyContact = Boolean(String(template.company_phone || "").trim() || String(template.company_email || "").trim());
     if (!hasCompanyContact) missingSettings.push("company_contact");
-    if (!String(template.company_address || "").trim()) missingSettings.push("company_address");
+    if (!String(sellerRow.business_address || "").trim()) missingSettings.push("company_address");
 
     const settingsCompleted = missingSettings.length === 0;
     const configurationCompleted = profileResult.rowCount > 0 && catalogueFieldCount > 0 && quotationFieldCount > 0;
@@ -288,25 +289,37 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
       return res.status(400).json({ message: "seller context missing" });
     }
 
+    const normalizedSellerGst = normalizeGstNumber(sellerGstNumber);
+    let resolvedBusinessName = businessName !== undefined ? (String(businessName || "").trim() || null) : null;
+    let resolvedBusinessAddress = null;
+
+    if (normalizedSellerGst) {
+      const sellerGstProfile = await validateAndFetchGstProfile(normalizedSellerGst);
+      resolvedBusinessName = String(sellerGstProfile.tradeName || sellerGstProfile.legalName || "").trim() || resolvedBusinessName;
+      resolvedBusinessAddress = String(sellerGstProfile.address || "").trim() || null;
+    }
+
     const result = await pool.query(
       `UPDATE sellers
-       SET theme_key = COALESCE($1, theme_key),
-           brand_primary_color = COALESCE($2, brand_primary_color),
-           business_name = COALESCE($3, business_name),
-           quotation_number_prefix = COALESCE($4, quotation_number_prefix),
-           gst_number = COALESCE($5, gst_number),
-           bank_name = COALESCE($6, bank_name),
-           bank_branch = COALESCE($7, bank_branch),
-           bank_account_no = COALESCE($8, bank_account_no),
-           bank_ifsc = COALESCE($9, bank_ifsc)
-       WHERE id = $10
+       SET theme_key = COALESCE($1::text, theme_key),
+           brand_primary_color = COALESCE($2::text, brand_primary_color),
+           business_name = COALESCE($3::text, business_name),
+           quotation_number_prefix = COALESCE($4::text, quotation_number_prefix),
+           gst_number = COALESCE($5::text, gst_number),
+           business_address = COALESCE($6::text, business_address),
+           bank_name = COALESCE($7::text, bank_name),
+           bank_branch = COALESCE($8::text, bank_branch),
+           bank_account_no = COALESCE($9::text, bank_account_no),
+           bank_ifsc = COALESCE($10::text, bank_ifsc)
+       WHERE id = $11::int
        RETURNING *`,
       [
         themeKey || null,
         brandPrimaryColor || null,
-        businessName !== undefined ? (String(businessName || "").trim() || null) : null,
+        resolvedBusinessName,
         quotationNumberPrefix ? normalizeQuotationPrefix(quotationNumberPrefix) : null,
-        sellerGstNumber ? String(sellerGstNumber).trim().toUpperCase() : null,
+        normalizedSellerGst || null,
+        resolvedBusinessAddress,
         bankName || null,
         bankBranch || null,
         bankAccountNo || null,
@@ -315,9 +328,20 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
       ]
     );
 
+    await pool.query(
+      `UPDATE quotation_templates
+       SET company_address = $1::text,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE seller_id = $2::int`,
+      [result.rows[0]?.business_address || null, req.user.sellerId]
+    );
+
     return res.json({ seller: result.rows[0] });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(error.statusCode || 500).json({
+      message: error.message,
+      field: error.field || (String(error.message || "").toLowerCase().includes("gst") ? "seller_gst_number" : undefined)
+    });
   }
 });
 

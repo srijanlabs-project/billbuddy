@@ -149,6 +149,7 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS record_status VARCHAR(20) DEFAULT 'submitted'`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS customer_monthly_billing BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(10,2) DEFAULT 0`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS gst_mode BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS advance_amount NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS balance_amount NUMERIC(10,2) DEFAULT 0`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS reference_request_id VARCHAR(120)`);
@@ -248,6 +249,9 @@ async function initializeDatabase() {
       accent_color VARCHAR(20) DEFAULT '#2563eb',
       notes_text TEXT,
       terms_text TEXT,
+      show_bank_details BOOLEAN DEFAULT TRUE,
+      show_notes BOOLEAN DEFAULT TRUE,
+      show_terms BOOLEAN DEFAULT TRUE,
       email_enabled BOOLEAN DEFAULT FALSE,
       whatsapp_enabled BOOLEAN DEFAULT TRUE,
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -268,6 +272,12 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20) DEFAULT '#2563eb'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS notes_text TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS terms_text TEXT`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_bank_details BOOLEAN DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_notes BOOLEAN DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_terms BOOLEAN DEFAULT TRUE`);
+  await pool.query(`UPDATE quotation_templates SET show_bank_details = TRUE WHERE show_bank_details IS NULL`);
+  await pool.query(`UPDATE quotation_templates SET show_notes = TRUE WHERE show_notes IS NULL`);
+  await pool.query(`UPDATE quotation_templates SET show_terms = TRUE WHERE show_terms IS NULL`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS message_decode_rules (

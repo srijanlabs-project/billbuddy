@@ -201,6 +201,52 @@ function getEffectiveCustomerGstin(quotation = {}) {
   return String(matchingShippingAddress?.gstNumber || customerGstin || "-").trim().toUpperCase() || "-";
 }
 
+function isGstQuotationActive(quotation = {}) {
+  if (quotation.gst_mode !== undefined && quotation.gst_mode !== null) {
+    return Boolean(quotation.gst_mode);
+  }
+  return Number(quotation.gst_amount || quotation.tax_amount || 0) > 0;
+}
+
+function getCustomerDisplayName(quotation = {}) {
+  return quotation.firm_name || quotation.customer_name || "Customer";
+}
+
+function getCustomerDisplayAddress(quotation = {}) {
+  return String(
+    quotation.customer_address
+    || quotation.address
+    || quotation.delivery_address
+    || "-"
+  ).trim() || "-";
+}
+
+function getCompanyPhoneDisplay(template = {}, seller = {}, quotation = {}) {
+  return String(template?.company_phone || seller?.mobile || quotation?.seller_mobile || "-").trim() || "-";
+}
+
+function isTemplateSectionVisible(template = {}, key, fallback = true) {
+  const raw = template?.[key];
+  if (raw === undefined || raw === null) return fallback;
+  return Boolean(raw);
+}
+
+function getTemplateNotesText(template = {}) {
+  return String(template?.notes_text || "-").trim() || "-";
+}
+
+function getTemplateTermsText(template = {}) {
+  return String(template?.terms_text || "-").trim() || "-";
+}
+
+function normalizeGstin(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isValidGstinFormat(value) {
+  return /^[0-9A-Z]{15}$/.test(normalizeGstin(value));
+}
+
 function enrichQuotationTaxData(quotation = {}, sellerRow = null) {
   return {
     ...quotation,
@@ -859,7 +905,10 @@ function getPuppeteerLaunchArgs() {
 }
 
 function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {} }) {
-  const customerName = quotation.firm_name || quotation.customer_name || "Customer";
+  const customerName = getCustomerDisplayName(quotation);
+  const customerAddress = getCustomerDisplayAddress(quotation);
+  const gstActive = isGstQuotationActive(quotation);
+  const companyPhone = getCompanyPhoneDisplay(template, seller, quotation);
   const quotationNo = getQuotationNumberValue(quotation) || "-";
   const headerImage = template?.show_header_image ? template?.header_image_data : null;
   const showTextHeader = !headerImage;
@@ -867,6 +916,11 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   const sellerName = String(seller?.business_name || seller?.name || "Quotation");
   const documentTitle = normalizeDocumentTitle(template?.header_text || "QUOTATION");
   const sellerAddressLines = String(template?.company_address || "").split(/\r?\n/).filter(Boolean);
+  const showBankDetails = isTemplateSectionVisible(template, "show_bank_details", true);
+  const showNotes = isTemplateSectionVisible(template, "show_notes", true);
+  const showTerms = isTemplateSectionVisible(template, "show_terms", true);
+  const notesText = getTemplateNotesText(template);
+  const termsText = getTemplateTermsText(template);
   const bodyCopy = renderTemplateText(
     template?.body_template || "Dear {{customer_name}}, please find our quotation {{quotation_number}} for your review.",
     quotation
@@ -977,7 +1031,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     .summary { margin-top: 10px; margin-left: auto; width: 320px; border: 1px solid #d1d5db; }
     .summary-row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 10px; border-bottom: 1px solid #e5e7eb; font-size: 11px; }
     .summary-row:last-child { border-bottom: none; font-weight: 700; }
-    .footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
     .footer-card { border: 1px solid #d1d5db; padding: 8px 10px; min-height: 90px; }
     .footer-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; }
     .footer-text { font-size: 10px; line-height: 1.4; color: #374151; }
@@ -994,7 +1048,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
           ${template?.footer_text ? `<div class="seller-sub">${escapeHtml(template.footer_text)}</div>` : ""}
           <div class="seller-meta">
             ${sellerAddressLines.map((line) => `<div>${escapeHtml(line)}</div>`).join("")}
-            ${template?.company_phone ? `<div>Tel: ${escapeHtml(template.company_phone)}</div>` : ""}
+            ${companyPhone && companyPhone !== "-" ? `<div>Tel: ${escapeHtml(companyPhone)}</div>` : ""}
             ${template?.company_email ? `<div>Email: ${escapeHtml(template.company_email)}</div>` : ""}
           </div>
         </div>
@@ -1003,7 +1057,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
     ` : ""}
 
     <div class="titlebar">
-      <div class="left">GSTIN: ${escapeHtml(String(quotation.gstin || "-"))}</div>
+      <div class="left">${gstActive ? `GSTIN: ${escapeHtml(String(quotation.gstin || "-"))}` : ""}</div>
       <div class="center">QUOTATION</div>
       <div class="right">ORIGINAL FOR RECIPIENT</div>
     </div>
@@ -1012,9 +1066,9 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       <div class="card">
         <h4>Customer Detail</h4>
         <div class="line"><strong>M/S:</strong> ${escapeHtml(customerName)}</div>
-        <div class="line"><strong>Address:</strong> ${escapeHtml(toSingleLinePdfValue(quotation.delivery_address || "-", 120))}</div>
+        <div class="line"><strong>Address:</strong> ${escapeHtml(toSingleLinePdfValue(customerAddress, 120))}</div>
         <div class="line"><strong>Phone:</strong> ${escapeHtml(String(quotation.mobile || "-"))}</div>
-        <div class="line"><strong>GSTIN:</strong> ${escapeHtml(String(quotation.customer_gstin || "-"))}</div>
+        ${gstActive ? `<div class="line"><strong>GSTIN:</strong> ${escapeHtml(String(quotation.customer_gstin || "-"))}</div>` : ""}
       </div>
       <div class="card">
         <h4>Quotation Info</h4>
@@ -1057,19 +1111,28 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
       <div class="footer-card">
         <h4>Amount In Words</h4>
         <div class="footer-text">${escapeHtml(amountToWordsIndian(Number(quotation.total_amount || 0)))}</div>
-        <h4 style="margin-top:10px;">Bank Details</h4>
-        <div class="footer-text">
-          <div><strong>Bank Name:</strong> ${escapeHtml(seller?.bank_name || "-")}</div>
-          <div><strong>Branch:</strong> ${escapeHtml(seller?.bank_branch || "-")}</div>
-          <div><strong>Account No:</strong> ${escapeHtml(seller?.bank_account_no || "-")}</div>
-          <div><strong>IFSC:</strong> ${escapeHtml(seller?.bank_ifsc || "-")}</div>
-        </div>
+        ${showBankDetails ? `
+          <h4 style="margin-top:10px;">Bank Details</h4>
+          <div class="footer-text">
+            <div><strong>Bank Name:</strong> ${escapeHtml(seller?.bank_name || "-")}</div>
+            <div><strong>Branch:</strong> ${escapeHtml(seller?.bank_branch || "-")}</div>
+            <div><strong>Account No:</strong> ${escapeHtml(seller?.bank_account_no || "-")}</div>
+            <div><strong>IFSC:</strong> ${escapeHtml(seller?.bank_ifsc || "-")}</div>
+          </div>
+        ` : ""}
       </div>
+      ${showTerms ? `
       <div class="footer-card">
         <h4>Terms & Conditions</h4>
-        <div class="footer-text">${nl2br(template?.terms_text || "-")}</div>
-        ${template?.notes_text ? `<h4 style="margin-top:10px;">Notes</h4><div class="footer-text">${nl2br(template.notes_text)}</div>` : ""}
+        <div class="footer-text">${nl2br(termsText)}</div>
       </div>
+      ` : ""}
+      ${showNotes ? `
+      <div class="footer-card">
+        <h4>Notes</h4>
+        <div class="footer-text">${nl2br(notesText)}</div>
+      </div>
+      ` : ""}
     </div>
 
     <div class="sign">
@@ -1111,6 +1174,11 @@ async function buildHtmlPuppeteerPdf({ quotation, items, template, seller = null
 
 function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
   const accent = template.accent_color || "#2563eb";
+  const showBankDetails = isTemplateSectionVisible(template, "show_bank_details", true);
+  const showNotes = isTemplateSectionVisible(template, "show_notes", true);
+  const showTerms = isTemplateSectionVisible(template, "show_terms", true);
+  const notesText = getTemplateNotesText(template);
+  const termsText = getTemplateTermsText(template);
   const customerName = quotation.firm_name || quotation.customer_name || "Customer";
   const watermarkText = quotation.watermark_text || "";
   const totalsRows = getQuotationSummaryRows({
@@ -1241,19 +1309,19 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
           <div>${escapeHtml(quotation.customer_name || "")}</div>
           <div>${escapeHtml(quotation.mobile || "")}</div>
           <div><strong>Delivery Date:</strong> ${escapeHtml(formatDateIST(quotation.delivery_date) || "-")}</div>
-          <div>${escapeHtml(quotation.delivery_address || "")}</div>
+          <div>${escapeHtml(getCustomerDisplayAddress(quotation) || "")}</div>
           <div>${escapeHtml(quotation.delivery_pincode || "")}</div>
         </div>
         <div class="card">
           <h3>Contact</h3>
           ${template.show_logo_only && template.logo_image_data
             ? `<div><img src="${template.logo_image_data}" alt="Logo" style="max-width:140px;max-height:70px;object-fit:contain;" /></div>
-          <div><strong>Phone:</strong> ${escapeHtml(template.company_phone || "")}</div>
+          <div><strong>Phone:</strong> ${escapeHtml(template.company_phone || quotation.seller_mobile || "")}</div>
           <div><strong>Email:</strong> ${escapeHtml(template.company_email || "")}</div>
           <div><strong>Address:</strong> ${nl2br(template.company_address || "")}</div>`
             : template.show_header_image && template.header_image_data
             ? `<div><img src="${template.header_image_data}" alt="Header" style="max-width:100%;max-height:90px;object-fit:contain;" /></div>`
-            : `<div><strong>Phone:</strong> ${escapeHtml(template.company_phone || "")}</div>
+            : `<div><strong>Phone:</strong> ${escapeHtml(template.company_phone || quotation.seller_mobile || "")}</div>
           <div><strong>Email:</strong> ${escapeHtml(template.company_email || "")}</div>
           <div><strong>Address:</strong> ${nl2br(template.company_address || "")}</div>`}
         </div>
@@ -1275,16 +1343,31 @@ function buildQuotationHtml({ quotation, items, template, pdfColumns }) {
         ${totalsRows.join("")}
       </div>
 
+      ${showBankDetails || showNotes || showTerms ? `
       <div class="footer-grid">
+        ${showBankDetails ? `
+        <div class="card">
+          <h3>Bank Details</h3>
+          <div class="foot-note"><strong>Bank Name:</strong> -</div>
+          <div class="foot-note"><strong>Branch:</strong> -</div>
+          <div class="foot-note"><strong>Account No:</strong> -</div>
+          <div class="foot-note"><strong>IFSC:</strong> -</div>
+        </div>
+        ` : ""}
+        ${showNotes ? `
         <div class="card">
           <h3>Notes</h3>
-          <div class="foot-note">${nl2br(template.notes_text || "")}</div>
+          <div class="foot-note">${nl2br(notesText)}</div>
         </div>
+        ` : ""}
+        ${showTerms ? `
         <div class="card">
           <h3>Terms</h3>
-          <div class="foot-note">${nl2br(template.terms_text || "")}</div>
+          <div class="foot-note">${nl2br(termsText)}</div>
         </div>
+        ` : ""}
       </div>
+      ` : ""}
     </div>
   </div>
 </body>
@@ -1349,11 +1432,11 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
     doc.moveDown(0.2);
     doc.fillColor(labelColor).font("Helvetica").fontSize(11).text(template.footer_text, { width: pageWidth });
   }
-  if (template.company_address || template.company_phone || template.company_email) {
+  if (template.company_address || template.company_phone || template.company_email || quotation.seller_mobile) {
     doc.moveDown(0.5);
     doc.fillColor(labelColor).font("Helvetica").fontSize(10);
     if (template.company_address) doc.text(template.company_address, { width: pageWidth });
-    if (template.company_phone) doc.text(`Phone: ${template.company_phone}`);
+    if (template.company_phone || quotation.seller_mobile) doc.text(`Phone: ${template.company_phone || quotation.seller_mobile}`);
     if (template.company_email) doc.text(`Email: ${template.company_email}`);
   }
 
@@ -1568,7 +1651,14 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules = {}, res, debugLogger }) {
   const doc = new PDFDocument({ size: "A4", margin: 36 });
   const accent = template.accent_color || "#2563eb";
-  const customerName = quotation.firm_name || quotation.customer_name || "Customer";
+  const showNotes = isTemplateSectionVisible(template, "show_notes", true);
+  const showTerms = isTemplateSectionVisible(template, "show_terms", true);
+  const notesText = getTemplateNotesText(template);
+  const termsText = getTemplateTermsText(template);
+  const customerName = getCustomerDisplayName(quotation);
+  const customerAddress = getCustomerDisplayAddress(quotation);
+  const gstActive = isGstQuotationActive(quotation);
+  const companyPhone = getCompanyPhoneDisplay(template, null, quotation);
   const watermarkText = quotation.watermark_text || "";
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const labelColor = "#667085";
@@ -1709,11 +1799,11 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 
   doc.y = Math.max(doc.y, metaCardY + 86);
 
-  if (template.company_address || template.company_phone || template.company_email) {
+  if (template.company_address || template.company_phone || template.company_email || quotation.seller_mobile) {
     doc.moveDown(0.3);
     doc.fillColor(labelColor).font("Helvetica").fontSize(9.5);
     if (template.company_address) doc.text(template.company_address, { width: pageWidth - 180, lineGap: 1 });
-    if (template.company_phone) doc.text(`Phone: ${template.company_phone}`, { width: pageWidth - 180 });
+    if (template.company_phone || quotation.seller_mobile) doc.text(`Phone: ${template.company_phone || quotation.seller_mobile}`, { width: pageWidth - 180 });
     if (template.company_email) doc.text(`Email: ${template.company_email}`, { width: pageWidth - 180 });
   }
 
@@ -2027,45 +2117,35 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
   doc.y = totalsY + totalsBoxHeight + 16;
   debugLogger?.log("totals-done");
 
-  // ---------------------------------------------------------------------------
-  // Notes & Terms
-  // ---------------------------------------------------------------------------
-  debugLogger?.log("notes-start");
-  ensurePageSpace(120);
+  const notesBlocks = [
+    ...(showNotes ? [{ title: "NOTES", body: notesText }] : []),
+    ...(showTerms ? [{ title: "TERMS", body: termsText }] : [])
+  ];
+  if (notesBlocks.length) {
+    debugLogger?.log("notes-start");
+    ensurePageSpace(120);
 
-  const bottomStartY = doc.y;
-  const bottomGap = 14;
-  const bottomBoxW = (pageWidth - bottomGap) / 2;
-  const bottomBoxH = 86;
+    const bottomStartY = doc.y;
+    const bottomGap = 14;
+    const bottomBoxW = notesBlocks.length === 1 ? pageWidth : (pageWidth - bottomGap) / 2;
+    const bottomBoxH = 86;
 
-  drawRoundedBox(doc.page.margins.left, bottomStartY, bottomBoxW, bottomBoxH, "#ffffff", lineColor, 10);
-  drawRoundedBox(doc.page.margins.left + bottomBoxW + bottomGap, bottomStartY, bottomBoxW, bottomBoxH, "#ffffff", lineColor, 10);
-
-  doc.fillColor(labelColor).font("Helvetica-Bold").fontSize(8.5).text("NOTES", doc.page.margins.left + 12, bottomStartY + 10, {
-    width: bottomBoxW - 24
-  });
-  doc.fillColor(textColor).font("Helvetica").fontSize(9.2).text(template.notes_text || "-", doc.page.margins.left + 12, bottomStartY + 24, {
-    width: bottomBoxW - 24,
-    height: 54,
-    lineGap: 2,
-    ellipsis: true
-  });
-  debugLogger?.log("notes-done");
-
-  debugLogger?.log("terms-start");
-  const rightBoxX = doc.page.margins.left + bottomBoxW + bottomGap;
-  doc.fillColor(labelColor).font("Helvetica-Bold").fontSize(8.5).text("TERMS", rightBoxX + 12, bottomStartY + 10, {
-    width: bottomBoxW - 24
-  });
-  doc.fillColor(textColor).font("Helvetica").fontSize(9.2).text(template.terms_text || "-", rightBoxX + 12, bottomStartY + 24, {
-    width: bottomBoxW - 24,
-    height: 54,
-    lineGap: 2,
-    ellipsis: true
-  });
-  debugLogger?.log("terms-done");
-
-  doc.y = bottomStartY + bottomBoxH + 12;
+    notesBlocks.forEach((block, index) => {
+      const blockX = doc.page.margins.left + index * (bottomBoxW + (notesBlocks.length > 1 ? bottomGap : 0));
+      drawRoundedBox(blockX, bottomStartY, bottomBoxW, bottomBoxH, "#ffffff", lineColor, 10);
+      doc.fillColor(labelColor).font("Helvetica-Bold").fontSize(8.5).text(block.title, blockX + 12, bottomStartY + 10, {
+        width: bottomBoxW - 24
+      });
+      doc.fillColor(textColor).font("Helvetica").fontSize(9.2).text(block.body, blockX + 12, bottomStartY + 24, {
+        width: bottomBoxW - 24,
+        height: 54,
+        lineGap: 2,
+        ellipsis: true
+      });
+    });
+    debugLogger?.log("notes-done");
+    doc.y = bottomStartY + bottomBoxH + 12;
+  }
 
   // ---------------------------------------------------------------------------
   // Footer line
@@ -2088,10 +2168,18 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 
 function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {}, res }) {
   const doc = new PDFDocument({ size: "A4", margin: 40 });
-  const customerName = quotation.firm_name || quotation.customer_name || "Customer";
+  const customerName = getCustomerDisplayName(quotation);
+  const customerAddress = getCustomerDisplayAddress(quotation);
+  const gstActive = isGstQuotationActive(quotation);
+  const companyPhone = getCompanyPhoneDisplay(template, seller, quotation);
   const quotationNo = getQuotationNumberValue(quotation) || "-";
   const templatePreset = normalizeTemplatePreset(template?.template_preset);
   const accent = template?.accent_color || "#2563eb";
+  const showBankDetails = isTemplateSectionVisible(template, "show_bank_details", true);
+  const showNotes = isTemplateSectionVisible(template, "show_notes", true);
+  const showTerms = isTemplateSectionVisible(template, "show_terms", true);
+  const notesText = getTemplateNotesText(template);
+  const termsText = getTemplateTermsText(template);
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const leftX = doc.page.margins.left;
   const rightX = leftX + pageWidth - 190;
@@ -2157,7 +2245,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       }
       const companyLines = [
         template?.company_address || null,
-        template?.company_phone ? `Tel: ${template.company_phone}` : null,
+        companyPhone && companyPhone !== "-" ? `Tel: ${companyPhone}` : null,
         template?.company_email ? `Email: ${template.company_email}` : null
       ].filter(Boolean);
       doc.font("Helvetica").fontSize(9.5).fillColor(muted);
@@ -2172,10 +2260,12 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const stripHeight = 28;
     doc.lineWidth(borderWidth);
     doc.rect(leftX, y, pageWidth, stripHeight).fillAndStroke(surface, line);
-    doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 9, {
-      width: pageWidth * 0.42,
-      lineBreak: false
-    });
+    if (gstActive) {
+      doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(`GSTIN: ${quotation.gstin || seller?.gst_number || "-"}`, leftX + 8, y + 9, {
+        width: pageWidth * 0.42,
+        lineBreak: false
+      });
+    }
     doc.text("QUOTATION NO:", leftX + pageWidth * 0.42, y + 9, { width: 102, lineBreak: false });
     doc.font("Helvetica-Bold").fontSize(9.5).fillColor(dark).text(quotationNo, leftX + pageWidth * 0.42 + 88, y + 9, {
       width: 130,
@@ -2198,11 +2288,13 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     doc.font("Helvetica-Bold").fontSize(9.8).fillColor(accent).text("Customer Detail", leftX + 8, y + 8);
     const customerLines = [
       `Name: ${customerName}`,
-      `Address: ${toSingleLinePdfValue(quotation.delivery_address || "-", 70)}`,
+      `Address: ${toSingleLinePdfValue(customerAddress, 70)}`,
       `Phone: ${quotation.mobile || "-"}`,
-      `GSTIN: ${getEffectiveCustomerGstin(quotation) || "-"}`,
       `Place of Supply: ${toSingleLinePdfValue(quotation.delivery_address || "-", 34)}`
     ];
+    if (gstActive) {
+      customerLines.splice(3, 0, `GSTIN: ${getEffectiveCustomerGstin(quotation) || "-"}`);
+    }
     let customerY = y + 24;
     doc.font("Helvetica").fontSize(9.3).fillColor(dark);
     customerLines.forEach((lineText) => {
@@ -2344,41 +2436,87 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     y += totalsHeight + 8;
 
     const lowerHeight = 106;
-    const lowerLeftWidth = Math.floor(pageWidth * 0.62);
-    const lowerRightX = leftX + lowerLeftWidth + 10;
-    const lowerRightWidth = pageWidth - lowerLeftWidth - 10;
     if (y + lowerHeight + 28 > pageBottom) {
       doc.addPage();
       y = doc.page.margins.top;
     }
-    doc.rect(leftX, y, lowerLeftWidth, lowerHeight).fillAndStroke("#ffffff", line);
-    doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).fillAndStroke(surface, line);
+    if (showBankDetails) {
+      const lowerLeftWidth = Math.floor(pageWidth * 0.62);
+      const lowerRightX = leftX + lowerLeftWidth + 10;
+      const lowerRightWidth = pageWidth - lowerLeftWidth - 10;
+      doc.rect(leftX, y, lowerLeftWidth, lowerHeight).fillAndStroke("#ffffff", line);
+      doc.rect(lowerRightX, y, lowerRightWidth, lowerHeight).fillAndStroke(surface, line);
 
-    doc.font("Helvetica-Bold").fontSize(9.3).fillColor(accent).text("Bank Details", leftX + 8, y + 8);
-    const bankLines = [
-      `Bank: ${seller?.bank_name || "-"}`,
-      `Branch: ${seller?.bank_branch || "-"}`,
-      `A/C: ${seller?.bank_account_no || "-"}`,
-      `IFSC: ${seller?.bank_ifsc || "-"}`
-    ];
-    let by = y + 23;
-    bankLines.forEach((lineText) => {
-      doc.font("Helvetica").fontSize(9).fillColor(dark).text(lineText, leftX + 8, by, { width: lowerLeftWidth - 16, lineBreak: false });
-      by += 13;
-    });
+      doc.font("Helvetica-Bold").fontSize(9.3).fillColor(accent).text("Bank Details", leftX + 8, y + 8);
+      const bankLines = [
+        `Bank: ${seller?.bank_name || "-"}`,
+        `Branch: ${seller?.bank_branch || "-"}`,
+        `A/C: ${seller?.bank_account_no || "-"}`,
+        `IFSC: ${seller?.bank_ifsc || "-"}`
+      ];
+      let by = y + 23;
+      bankLines.forEach((lineText) => {
+        doc.font("Helvetica").fontSize(9).fillColor(dark).text(lineText, leftX + 8, by, { width: lowerLeftWidth - 16, lineBreak: false });
+        by += 13;
+      });
 
-    doc.font("Helvetica-Bold").fontSize(9.8).fillColor(dark).text(`For ${sellerName}`, lowerRightX + 8, y + 16, {
-      width: lowerRightWidth - 16,
-      align: "center"
-    });
-    doc.font("Helvetica").fontSize(8.5).fillColor(muted).text("This is computer generated quotation.", lowerRightX + 8, y + 42, {
-      width: lowerRightWidth - 16,
-      align: "center"
-    });
-    doc.font("Helvetica-Bold").fontSize(8.8).fillColor(dark).text("Authorised Signatory", lowerRightX + 8, y + lowerHeight - 18, {
-      width: lowerRightWidth - 16,
-      align: "center"
-    });
+      doc.font("Helvetica-Bold").fontSize(9.8).fillColor(dark).text(`For ${sellerName}`, lowerRightX + 8, y + 16, {
+        width: lowerRightWidth - 16,
+        align: "center"
+      });
+      doc.font("Helvetica").fontSize(8.5).fillColor(muted).text("This is computer generated quotation.", lowerRightX + 8, y + 42, {
+        width: lowerRightWidth - 16,
+        align: "center"
+      });
+      doc.font("Helvetica-Bold").fontSize(8.8).fillColor(dark).text("Authorised Signatory", lowerRightX + 8, y + lowerHeight - 18, {
+        width: lowerRightWidth - 16,
+        align: "center"
+      });
+    } else {
+      doc.rect(leftX, y, pageWidth, lowerHeight).fillAndStroke(surface, line);
+      doc.font("Helvetica-Bold").fontSize(9.8).fillColor(dark).text(`For ${sellerName}`, leftX + 8, y + 16, {
+        width: pageWidth - 16,
+        align: "center"
+      });
+      doc.font("Helvetica").fontSize(8.5).fillColor(muted).text("This is computer generated quotation.", leftX + 8, y + 42, {
+        width: pageWidth - 16,
+        align: "center"
+      });
+      doc.font("Helvetica-Bold").fontSize(8.8).fillColor(dark).text("Authorised Signatory", leftX + 8, y + lowerHeight - 18, {
+        width: pageWidth - 16,
+        align: "center"
+      });
+    }
+    y += lowerHeight + 8;
+
+    const notesSections = [];
+    if (showNotes) notesSections.push({ title: "Notes", body: notesText });
+    if (showTerms) notesSections.push({ title: "Terms & Conditions", body: termsText });
+    if (notesSections.length) {
+      const cardsGap = 10;
+      const cardsCount = notesSections.length;
+      const cardWidth = (pageWidth - cardsGap * (cardsCount - 1)) / cardsCount;
+      const cardHeight = 72;
+      if (y + cardHeight + 16 > pageBottom) {
+        doc.addPage();
+        y = doc.page.margins.top;
+      }
+      notesSections.forEach((section, index) => {
+        const cardX = leftX + index * (cardWidth + cardsGap);
+        doc.rect(cardX, y, cardWidth, cardHeight).fillAndStroke("#ffffff", line);
+        doc.font("Helvetica-Bold").fontSize(9.2).fillColor(accent).text(section.title, cardX + 8, y + 8, {
+          width: cardWidth - 16,
+          lineBreak: false
+        });
+        doc.font("Helvetica").fontSize(8.7).fillColor(dark).text(section.body, cardX + 8, y + 24, {
+          width: cardWidth - 16,
+          height: 40,
+          lineGap: 1,
+          ellipsis: true
+        });
+      });
+      y += cardHeight + 8;
+    }
 
     const footerRaw = String(
       template?.show_footer_image && template?.footer_image_data
@@ -2522,7 +2660,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     doc.font("Helvetica").fontSize(10).fillColor(muted);
     const sellerLines = [
       template?.company_address,
-      template?.company_phone ? `Contact: ${template.company_phone}` : null,
+      (template?.company_phone || quotation?.seller_mobile) ? `Contact: ${template?.company_phone || quotation?.seller_mobile}` : null,
       template?.company_email ? `Email: ${template.company_email}` : null
     ].filter(Boolean);
     let sellerLineY = sellerBlockTop + 58;
@@ -2674,8 +2812,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     y += summaryRows.length * 34 + 30;
 
     const sections = [
-      { title: "Notes", body: template?.notes_text || "-" },
-      { title: "Terms & Conditions", body: template?.terms_text || "-" }
+      ...(showNotes ? [{ title: "Notes", body: notesText }] : []),
+      ...(showTerms ? [{ title: "Terms & Conditions", body: termsText }] : [])
     ];
     sections.forEach((section) => {
       if (y > doc.page.height - doc.page.margins.bottom - 100) {
@@ -2755,7 +2893,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       });
       const contactX = contentLeft + contentWidth - 290;
       const contacts = [
-        template?.company_phone ? `Tel : ${template.company_phone}` : null,
+        (template?.company_phone || quotation?.seller_mobile) ? `Tel : ${template.company_phone || quotation.seller_mobile}` : null,
         sellerName ? `Web : ${String(sellerName).toLowerCase().replace(/\s+/g, "")}.com` : null,
         template?.company_email ? `Email : ${template.company_email}` : null
       ].filter(Boolean);
@@ -2769,7 +2907,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     const titleBarY = doc.y;
     doc.moveTo(contentLeft, titleBarY).lineTo(contentLeft + contentWidth, titleBarY).strokeColor(line).lineWidth(1).stroke();
-    doc.font("Helvetica-Bold").fontSize(10).fillColor(ink).text(`GSTIN : ${quotation.gstin || template?.gstin || "-"}`, contentLeft + 8, titleBarY + 8, { lineBreak: false });
+    if (gstActive) {
+      doc.font("Helvetica-Bold").fontSize(10).fillColor(ink).text(`GSTIN : ${quotation.gstin || template?.gstin || "-"}`, contentLeft + 8, titleBarY + 8, { lineBreak: false });
+    }
     doc.font("Helvetica-Bold").fontSize(10).fillColor(ink).text("QUOTATION", contentLeft + (contentWidth / 2) - 70, titleBarY + 6, {
       width: 140,
       align: "center",
@@ -2977,12 +3117,14 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     drawCell(rightLowerX, lowerTop, rightLowerWidth, 110, "", taxSummaryRows);
 
     const bankTop = lowerTop + 62;
-    drawCell(contentLeft, bankTop, leftLowerWidth, 110, "Bank Details", [
-      { label: "Bank Name", value: seller?.bank_name || "State Bank of India" },
-      { label: "Branch Name", value: seller?.bank_branch || "Main Branch" },
-      { label: "Bank Account Number", value: seller?.bank_account_no || "2000000004512" },
-      { label: "Bank Branch IFSC", value: seller?.bank_ifsc || "SBIN0000488" }
-    ], { titleAlign: "center" });
+    if (showBankDetails) {
+      drawCell(contentLeft, bankTop, leftLowerWidth, 110, "Bank Details", [
+        { label: "Bank Name", value: seller?.bank_name || "State Bank of India" },
+        { label: "Branch Name", value: seller?.bank_branch || "Main Branch" },
+        { label: "Bank Account Number", value: seller?.bank_account_no || "2000000004512" },
+        { label: "Bank Branch IFSC", value: seller?.bank_ifsc || "SBIN0000488" }
+      ], { titleAlign: "center" });
+    }
 
     const certTop = lowerTop + 110;
     drawCell(rightLowerX, certTop, rightLowerWidth, 122, "GST Payable on Reverse Charge", [
@@ -2992,7 +3134,12 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     ], { titleAlign: "left" });
 
     const termsTop = bankTop + 110;
-    drawCell(contentLeft, termsTop, leftLowerWidth, 122, "Terms and Conditions", String(template?.terms_text || "-").split(/\r?\n/).filter(Boolean).map((lineText, index) => `${index + 1}. ${lineText}`), { titleAlign: "center" });
+    if (showTerms) {
+      drawCell(contentLeft, termsTop, leftLowerWidth, 122, "Terms and Conditions", String(termsText).split(/\r?\n/).filter(Boolean).map((lineText, index) => `${index + 1}. ${lineText}`), { titleAlign: "center" });
+    }
+    if (showNotes) {
+      drawCell(contentLeft, termsTop + (showTerms ? 122 : 0), leftLowerWidth, 96, "Notes", String(notesText).split(/\r?\n/).filter(Boolean), { titleAlign: "center" });
+    }
     drawCell(rightLowerX, certTop + 122, rightLowerWidth, 122, "", [
       "This is computer generated quotation.",
       "No signature required.",
@@ -3051,15 +3198,23 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       doc.font("Helvetica").fontSize(10).text(`Advance: Rs ${Number(quotation.advance_amount || 0).toLocaleString("en-IN")}`);
     }
     doc.font("Helvetica-Bold").fontSize(11).text(`Balance Amount: Rs ${Number(quotation.balance_amount || quotation.total_amount || 0).toLocaleString("en-IN")}`);
-    if (template?.notes_text) {
+    if (showBankDetails) {
+      doc.moveDown(0.8);
+      doc.font("Helvetica-Bold").fontSize(10).text("Bank Details");
+      doc.font("Helvetica").fontSize(9.5).text(`Bank: ${seller?.bank_name || "-"}`);
+      doc.font("Helvetica").fontSize(9.5).text(`Branch: ${seller?.bank_branch || "-"}`);
+      doc.font("Helvetica").fontSize(9.5).text(`A/C: ${seller?.bank_account_no || "-"}`);
+      doc.font("Helvetica").fontSize(9.5).text(`IFSC: ${seller?.bank_ifsc || "-"}`);
+    }
+    if (showNotes) {
       doc.moveDown(0.8);
       doc.font("Helvetica-Bold").fontSize(10).text("Notes");
-      doc.font("Helvetica").fontSize(9.5).text(template.notes_text);
+      doc.font("Helvetica").fontSize(9.5).text(notesText);
     }
-    if (template?.terms_text) {
+    if (showTerms) {
       doc.moveDown(0.8);
       doc.font("Helvetica-Bold").fontSize(10).text("Terms");
-      doc.font("Helvetica").fontSize(9.5).text(template.terms_text);
+      doc.font("Helvetica").fontSize(9.5).text(termsText);
     }
     doc.end();
     return;
@@ -3094,7 +3249,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       width: 190,
       align: "right"
     });
-    doc.text(`Phone: ${template?.company_phone || "-"}`, rightX, doc.y + 2, { width: 190, align: "right" });
+    doc.text(`Phone: ${companyPhone || "-"}`, rightX, doc.y + 2, { width: 190, align: "right" });
     doc.text(`Email: ${template?.company_email || "-"}`, rightX, doc.y + 2, { width: 190, align: "right" });
   }
 
@@ -3119,7 +3274,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   doc.font("Helvetica").fontSize(9.5);
   doc.text(customerName, leftX + 12, billTop + 28, { width: cardWidth - 24 });
   doc.text(`Mobile: ${quotation.mobile || "-"}`, leftX + 12, billTop + 43, { width: cardWidth - 24 });
-  doc.text(quotation.delivery_address || "-", leftX + 12, billTop + 58, { width: cardWidth - 24 });
+  doc.text(customerAddress, leftX + 12, billTop + 58, { width: cardWidth - 24 });
   doc.fillColor(dark).font("Helvetica-Bold").fontSize(10).text("Supply / Dispatch", leftX + cardWidth + 26, billTop + 10);
   doc.font("Helvetica").fontSize(9.5);
   doc.text(`Delivery Type: ${quotation.delivery_type || "-"}`, leftX + cardWidth + 26, billTop + 28, { width: cardWidth - 24 });
@@ -3257,8 +3412,14 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   y += summaryRows.length * 18 + 18;
 
   const notesBlocks = [
-    { title: "Notes", body: template?.notes_text || "-" },
-    { title: "Terms & Conditions", body: template?.terms_text || "-" }
+    ...(showNotes ? [{ title: "Notes", body: notesText }] : []),
+    ...(showTerms ? [{ title: "Terms & Conditions", body: termsText }] : []),
+    ...(showBankDetails
+      ? [{
+        title: "Bank Details",
+        body: `Bank: ${seller?.bank_name || "-"}\nBranch: ${seller?.bank_branch || "-"}\nA/C: ${seller?.bank_account_no || "-"}\nIFSC: ${seller?.bank_ifsc || "-"}`
+      }]
+      : [])
   ];
   notesBlocks.forEach((block) => {
     if (y > doc.page.height - doc.page.margins.bottom - 90) {
@@ -3288,7 +3449,7 @@ router.get("/", requirePermission(PERMISSIONS.QUOTATION_SEARCH), async (req, res
     if (tenantId) values.push(tenantId);
 
     const result = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, u.name AS created_by_name
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile, u.name AS created_by_name
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
@@ -3613,7 +3774,7 @@ router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, re
     }
 
     const quotationResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
@@ -3710,7 +3871,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     }
 
     const quotationResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
@@ -3754,7 +3915,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
     );
     debugLogger.log("template-loaded", `hasTemplate=${template.rowCount > 0}`);
     const sellerResult = await pool.query(
-      `SELECT id, name, business_name, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
+      `SELECT id, name, business_name, mobile, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
        FROM sellers
        WHERE id = $1
        LIMIT 1`,
@@ -3779,7 +3940,10 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       show_footer_image: false,
       accent_color: "#737373",
       notes_text: "",
-      terms_text: ""
+      terms_text: "",
+      show_bank_details: true,
+      show_notes: true,
+      show_terms: true
     };
     const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
     const effectiveTemplate = applyTemplateAccessPolicy(tpl, subscription);
@@ -3890,7 +4054,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
     const ccEmail = String(req.body?.ccEmail || "").trim().toLowerCase();
 
     const quotationResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email AS customer_email, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email AS customer_email, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
@@ -3924,7 +4088,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       [quotation.seller_id]
     );
     const sellerResult = await pool.query(
-      `SELECT id, name, business_name, email, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
+      `SELECT id, name, business_name, email, mobile, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
        FROM sellers
        WHERE id = $1
        LIMIT 1`,
@@ -3949,7 +4113,10 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       show_footer_image: false,
       accent_color: "#737373",
       notes_text: "",
-      terms_text: ""
+      terms_text: "",
+      show_bank_details: true,
+      show_notes: true,
+      show_terms: true
     };
     const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
     const effectiveTemplate = applyTemplateAccessPolicy(template, subscription);
@@ -4037,11 +4204,26 @@ router.get("/templates/current", requirePermission(PERMISSIONS.SETTINGS_VIEW), a
     }
 
     const result = await pool.query(
-      `SELECT * FROM quotation_templates WHERE seller_id = $1 AND template_name = 'default' LIMIT 1`,
+      `SELECT qt.*, s.business_address
+       FROM quotation_templates qt
+       LEFT JOIN sellers s ON s.id = qt.seller_id
+       WHERE qt.seller_id = $1
+         AND qt.template_name = 'default'
+       LIMIT 1`,
       [tenantId]
     );
     const subscription = await getCurrentSubscription(pool, tenantId).catch(() => null);
-    res.json(result.rows[0] ? applyTemplateAccessPolicy(result.rows[0], subscription) : null);
+    if (!result.rows[0]) {
+      return res.json(null);
+    }
+    const templateRow = {
+      ...result.rows[0],
+      company_address: String(result.rows[0].business_address || result.rows[0].company_address || "").trim(),
+      show_bank_details: result.rows[0].show_bank_details === undefined || result.rows[0].show_bank_details === null ? true : Boolean(result.rows[0].show_bank_details),
+      show_notes: result.rows[0].show_notes === undefined || result.rows[0].show_notes === null ? true : Boolean(result.rows[0].show_notes),
+      show_terms: result.rows[0].show_terms === undefined || result.rows[0].show_terms === null ? true : Boolean(result.rows[0].show_terms)
+    };
+    return res.json(applyTemplateAccessPolicy(templateRow, subscription));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -4062,7 +4244,6 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       footerText,
       companyPhone,
       companyEmail,
-      companyAddress,
       headerImageData,
       showHeaderImage,
       logoImageData,
@@ -4072,6 +4253,9 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       accentColor,
       notesText,
       termsText,
+      showBankDetails,
+      showNotes,
+      showTerms,
       emailEnabled,
       whatsappEnabled
     } = req.body;
@@ -4088,10 +4272,18 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
     const effectiveTheme = getQuotationThemeConfig(effectiveThemeKey, accentColor || null);
     const effectiveFooterImageData = planTier === "FREE" ? FIXED_FREE_FOOTER_BANNER : (footerImageData || null);
     const effectiveShowFooterImage = planTier === "FREE" ? true : Boolean(showFooterImage);
+    const sellerResult = await pool.query(
+      `SELECT business_address
+       FROM sellers
+       WHERE id = $1::int
+       LIMIT 1`,
+      [tenantId]
+    );
+    const resolvedCompanyAddress = String(sellerResult.rows[0]?.business_address || "").trim() || null;
 
     const result = await pool.query(
-      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, template_theme_key, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, footer_image_data, show_footer_image, accent_color, notes_text, terms_text, email_enabled, whatsapp_enabled)
-       VALUES ($1, 'default', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      `INSERT INTO quotation_templates (seller_id, template_name, template_preset, template_theme_key, header_text, body_template, footer_text, company_phone, company_email, company_address, header_image_data, show_header_image, logo_image_data, show_logo_only, footer_image_data, show_footer_image, accent_color, notes_text, terms_text, show_bank_details, show_notes, show_terms, email_enabled, whatsapp_enabled)
+       VALUES ($1::int, 'default', $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text, $11::boolean, $12::text, $13::boolean, $14::text, $15::boolean, $16::text, $17::text, $18::text, $19::boolean, $20::boolean, $21::boolean, $22::boolean, $23::boolean)
        ON CONFLICT (seller_id, template_name)
        DO UPDATE SET
           template_preset = EXCLUDED.template_preset,
@@ -4111,6 +4303,9 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
           accent_color = EXCLUDED.accent_color,
           notes_text = EXCLUDED.notes_text,
           terms_text = EXCLUDED.terms_text,
+          show_bank_details = EXCLUDED.show_bank_details,
+          show_notes = EXCLUDED.show_notes,
+          show_terms = EXCLUDED.show_terms,
           email_enabled = EXCLUDED.email_enabled,
           whatsapp_enabled = EXCLUDED.whatsapp_enabled,
           updated_at = CURRENT_TIMESTAMP
@@ -4124,7 +4319,7 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
         footerText || null,
         companyPhone || null,
         companyEmail || null,
-        companyAddress || null,
+        resolvedCompanyAddress,
         headerImageData || null,
         Boolean(showHeaderImage),
         logoImageData || null,
@@ -4134,6 +4329,9 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
         effectiveTheme.accent,
         notesText || null,
         termsText || null,
+        showBankDetails === undefined ? true : Boolean(showBankDetails),
+        showNotes === undefined ? true : Boolean(showNotes),
+        showTerms === undefined ? true : Boolean(showTerms),
         Boolean(emailEnabled),
         Boolean(whatsappEnabled)
       ]
@@ -4232,6 +4430,44 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
       }
     }
 
+    const nextGstMode = Object.prototype.hasOwnProperty.call(req.body || {}, "gstMode")
+      ? Boolean(req.body.gstMode)
+      : Boolean(quotation.gst_mode);
+
+    if (nextGstMode) {
+      const gstContextResult = await client.query(
+        `SELECT
+           c.gst_number AS customer_gst_number,
+           c.shipping_addresses AS customer_shipping_addresses,
+           s.gst_number AS seller_gst_number
+         FROM customers c
+         INNER JOIN sellers s ON s.id = c.seller_id
+         WHERE c.id = $1
+           AND c.seller_id = $2
+         LIMIT 1`,
+        [quotation.customer_id, tenantId]
+      );
+      if (gstContextResult.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Customer not found for GST validation." });
+      }
+      const gstContext = gstContextResult.rows[0];
+      if (!isValidGstinFormat(gstContext.seller_gst_number)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Seller GST is required and must be valid for GST quotation." });
+      }
+      const effectiveCustomerGst = getEffectiveCustomerGstin({
+        customer_gst_number: gstContext.customer_gst_number,
+        customer_shipping_addresses: gstContext.customer_shipping_addresses,
+        delivery_address: deliveryAddress,
+        delivery_pincode: deliveryPincode
+      });
+      if (!isValidGstinFormat(effectiveCustomerGst)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Customer GST is required for GST quotation. Add valid customer GST or matching shipping GST." });
+      }
+    }
+
     const normalizedItems = items.map((item) => ({
       product_id: item.productId || item.product_id || null,
       variant_id: item.variantId || item.variant_id || null,
@@ -4263,7 +4499,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const totals = computeQuotationTotals({
       items: displayReadyItems,
       gstPercent: req.body.gstPercent ?? quotation.gst_percent ?? 0,
-      gstMode: Boolean(req.body.gstMode),
+      gstMode: nextGstMode,
       transportCharges: req.body.transportCharges ?? quotation.transport_charges ?? 0,
       designCharges: req.body.designCharges ?? quotation.design_charges ?? 0,
       discountAmount: req.body.discountAmount ?? quotation.discount_amount ?? 0,
@@ -4320,33 +4556,35 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const updateResult = await client.query(
       `UPDATE quotations
        SET subtotal = $1,
-           gst_amount = $2,
-           transport_charges = $3,
-           design_charges = $4,
-           total_amount = $5,
-           discount_amount = $6,
-           advance_amount = $7,
-           balance_amount = $8,
-           reference_request_id = $9,
-           delivery_type = $10,
-           delivery_date = $11,
-           delivery_address = $12,
-           delivery_pincode = $13,
-           transportation_cost = $14,
-           design_cost_confirmed = $15,
-           order_status = $16,
-           payment_status = $17,
-           version_no = $18,
-           custom_quotation_number = $19,
-           approval_required = $20,
-           approval_status = $21,
-           active_approval_request_id = NULL,
-           approved_for_download_at = CASE WHEN $20 THEN CURRENT_TIMESTAMP ELSE NULL END
-       WHERE id = $22 AND seller_id = $23
+            gst_amount = $2,
+            gst_mode = $3,
+            transport_charges = $4,
+            design_charges = $5,
+            total_amount = $6,
+            discount_amount = $7,
+            advance_amount = $8,
+            balance_amount = $9,
+            reference_request_id = $10,
+            delivery_type = $11,
+            delivery_date = $12,
+            delivery_address = $13,
+            delivery_pincode = $14,
+            transportation_cost = $15,
+            design_cost_confirmed = $16,
+            order_status = $17,
+            payment_status = $18,
+            version_no = $19,
+            custom_quotation_number = $20,
+            approval_required = $21,
+            approval_status = $22,
+            active_approval_request_id = NULL,
+            approved_for_download_at = CASE WHEN $21 THEN CURRENT_TIMESTAMP ELSE NULL END
+       WHERE id = $23 AND seller_id = $24
        RETURNING *`,
       [
         totals.subtotal,
         totals.gstAmount,
+        nextGstMode,
         totals.transport,
         totals.design,
         totals.totalAmount,
@@ -4430,7 +4668,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     await client.query("COMMIT");
 
     const detailResult = await pool.query(
-      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number
+      `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.email, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id

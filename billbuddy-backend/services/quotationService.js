@@ -201,6 +201,44 @@ function normalizeDeliveryType(type) {
   return value;
 }
 
+function normalizeComparableAddress(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[.,-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeGstin(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isValidGstinFormat(value) {
+  return /^[0-9A-Z]{15}$/.test(normalizeGstin(value));
+}
+
+function getEffectiveCustomerGstinForQuotation(customer = {}, deliveryAddress = "", deliveryPincode = "") {
+  const customerGstin = normalizeGstin(customer.gst_number);
+  const shippingAddresses = Array.isArray(customer.shipping_addresses) ? customer.shipping_addresses : [];
+  const normalizedDeliveryAddress = normalizeComparableAddress(deliveryAddress);
+  const normalizedDeliveryPincode = String(deliveryPincode || "").trim();
+
+  const matchingShippingAddress = shippingAddresses.find((entry) => {
+    const shippingGstin = normalizeGstin(entry?.gstNumber || "");
+    if (!shippingGstin) return false;
+    const entryAddress = normalizeComparableAddress(entry?.address);
+    const entryPincode = String(entry?.pincode || "").trim();
+    return (
+      (normalizedDeliveryAddress && entryAddress && normalizedDeliveryAddress === entryAddress) ||
+      (normalizedDeliveryPincode && entryPincode && normalizedDeliveryPincode === entryPincode)
+    );
+  });
+
+  return normalizeGstin(matchingShippingAddress?.gstNumber || customerGstin);
+}
+
 function normalizeQuotationItems(items = []) {
   return (items || []).map((item) => {
     const quantity = toAmount(item.quantity);
@@ -1152,7 +1190,10 @@ async function createQuotationWithItems(payload) {
     const unitConversionMap = await getPlatformUnitConversionMap(client);
 
     const customerCheck = await client.query(
-      `SELECT id FROM customers WHERE id = $1 AND seller_id = $2 LIMIT 1`,
+      `SELECT id, gst_number, shipping_addresses
+       FROM customers
+       WHERE id = $1 AND seller_id = $2
+       LIMIT 1`,
       [customerId, sellerId]
     );
     if (customerCheck.rowCount === 0) {
@@ -1170,6 +1211,27 @@ async function createQuotationWithItems(payload) {
       }
     }
 
+    const nextGstMode = Boolean(gstMode);
+    if (nextGstMode) {
+      const sellerResult = await client.query(
+        `SELECT gst_number
+         FROM sellers
+         WHERE id = $1
+         LIMIT 1`,
+        [sellerId]
+      );
+      const sellerGstin = normalizeGstin(sellerResult.rows[0]?.gst_number || "");
+      if (!isValidGstinFormat(sellerGstin)) {
+        throw new Error("Seller GST is required and must be valid for GST quotation.");
+      }
+
+      const customerRow = customerCheck.rows[0] || {};
+      const effectiveCustomerGstin = getEffectiveCustomerGstinForQuotation(customerRow, deliveryAddress, deliveryPincode);
+      if (!isValidGstinFormat(effectiveCustomerGstin)) {
+        throw new Error("Customer GST is required for GST quotation. Add valid customer GST or matching shipping GST.");
+      }
+    }
+
     const normalizedItems = normalizeQuotationItems(items);
     const computedItems = applyComputedQuotationFields(normalizedItems, customColumns, { unitConversionMap });
     validateCustomQuotationFields(computedItems, customColumns);
@@ -1178,7 +1240,7 @@ async function createQuotationWithItems(payload) {
       computeQuotationTotals({
         items: displayReadyItems,
         gstPercent,
-        gstMode: Boolean(gstMode),
+        gstMode: nextGstMode,
         transportCharges: toAmount(transportCharges) + toAmount(transportationCost),
         designCharges,
         discountAmount,
@@ -1201,8 +1263,8 @@ async function createQuotationWithItems(payload) {
 
     const quotationResult = await client.query(
       `INSERT INTO quotations
-       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, reference_request_id, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, FALSE, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, gst_mode, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, reference_request_id, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, FALSE, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
        RETURNING *`,
       [
         quotationNumber,
@@ -1214,6 +1276,7 @@ async function createQuotationWithItems(payload) {
         createdBy || null,
         subtotal,
         gstAmount,
+        nextGstMode,
         transport,
         design,
         totalAmount,

@@ -3488,6 +3488,9 @@ function App() {
     accent_color: "#737373",
     notes_text: "Delivery and installation charges are extra unless mentioned.",
     terms_text: "Payment terms and final scope will be confirmed at quotation stage.",
+    show_bank_details: true,
+    show_notes: true,
+    show_terms: true,
     email_enabled: false,
     whatsapp_enabled: true
   });
@@ -5512,7 +5515,6 @@ function App() {
           footerText: quotationTemplate.footer_text,
           companyPhone: quotationTemplate.company_phone,
           companyEmail: quotationTemplate.company_email,
-          companyAddress: quotationTemplate.company_address,
           headerImageData: quotationTemplate.header_image_data,
           showHeaderImage: quotationTemplate.show_header_image,
           logoImageData: quotationTemplate.logo_image_data,
@@ -5522,6 +5524,9 @@ function App() {
           accentColor: quotationTemplate.accent_color,
           notesText: quotationTemplate.notes_text,
           termsText: quotationTemplate.terms_text,
+          showBankDetails: quotationTemplate.show_bank_details,
+          showNotes: quotationTemplate.show_notes,
+          showTerms: quotationTemplate.show_terms,
           emailEnabled: quotationTemplate.email_enabled,
           whatsappEnabled: quotationTemplate.whatsapp_enabled
         })
@@ -6175,7 +6180,6 @@ function App() {
           footerText: quotationTemplate.footer_text,
           companyPhone: quotationTemplate.company_phone,
           companyEmail: quotationTemplate.company_email,
-          companyAddress: quotationTemplate.company_address,
           headerImageData: quotationTemplate.header_image_data,
           showHeaderImage: quotationTemplate.show_header_image,
           logoImageData: quotationTemplate.logo_image_data,
@@ -6185,6 +6189,9 @@ function App() {
           accentColor: quotationTemplate.accent_color,
           notesText: quotationTemplate.notes_text,
           termsText: quotationTemplate.terms_text,
+          showBankDetails: quotationTemplate.show_bank_details,
+          showNotes: quotationTemplate.show_notes,
+          showTerms: quotationTemplate.show_terms,
           emailEnabled: quotationTemplate.email_enabled,
           whatsappEnabled: quotationTemplate.whatsapp_enabled
         })
