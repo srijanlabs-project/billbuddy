@@ -74,7 +74,7 @@ export default function DashboardPage(props) {
     dashboardData,
     QUICK_ACTIONS,
     openQuotationWizard,
-    setShowCustomerModal,
+    openCreateCustomerModal,
     dashboardRange,
     setDashboardRange,
     chartSeries,
@@ -322,7 +322,7 @@ export default function DashboardPage(props) {
                   disabled={(action === "Create Quotation" && !canCreateQuotation) || (action === "Add Customer" && !canCreateCustomer)}
                   onClick={() => {
                     if (action === "Create Quotation") openQuotationWizard();
-                    if (action === "Add Customer") setShowCustomerModal(true);
+                    if (action === "Add Customer") openCreateCustomerModal();
                   }}
                 >
                   {action}

@@ -2,8 +2,12 @@ export default function CustomersPage(props) {
   const {
     activeModule,
     customers,
-    setShowCustomerModal,
+    openCreateCustomerModal,
+    handleEditCustomer,
     canCreateCustomer,
+    canEditCustomer,
+    isSubUser,
+    currentUserId,
     pagedCustomers,
     customerPage,
     setCustomerPage,
@@ -31,7 +35,7 @@ export default function CustomersPage(props) {
         <div className="toolbar-controls">
           <span>{customers.length} total</span>
           {canCreateCustomer && (
-            <button type="button" className="action-btn" onClick={() => setShowCustomerModal(true)}>Add Customer</button>
+            <button type="button" className="action-btn" onClick={openCreateCustomerModal}>Add Customer</button>
           )}
         </div>
       </div>
@@ -46,12 +50,13 @@ export default function CustomersPage(props) {
             <th>Address</th>
             <th>GST</th>
             <th>Shipping Points</th>
+            {canEditCustomer && <th>Actions</th>}
           </tr>
         </thead>
         <tbody>
           {customers.length === 0 ? (
             <tr>
-              <td colSpan="8" className="muted">No customers found yet.</td>
+              <td colSpan={canEditCustomer ? 9 : 8} className="muted">No customers found yet.</td>
             </tr>
           ) : (
             pagedCustomers.map((customer, index) => (
@@ -64,6 +69,17 @@ export default function CustomersPage(props) {
                 <td>{customer.address || "-"}</td>
                 <td>{customer.gst_number || "-"}</td>
                 <td>{Array.isArray(customer.shipping_addresses) ? customer.shipping_addresses.length : 0}</td>
+                {canEditCustomer && (
+                  <td>
+                    {!isSubUser || Number(customer.created_by_user_id || 0) === Number(currentUserId || 0) ? (
+                      <button type="button" className="ghost-btn compact-btn" onClick={() => handleEditCustomer(customer)}>
+                        Edit
+                      </button>
+                    ) : (
+                      <span className="muted">-</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))
           )}

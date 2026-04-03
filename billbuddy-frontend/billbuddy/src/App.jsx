@@ -3604,6 +3604,7 @@ function App() {
   });
   const [customerShippingGstValidation, setCustomerShippingGstValidation] = useState({});
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showUserEditModal, setShowUserEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
@@ -3644,6 +3645,7 @@ function App() {
   const canMarkPaid = !isPlatformAdmin && hasPermission(PERMISSION_KEYS.quotationMarkPaid);
   const canViewCustomers = hasPermission(PERMISSION_KEYS.customerView);
   const canCreateCustomer = hasPermission(PERMISSION_KEYS.customerCreate);
+  const canEditCustomer = hasPermission(PERMISSION_KEYS.customerEdit);
   const canViewProducts = hasPermission(PERMISSION_KEYS.productView);
   const canCreateProduct = hasPermission(PERMISSION_KEYS.productCreate);
   const canEditProduct = hasPermission(PERMISSION_KEYS.productEdit);
@@ -5066,24 +5068,61 @@ function App() {
     }
   }
 
+  function openCreateCustomerModal() {
+    setEditingCustomerId(null);
+    setCustomerForm(createInitialCustomerForm());
+    setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+    setCustomerShippingGstValidation({});
+    setShowCustomerModal(true);
+  }
+
+  function handleEditCustomer(customer) {
+    if (!customer || !canEditCustomer) return;
+    const shippingAddresses = Array.isArray(customer.shipping_addresses) && customer.shipping_addresses.length
+      ? customer.shipping_addresses.map((entry) => ({
+          label: String(entry?.label || ""),
+          address: String(entry?.address || ""),
+          state: String(entry?.state || ""),
+          pincode: String(entry?.pincode || ""),
+          gstNumber: String(entry?.gstNumber || "").toUpperCase()
+        }))
+      : [createEmptyShippingAddress()];
+
+    setEditingCustomerId(customer.id);
+    setCustomerForm({
+      name: customer.name || "",
+      firmName: customer.firm_name || "",
+      mobile: customer.mobile || "",
+      email: customer.email || "",
+      address: customer.address || "",
+      gstNumber: customer.gst_number || "",
+      monthlyBilling: Boolean(customer.monthly_billing),
+      shippingAddresses
+    });
+    setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+    setCustomerShippingGstValidation({});
+    setShowCustomerModal(true);
+  }
+
   async function handleCreateCustomer(event) {
     event.preventDefault();
     setError("");
 
-    if (!canCreateCustomer) {
-      setError("You do not have permission to create customers.");
+    if (editingCustomerId ? !canEditCustomer : !canCreateCustomer) {
+      setError(editingCustomerId ? "You do not have permission to edit customers." : "You do not have permission to create customers.");
       return;
     }
 
     try {
-      await apiFetch("/api/customers", {
-        method: "POST",
+      await apiFetch(editingCustomerId ? `/api/customers/${editingCustomerId}` : "/api/customers", {
+        method: editingCustomerId ? "PATCH" : "POST",
         body: JSON.stringify(customerForm)
       });
 
       const customerRows = await apiFetch("/api/customers");
       setCustomers(customerRows);
       setCustomerForm(createInitialCustomerForm());
+      setEditingCustomerId(null);
       setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
       setCustomerShippingGstValidation({});
       setShowCustomerModal(false);
@@ -5179,6 +5218,8 @@ function App() {
 
   function closeCustomerModal() {
     setShowCustomerModal(false);
+    setEditingCustomerId(null);
+    setCustomerForm(createInitialCustomerForm());
     setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
     setCustomerShippingGstValidation({});
   }
@@ -7132,8 +7173,12 @@ function App() {
           <CustomersPage
             activeModule={activeModule}
             customers={customers}
-            setShowCustomerModal={setShowCustomerModal}
+            openCreateCustomerModal={openCreateCustomerModal}
+            handleEditCustomer={handleEditCustomer}
             canCreateCustomer={canCreateCustomer}
+            canEditCustomer={canEditCustomer}
+            isSubUser={isSubUser}
+            currentUserId={auth?.user?.id}
             pagedCustomers={pagedCustomers}
             customerPage={customerPage}
             setCustomerPage={setCustomerPage}
@@ -7274,7 +7319,7 @@ function App() {
             dashboardData={dashboardData}
             QUICK_ACTIONS={QUICK_ACTIONS}
             openQuotationWizard={openQuotationWizardWithSetupGuard}
-            setShowCustomerModal={setShowCustomerModal}
+            openCreateCustomerModal={openCreateCustomerModal}
             dashboardRange={dashboardRange}
             setDashboardRange={setDashboardRange}
             chartSeries={chartSeries}
@@ -7369,7 +7414,7 @@ function App() {
           <div className="modal-overlay" onClick={closeCustomerModal}>
             <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
               <div className="section-head">
-                <h3>Create Customer</h3>
+                <h3>{editingCustomerId ? "Edit Customer" : "Create Customer"}</h3>
                 <button type="button" className="ghost-btn" onClick={closeCustomerModal}>Close</button>
               </div>
               {error && <div className="notice error">{error}</div>}
@@ -7477,7 +7522,7 @@ function App() {
                   <input type="checkbox" checked={customerForm.monthlyBilling} onChange={(e) => setCustomerForm((prev) => ({ ...prev, monthlyBilling: e.target.checked }))} style={{ width: "auto" }} />
                   Monthly Billing
                 </label>
-                <button type="submit">Save Customer</button>
+                <button type="submit">{editingCustomerId ? "Update Customer" : "Save Customer"}</button>
               </form>
             </div>
           </div>

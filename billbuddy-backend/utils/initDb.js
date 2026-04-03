@@ -109,6 +109,9 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email VARCHAR(200)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS monthly_billing BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS shipping_addresses JSONB DEFAULT '[]'::jsonb`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER REFERENCES users(id)`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_by_user_id INTEGER REFERENCES users(id)`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
 
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(80)`);
@@ -404,6 +407,20 @@ async function initializeDatabase() {
       watermark_text TEXT,
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS customer_audit_logs (
+      id SERIAL PRIMARY KEY,
+      customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+      seller_id INTEGER REFERENCES sellers(id) ON DELETE CASCADE,
+      actor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action_key VARCHAR(60) NOT NULL,
+      before_state JSONB,
+      after_state JSONB,
+      changed_fields JSONB DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
   `);
   await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS plan_access_type VARCHAR(20) NOT NULL DEFAULT 'FREE'`);
@@ -1090,6 +1107,7 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_mobile ON users(mobile)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_approval_mode ON users(approval_mode)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_customers_seller_id ON customers(seller_id)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_customers_seller_created_by ON customers(seller_id, created_by_user_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_products_seller_id ON products(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotations_seller_id ON quotations(seller_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotations_approval_status ON quotations(seller_id, approval_status, created_at DESC)`);
@@ -1113,12 +1131,23 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_approval_reasons_request ON quotation_approval_reasons(approval_request_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_audit_logs_user_created ON mobile_audit_logs(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_actor_created ON platform_audit_logs(actor_user_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_customer_audit_logs_customer_created ON customer_audit_logs(customer_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_customer_audit_logs_seller_created ON customer_audit_logs(seller_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_roles_scope_order ON rbac_roles(scope, display_order, id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_role_permissions_role ON rbac_role_permissions(role_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_security_go_live_gates_status ON security_go_live_gates(status)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_security_go_live_gates_priority ON security_go_live_gates(priority)`);
 
   await seedRbacRolesAndPermissions(pool);
+
+  await pool.query(`
+    INSERT INTO rbac_role_permissions (role_id, permission_key)
+    SELECT rr.id, 'customer.edit'
+    FROM rbac_roles rr
+    WHERE rr.scope = 'seller'
+      AND rr.role_key IN ('sub_user', 'seller_user')
+    ON CONFLICT (role_id, permission_key) DO NOTHING
+  `);
 }
 
 module.exports = {
