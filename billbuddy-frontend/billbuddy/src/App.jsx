@@ -40,6 +40,7 @@ import samsonaLogo from "./assets/Samsona_Services_Logo_Transparent.png";
 import srijanLabsLogo from "./assets/Srijan_Labs.png";
 import srijanHero from "./assets/srijan_hero.png";
 import spanLogo from "./assets/span.jpeg";
+import quotsyLogo from "./assets/logo.png";
 
 const REMEMBER_ME_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 const AUTH_STORAGE_KEY = "billbuddyAuth";
@@ -82,7 +83,10 @@ const THEME_OPTIONS = [
   { value: "matte-blue", label: "Matte Blue" },
   { value: "sky-blue", label: "Sky Blue" },
   { value: "deep-ocean", label: "Deep Ocean" },
-  { value: "cobalt-frost", label: "Cobalt Frost" }
+  { value: "cobalt-frost", label: "Cobalt Frost" },
+  { value: "minimal-mist", label: "Minimal Mist" },
+  { value: "minimal-graphite", label: "Minimal Graphite" },
+  { value: "minimal-sand", label: "Minimal Sand" }
 ];
 
 const SELLER_STATUS_OPTIONS = [
@@ -2206,11 +2210,7 @@ function PublicPageHeader({ activePath }) {
       <div className="labs-topbar-inner public-page-topbar-inner">
         <a className="public-page-brand" href="/" aria-label="Go to Quotsy home">
           <div className="brand-block public-page-brand-lockup">
-            <div className="brand-dot" />
-            <div>
-              <h2>Quotsy</h2>
-              <p>Quotation workflows for growing MSMEs</p>
-            </div>
+            <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogo} alt="Quotsy" />
           </div>
         </a>
         <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
@@ -6739,11 +6739,7 @@ function App() {
       </div>
       <aside className="sidebar glass-panel">
         <div className="brand-block">
-          <div className="brand-dot" />
-          <div>
-            <h2>{isPlatformAdmin ? "Quotsy Platform" : "Quotsy"}</h2>
-            <p>{isPlatformAdmin ? "Control Plane" : (seller?.name || "Seller Workspace")}</p>
-          </div>
+          <img className="quotsy-brand-logo" src={quotsyLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
         </div>
 
         <nav className="nav-list">
@@ -6806,8 +6802,7 @@ function App() {
           <div className={`topbar-main ${!isPlatformAdmin ? "topbar-main-seller" : ""}`}>
             {!isPlatformAdmin && (
               <div className="topbar-intro">
-                <p className="eyebrow">Seller Workspace</p>
-                <h1>{seller?.name || "Seller Workspace"}</h1>
+                <h1>{seller?.name || "Seller"}</h1>
               </div>
             )}
             {!isSubUser && canSearchQuotation && (
