@@ -338,9 +338,12 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
 
     return res.json({ seller: result.rows[0] });
   } catch (error) {
+    const normalizedField = error.field === "gstNumber"
+      ? "seller_gst_number"
+      : error.field;
     return res.status(error.statusCode || 500).json({
       message: error.message,
-      field: error.field || (String(error.message || "").toLowerCase().includes("gst") ? "seller_gst_number" : undefined)
+      field: normalizedField || (String(error.message || "").toLowerCase().includes("gst") ? "seller_gst_number" : undefined)
     });
   }
 });
@@ -444,6 +447,15 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
       return res.status(400).json({ message: "name and sellerCode are required" });
     }
 
+    const normalizedSellerGst = normalizeGstNumber(gstNumber);
+    let resolvedBusinessName = String(businessName || "").trim() || null;
+    let resolvedBusinessAddress = String(businessAddress || "").trim() || null;
+    if (normalizedSellerGst) {
+      const sellerGstProfile = await validateAndFetchGstProfile(normalizedSellerGst);
+      resolvedBusinessName = String(sellerGstProfile.tradeName || sellerGstProfile.legalName || "").trim() || resolvedBusinessName;
+      resolvedBusinessAddress = String(sellerGstProfile.address || "").trim() || resolvedBusinessAddress;
+    }
+
     await client.query("BEGIN");
 
     const sellerResult = await client.query(
@@ -452,11 +464,11 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
        RETURNING *`,
       [
         name,
-        businessName || null,
+        resolvedBusinessName,
         mobile || null,
         email || null,
-        gstNumber || null,
-        businessAddress || null,
+        normalizedSellerGst || null,
+        resolvedBusinessAddress,
         city || null,
         state || null,
         businessCategory || null,
@@ -612,7 +624,13 @@ router.post("/", requirePermission(PERMISSIONS.SELLER_CREATE), requirePlatformAd
     if (error.code === "23505") {
       return res.status(409).json({ message: "Seller code or mobile already exists" });
     }
-    return res.status(500).json({ message: error.message });
+    const normalizedField = error.field === "gstNumber"
+      ? "seller_gst_number"
+      : error.field;
+    return res.status(error.statusCode || 500).json({
+      message: error.message,
+      field: normalizedField || (String(error.message || "").toLowerCase().includes("gst") ? "seller_gst_number" : undefined)
+    });
   } finally {
     client.release();
   }

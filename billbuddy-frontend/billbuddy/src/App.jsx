@@ -3929,6 +3929,16 @@ function App() {
     }
   }
 
+  async function refreshSellerSetupStatus() {
+    if (!auth?.token || isPlatformAdmin || isSubUser) return;
+    try {
+      const setupStatusResponse = await apiFetch("/api/sellers/me/setup-status").catch(() => null);
+      setSellerSetupStatus(setupStatusResponse);
+    } catch (_error) {
+      // Keep existing setup status if refresh fails.
+    }
+  }
+
   async function loadSellerSettings() {
     try {
       const [response, configResponse, setupStatusResponse] = await Promise.all([
@@ -4575,6 +4585,7 @@ function App() {
     handleApiError,
     setCurrentSellerConfiguration,
     setError,
+    refreshSellerSetupStatus,
     parseOptionsInput
   });
 
@@ -5541,6 +5552,7 @@ function App() {
           ...savedTemplate
         }));
       }
+      await refreshSellerSetupStatus();
       setError("Settings updated successfully.");
     } catch (err) {
       handleApiError(err);
@@ -6171,7 +6183,7 @@ function App() {
       return;
     }
     try {
-      await apiFetch("/api/quotations/templates/current", {
+      const savedTemplate = await apiFetch("/api/quotations/templates/current", {
         method: "PUT",
         body: JSON.stringify({
           templatePreset: quotationTemplate.template_preset,
@@ -6197,6 +6209,13 @@ function App() {
           whatsappEnabled: quotationTemplate.whatsapp_enabled
         })
       });
+      if (savedTemplate) {
+        setQuotationTemplate((prev) => ({
+          ...prev,
+          ...savedTemplate
+        }));
+      }
+      await refreshSellerSetupStatus();
       setError("Quotation format updated.");
     } catch (err) {
       handleApiError(err);

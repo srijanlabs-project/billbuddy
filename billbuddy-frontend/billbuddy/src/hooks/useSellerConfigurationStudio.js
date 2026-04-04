@@ -10,6 +10,7 @@ export default function useSellerConfigurationStudio({
   handleApiError,
   setCurrentSellerConfiguration,
   setError,
+  refreshSellerSetupStatus,
   parseOptionsInput
 }) {
   const [selectedSellerConfigSeller, setSelectedSellerConfigSeller] = useState(null);
@@ -130,6 +131,9 @@ export default function useSellerConfigurationStudio({
       }));
       if (!isPlatformAdmin && seller?.id === configurationStudioSeller.id) {
         setCurrentSellerConfiguration(response.config || null);
+        if (typeof refreshSellerSetupStatus === "function") {
+          await refreshSellerSetupStatus();
+        }
       }
       setError(response.message || "Seller configuration published.");
     } catch (err) {
