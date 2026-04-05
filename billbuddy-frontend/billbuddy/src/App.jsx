@@ -40,7 +40,8 @@ import samsonaLogo from "./assets/Samsona_Services_Logo_Transparent.png";
 import srijanLabsLogo from "./assets/Srijan_Labs.png";
 import srijanHero from "./assets/srijan_hero.png";
 import spanLogo from "./assets/span.jpeg";
-import quotsyLogo from "./assets/logo.png";
+import quotsyLogo from "./assets/quotsy_logo.svg";
+import quotsyLogoDark from "./assets/quotsy_logo_dark.svg";
 
 const REMEMBER_ME_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 const AUTH_STORAGE_KEY = "billbuddyAuth";
@@ -2210,7 +2211,7 @@ function PublicPageHeader({ activePath }) {
       <div className="labs-topbar-inner public-page-topbar-inner">
         <a className="public-page-brand" href="/" aria-label="Go to Quotsy home">
           <div className="brand-block public-page-brand-lockup">
-            <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogo} alt="Quotsy" />
+            <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogoDark} alt="Quotsy" />
           </div>
         </a>
         <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
@@ -3706,6 +3707,7 @@ function App() {
   };
   const isModuleSetupLocked = (module) => Boolean(getModuleSetupLockMessage(module));
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
+  const sidebarBrandLogo = ["deep-ocean", "cobalt-frost"].includes(theme) ? quotsyLogo : quotsyLogoDark;
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
   const publicVisitorHelpPaths = new Set(["/user-guide", "/visitor-help", "/visitor-faqs"]);
@@ -6739,7 +6741,7 @@ function App() {
       </div>
       <aside className="sidebar glass-panel">
         <div className="brand-block">
-          <img className="quotsy-brand-logo" src={quotsyLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
+          <img className="quotsy-brand-logo" src={sidebarBrandLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
           <div className="brand-text">
             <h2>{isPlatformAdmin ? "Quotsy Platform" : "Quotsy"}</h2>
             <p>{isPlatformAdmin ? "Control Plane" : (seller?.name || "Seller")}</p>
