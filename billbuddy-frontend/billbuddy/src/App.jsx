@@ -6740,6 +6740,10 @@ function App() {
       <aside className="sidebar glass-panel">
         <div className="brand-block">
           <img className="quotsy-brand-logo" src={quotsyLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
+          <div className="brand-text">
+            <h2>{isPlatformAdmin ? "Quotsy Platform" : "Quotsy"}</h2>
+            <p>{isPlatformAdmin ? "Control Plane" : (seller?.name || "Seller")}</p>
+          </div>
         </div>
 
         <nav className="nav-list">

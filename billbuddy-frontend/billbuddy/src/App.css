@@ -2887,6 +2887,15 @@ button:disabled {
   width: min(100%, 260px);
 }
 
+.sidebar .quotsy-brand-logo {
+  width: 96px;
+  flex: 0 0 auto;
+}
+
+.brand-text {
+  min-width: 0;
+}
+
 .brand-dot {
   width: 22px;
   height: 22px;
