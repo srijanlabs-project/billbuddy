@@ -1,5 +1,25 @@
 import { useState } from "react";
 
+const IST_DAY_KEY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Kolkata",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit"
+});
+
+function toIstDayKey(value) {
+  if (!value) return "";
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return IST_DAY_KEY_FORMATTER.format(parsed);
+}
+
+function shiftDateByDays(value, offsetDays) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + offsetDays);
+  return next;
+}
+
 function SentStatusIcon({ sent }) {
   if (sent) {
     return (
@@ -87,29 +107,24 @@ function QuotsyDashboardDesignPreview({
   const periodLabel = periodLabelMap[dashboardRange] || "Selected Period";
 
   const now = new Date();
-  now.setHours(23, 59, 59, 999);
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const yesterdayStart = new Date(todayStart);
-  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-  const last7Start = new Date(todayStart);
-  last7Start.setDate(last7Start.getDate() - 6);
-  const last30Start = new Date(todayStart);
-  last30Start.setDate(last30Start.getDate() - 29);
+  const todayKey = toIstDayKey(now);
+  const yesterdayKey = toIstDayKey(shiftDateByDays(now, -1));
+  const last7StartKey = toIstDayKey(shiftDateByDays(now, -6));
+  const last30StartKey = toIstDayKey(shiftDateByDays(now, -29));
 
   const rangeFilteredQuotations = (quotations || []).filter((quotation) => {
-    const createdAt = quotation?.created_at ? new Date(quotation.created_at) : null;
-    if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+    const createdDayKey = toIstDayKey(quotation?.created_at);
+    if (!createdDayKey) return false;
     if (dashboardRange === "yesterday") {
-      return createdAt >= yesterdayStart && createdAt < todayStart;
+      return createdDayKey === yesterdayKey;
     }
     if (dashboardRange === "last7") {
-      return createdAt >= last7Start && createdAt <= now;
+      return createdDayKey >= last7StartKey && createdDayKey <= todayKey;
     }
     if (dashboardRange === "last30") {
-      return createdAt >= last30Start && createdAt <= now;
+      return createdDayKey >= last30StartKey && createdDayKey <= todayKey;
     }
-    return createdAt >= todayStart && createdAt <= now;
+    return createdDayKey === todayKey;
   });
 
   const periodQuotationsCount = rangeFilteredQuotations.length;
@@ -121,11 +136,8 @@ function QuotsyDashboardDesignPreview({
 
   const deliveryCounts = dashboardData?.deliveriesNext3Days || [];
   const deliveryByDay = [0, 1, 2].map((offset) => {
-    const keyDate = new Date();
-    keyDate.setHours(0, 0, 0, 0);
-    keyDate.setDate(keyDate.getDate() + offset);
-    const key = keyDate.toISOString().slice(0, 10);
-    const matched = deliveryCounts.find((entry) => String(entry.day || "").slice(0, 10) === key);
+    const key = toIstDayKey(shiftDateByDays(now, offset));
+    const matched = deliveryCounts.find((entry) => toIstDayKey(entry.day) === key);
     return Number(matched?.count || 0);
   });
   const totalDelivery3Days = deliveryByDay.reduce((sum, value) => sum + value, 0);
@@ -168,9 +180,8 @@ function QuotsyDashboardDesignPreview({
 
   const trendMap = new Map();
   rangeFilteredQuotations.forEach((quotation) => {
-    const createdAt = quotation?.created_at ? new Date(quotation.created_at) : null;
-    if (!createdAt || Number.isNaN(createdAt.getTime())) return;
-    const key = createdAt.toISOString().slice(0, 10);
+    const key = toIstDayKey(quotation?.created_at);
+    if (!key) return;
     const existing = trendMap.get(key) || { count: 0, value: 0 };
     trendMap.set(key, {
       count: Number(existing.count || 0) + 1,
@@ -180,24 +191,23 @@ function QuotsyDashboardDesignPreview({
 
   const trendRows = [];
   if (dashboardRange === "today" || dashboardRange === "yesterday") {
-    const keyDate = dashboardRange === "yesterday" ? yesterdayStart : todayStart;
-    const key = keyDate.toISOString().slice(0, 10);
+    const keyDate = dashboardRange === "yesterday" ? shiftDateByDays(now, -1) : now;
+    const key = toIstDayKey(keyDate);
     trendRows.push({
       day: key,
-      dayLabel: keyDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      dayLabel: keyDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" }),
       count: Number(trendMap.get(key)?.count || 0),
       value: Number(trendMap.get(key)?.value || 0)
     });
   } else {
-    const startDate = dashboardRange === "last30" ? last30Start : last7Start;
+    const startDate = dashboardRange === "last30" ? shiftDateByDays(now, -29) : shiftDateByDays(now, -6);
     const totalDays = dashboardRange === "last30" ? 30 : 7;
     for (let index = 0; index < totalDays; index += 1) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + index);
-      const key = date.toISOString().slice(0, 10);
+      const date = shiftDateByDays(startDate, index);
+      const key = toIstDayKey(date);
       trendRows.push({
         day: key,
-        dayLabel: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+        dayLabel: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "Asia/Kolkata" }),
         count: Number(trendMap.get(key)?.count || 0),
         value: Number(trendMap.get(key)?.value || 0)
       });

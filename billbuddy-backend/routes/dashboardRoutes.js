@@ -5,6 +5,8 @@ const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("../services/quotationViewService");
 
 const router = express.Router();
+const IST_TODAY_SQL = "(NOW() AT TIME ZONE 'Asia/Kolkata')::date";
+const IST_CREATED_DATE_SQL = "(q.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date";
 
 router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req, res) => {
   try {
@@ -12,14 +14,14 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     const tenantId = getTenantId(req);
 
     const dateFilter = {
-      today: "DATE(q.created_at) = CURRENT_DATE",
-      yesterday: "DATE(q.created_at) = CURRENT_DATE - INTERVAL '1 day'",
-      last7: "q.created_at >= CURRENT_DATE - INTERVAL '7 days'",
-      last30: "q.created_at >= CURRENT_DATE - INTERVAL '30 days'",
-      last60: "q.created_at >= CURRENT_DATE - INTERVAL '60 days'",
-      daily: "DATE(q.created_at) = CURRENT_DATE",
-      weekly: "q.created_at >= CURRENT_DATE - INTERVAL '7 days'",
-      monthly: "q.created_at >= DATE_TRUNC('month', CURRENT_DATE)"
+      today: `${IST_CREATED_DATE_SQL} = ${IST_TODAY_SQL}`,
+      yesterday: `${IST_CREATED_DATE_SQL} = ${IST_TODAY_SQL} - INTERVAL '1 day'`,
+      last7: `${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '7 days'`,
+      last30: `${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '30 days'`,
+      last60: `${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '60 days'`,
+      daily: `${IST_CREATED_DATE_SQL} = ${IST_TODAY_SQL}`,
+      weekly: `${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '7 days'`,
+      monthly: `DATE_TRUNC('month', ${IST_CREATED_DATE_SQL}::timestamp) = DATE_TRUNC('month', ${IST_TODAY_SQL}::timestamp)`
     };
 
     const condition = dateFilter[range] || dateFilter.today;
@@ -229,11 +231,11 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     const salesTrendValues = [];
     const salesTrendWhere = [];
     if (String(range) === "yesterday") {
-      salesTrendWhere.push(`DATE(q.created_at) = CURRENT_DATE - INTERVAL '1 day'`);
+      salesTrendWhere.push(`${IST_CREATED_DATE_SQL} = ${IST_TODAY_SQL} - INTERVAL '1 day'`);
     } else if (trendDays <= 1) {
-      salesTrendWhere.push(`DATE(q.created_at) = CURRENT_DATE`);
+      salesTrendWhere.push(`${IST_CREATED_DATE_SQL} = ${IST_TODAY_SQL}`);
     } else {
-      salesTrendWhere.push(`q.created_at >= CURRENT_DATE - INTERVAL '${trendDays - 1} day'`);
+      salesTrendWhere.push(`${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '${trendDays - 1} day'`);
     }
     if (tenantId) {
       salesTrendValues.push(tenantId);
@@ -241,13 +243,13 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     }
     const salesTrend = await safeQueryRows(
       `SELECT
-         DATE(q.created_at) AS day,
-         TO_CHAR(DATE(q.created_at), 'DD Mon') AS day_label,
+         ${IST_CREATED_DATE_SQL} AS day,
+         TO_CHAR(${IST_CREATED_DATE_SQL}, 'DD Mon') AS day_label,
          COALESCE(SUM(q.total_amount), 0) AS total
        FROM quotations q
        WHERE ${salesTrendWhere.join(" AND ")}
-       GROUP BY DATE(q.created_at)
-       ORDER BY DATE(q.created_at) ASC`,
+       GROUP BY ${IST_CREATED_DATE_SQL}
+       ORDER BY ${IST_CREATED_DATE_SQL} ASC`,
       salesTrendValues
     );
 
@@ -262,7 +264,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
 
     async function fetchTopArticlesByRange(days) {
       const values = [];
-      const whereParts = [`q.created_at >= CURRENT_DATE - INTERVAL '${Number(days)} day'`];
+      const whereParts = [`${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '${Number(days)} day'`];
       if (tenantId) {
         values.push(tenantId);
         whereParts.push(`q.seller_id = $${values.length}`);
@@ -346,7 +348,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
          GROUP BY qi.product_id
        ) qh ON qh.product_id = p.id
        ${staleProductWhere.length ? `WHERE ${staleProductWhere.join(" AND ")} AND ` : "WHERE "}
-       (qh.last_quoted_at IS NULL OR qh.last_quoted_at < CURRENT_DATE - INTERVAL '30 day')
+       (qh.last_quoted_at IS NULL OR (qh.last_quoted_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date < ${IST_TODAY_SQL} - INTERVAL '30 day')
        ORDER BY COALESCE(qh.last_quoted_at, TIMESTAMP '1900-01-01') ASC, p.id DESC
        LIMIT 10`,
       staleProductValues
