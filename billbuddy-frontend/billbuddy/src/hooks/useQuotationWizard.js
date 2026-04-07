@@ -234,6 +234,15 @@ export default function useQuotationWizard({
     return (products || []).filter((product) => normalizeComparableValue(product.material_name) === selectedMaterial);
   }, [products, quotationWizard.itemForm.materialName]);
 
+  const quotationWizardCategoryOptions = useMemo(() => {
+    const scopedProducts = quotationWizardMaterialProducts.length ? quotationWizardMaterialProducts : (products || []);
+    return uniqueValues(
+      scopedProducts
+        .map((product) => String(product.category || "").trim())
+        .filter(Boolean)
+    ).sort((left, right) => left.localeCompare(right));
+  }, [products, quotationWizardMaterialProducts]);
+
   const quotationWizardVisibleVariantFields = useMemo(() => {
     if (!quotationWizardMaterialProducts.length) return [];
 
@@ -1146,6 +1155,7 @@ export default function useQuotationWizard({
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
     quotationWizardMaterialSuggestions,
+    quotationWizardCategoryOptions,
     quotationWizardVisibleVariantFields,
     quotationWizardItemRules,
     quotationWizardItemReady,

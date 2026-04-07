@@ -47,6 +47,7 @@ export default function QuotationWizardModal(props) {
     quotationWizardCustomerGstValidation,
     quotationWizardShippingGstValidation,
     quotationWizardMaterialSuggestions,
+    quotationCategoryOptions,
     quotationWizardVisibleVariantFields,
     validateQuotationWizardCustomerGst,
     validateQuotationWizardShippingGst,

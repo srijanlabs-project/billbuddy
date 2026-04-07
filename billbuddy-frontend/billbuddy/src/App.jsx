@@ -4748,6 +4748,7 @@ function App() {
     quotationWizardCustomerMatches,
     quotationWizardSelectedProduct,
     quotationWizardMaterialSuggestions,
+    quotationWizardCategoryOptions,
     quotationWizardVisibleVariantFields,
     quotationWizardItemRules,
     quotationWizardItemReady,
@@ -7510,6 +7511,7 @@ function App() {
           quotationWizardCustomerGstValidation={quotationWizardCustomerGstValidation}
           quotationWizardShippingGstValidation={quotationWizardShippingGstValidation}
           quotationWizardMaterialSuggestions={quotationWizardMaterialSuggestions}
+          quotationWizardCategoryOptions={quotationWizardCategoryOptions}
           quotationWizardVisibleVariantFields={quotationWizardVisibleVariantFields}
           validateQuotationWizardCustomerGst={validateQuotationWizardCustomerGst}
           validateQuotationWizardShippingGst={validateQuotationWizardShippingGst}
