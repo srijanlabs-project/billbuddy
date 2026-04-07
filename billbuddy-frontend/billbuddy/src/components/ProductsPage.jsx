@@ -49,10 +49,7 @@ export default function ProductsPage(props) {
 
   if (activeModule !== "Products") return null;
 
-  const catalogueTableFields = (visibleCatalogueTableFields || []).filter((field) => {
-    const normalizedKey = String(field?.normalizedKey || field?.key || "").trim().toLowerCase();
-    return normalizedKey !== "category";
-  });
+  const catalogueTableFields = visibleCatalogueTableFields || [];
 
   function renderFieldLabel(field, helpText = "") {
     return (
