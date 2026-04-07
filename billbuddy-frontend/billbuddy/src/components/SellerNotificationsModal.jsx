@@ -11,7 +11,7 @@ export default function SellerNotificationsModal(props) {
   if (!showSellerNotificationsModal || isPlatformAdmin) return null;
 
   return (
-    <div className="modal-overlay" onClick={() => setShowSellerNotificationsModal(false)}>
+    <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
       <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
           <h3>Your Notifications</h3>

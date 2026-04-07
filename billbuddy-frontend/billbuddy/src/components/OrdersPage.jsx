@@ -1,29 +1,5 @@
 import { useMemo, useState } from "react";
 
-function getQuotationBadgeClass(status) {
-  const normalized = String(status || '').toUpperCase();
-  if (normalized === 'READY_DISPATCH') return 'quotation-ready-dispatch';
-  if (normalized === 'READY_PICKUP') return 'quotation-ready-pickup';
-  if (normalized === 'DELIVERED') return 'quotation-delivered';
-  return 'quotation-new';
-}
-
-function getApprovalBadgeClass(status) {
-  const normalized = String(status || "not_required").toLowerCase();
-  if (normalized === "approved") return "success";
-  if (normalized === "rejected") return "error";
-  if (normalized === "pending") return "pending";
-  return "neutral";
-}
-
-function getApprovalLabel(status) {
-  const normalized = String(status || "not_required").toLowerCase();
-  if (normalized === "approved") return "Approved";
-  if (normalized === "rejected") return "Rejected";
-  if (normalized === "pending") return "Pending";
-  return "Not Required";
-}
-
 function toDateValue(value) {
   if (!value) return "";
   const parsed = new Date(value);
@@ -31,33 +7,20 @@ function toDateValue(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
-function SentStatusIcon({ sent }) {
-  if (sent) {
-    return (
-      <svg viewBox="0 0 20 20" aria-hidden="true" className="status-icon-svg">
-        <path
-          d="M5 10.5 8.2 13.7 15 6.9"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
+function formatDisplayDate(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleDateString("en-GB");
+}
 
+function getCreatedByLabel(order = {}) {
   return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" className="status-icon-svg">
-      <path
-        d="M10 5.2v5.3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <circle cx="10" cy="13.9" r="1.1" fill="currentColor" />
-    </svg>
+    order.created_by_name
+    || order.created_by_user_name
+    || order.created_by_display_name
+    || order.created_by
+    || "-"
   );
 }
 
@@ -75,17 +38,11 @@ export default function OrdersPage(props) {
     handleOpenOrderDetails,
     formatQuotationLabel,
     formatCurrency,
-    statusLabel,
-    handleOrderStatusUpdate,
-    ORDER_STATUS_OPTIONS,
-    handleMarkQuotationSent,
-    handleMarkPaid,
     handleDownloadQuotation,
     renderPagination,
-    canEditQuotation,
-    canSendQuotation,
-    canMarkPaid,
     canDownloadQuotationPdf,
+    canCreateQuotation,
+    openQuotationWizard,
     loadQuotationExportDraft,
     downloadQuotationExportSheet
   } = props;
@@ -276,6 +233,11 @@ export default function OrdersPage(props) {
         <h3>Quotation Tracker</h3>
         <div className="toolbar-controls">
           <span>{filteredOrders.length} total</span>
+          {canCreateQuotation ? (
+            <button type="button" className="action-btn compact-btn" onClick={() => openQuotationWizard()}>
+              Create Quotation
+            </button>
+          ) : null}
           <button type="button" className="ghost-btn order-export-trigger-btn" onClick={openExportModal}>Download Excel</button>
         </div>
       </div>
@@ -286,10 +248,8 @@ export default function OrdersPage(props) {
             <th>Quotation #</th>
             <th>Customer</th>
             <th>Amount</th>
-            <th>Quotation</th>
-            <th>Payment</th>
-            <th>Quotation Status</th>
-            <th>Approval</th>
+            <th>Date</th>
+            <th>Created by</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -301,37 +261,13 @@ export default function OrdersPage(props) {
               <td>{order.firm_name || order.customer_name}</td>
               <td>{formatCurrency(order.total_amount)}</td>
               <td>
-                <span
-                  className={`status-icon-badge ${order.quotation_sent ? "sent" : "not-sent"}`}
-                  title={order.quotation_sent ? "Quotation Sent" : "Quotation Not Sent"}
-                  aria-label={order.quotation_sent ? "Quotation Sent" : "Quotation Not Sent"}
-                >
-                  <SentStatusIcon sent={Boolean(order.quotation_sent)} />
-                </span>
+                <div>{formatDisplayDate(order.created_at)}</div>
+                <small style={{ color: "#64748b" }}>Delivery: {formatDisplayDate(order.delivery_date)}</small>
               </td>
-              <td><span className={`badge ${order.payment_status === "paid" ? "success" : "pending"}`}>{statusLabel(order.payment_status)}</span></td>
-              <td>
-                {canEditQuotation ? (
-                  <select value={order.order_status || "NEW"} onChange={(event) => handleOrderStatusUpdate(order.id, event.target.value)}>
-                    {ORDER_STATUS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className={`badge ${getQuotationBadgeClass(order.order_status)}`}>{order.order_status || "NEW"}</span>
-                )}
-              </td>
-              <td>
-                <span className={`badge ${getApprovalBadgeClass(order.approval_status)}`}>{getApprovalLabel(order.approval_status)}</span>
-              </td>
+              <td>{getCreatedByLabel(order)}</td>
               <td>
                 <div className="order-actions">
-                  {canSendQuotation && (
-                    <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkQuotationSent(order.id)} disabled={order.quotation_sent}>Send</button>
-                  )}
-                  {canMarkPaid && (
-                    <button type="button" className="ghost-btn order-action-btn" onClick={() => handleMarkPaid(order.id)} disabled={order.payment_status === "paid"}>Paid</button>
-                  )}
+                  <button type="button" className="ghost-btn order-action-btn" onClick={() => handleOpenOrderDetails(order.id)}>View</button>
                   {canDownloadQuotationPdf && (
                     <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
                   )}
@@ -344,7 +280,7 @@ export default function OrdersPage(props) {
       {renderPagination(orderPage, setOrderPage, filteredOrders.length)}
 
       {showExportModal ? (
-        <div className="modal-overlay" onClick={closeExportModal}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>{exportStep === "filters" ? "Download Excel" : "Select Fields & Sequence"}</h3>

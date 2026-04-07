@@ -283,6 +283,8 @@ CREATE TABLE public.quotations (
     approval_required boolean DEFAULT false,
     active_approval_request_id integer,
     approved_for_download_at timestamp without time zone,
+    document_snapshot jsonb DEFAULT '{}'::jsonb,
+    calculation_snapshot jsonb DEFAULT '{}'::jsonb,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -1231,6 +1233,7 @@ CREATE TABLE IF NOT EXISTS public.seller_quotation_columns (
       visible_in_pdf boolean DEFAULT true,
       help_text_in_pdf boolean DEFAULT false,
       included_in_calculation boolean DEFAULT false,
+      category_visibility jsonb NOT NULL DEFAULT '[]'::jsonb,
       created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -1286,6 +1289,15 @@ ALTER TABLE public.quotation_templates
 
 ALTER TABLE public.quotation_templates
     ADD COLUMN IF NOT EXISTS template_theme_key character varying(80) DEFAULT 'default';
+
+ALTER TABLE public.quotation_templates
+    ADD COLUMN IF NOT EXISTS notes_rich_text text;
+
+ALTER TABLE public.quotation_templates
+    ADD COLUMN IF NOT EXISTS terms_rich_text text;
+
+ALTER TABLE public.seller_quotation_columns
+    ADD COLUMN IF NOT EXISTS category_visibility jsonb DEFAULT '[]'::jsonb;
 
 ALTER TABLE public.quotation_templates
     ADD COLUMN IF NOT EXISTS footer_image_data text;

@@ -30,14 +30,15 @@ function getItemDisplayFieldValue(item = {}, key) {
   if (!normalizedKey) return "";
   const customFields = item.custom_fields || item.customFields || {};
   const customFieldEntry = Object.entries(customFields).find(([customKey]) => normalizeItemDisplayKey(customKey) === normalizedKey);
+  const customFieldValue = customFields[normalizedKey] ?? (customFieldEntry ? customFieldEntry[1] : undefined);
   const directValueMap = {
     material_name: item.material_name || item.materialName || item.material_type || item.materialType || item.design_name || item.designName || item.sku || "",
     category: item.item_category || item.itemCategory || item.category || "",
     sku: item.sku || "",
-    ps: item.ps_included ?? item.psIncluded ?? item.ps ?? false,
+    ps: customFieldValue ?? (item.ps_included ?? item.psIncluded ?? item.ps ?? false),
     color_name: item.color_name || item.colorName || "",
     thickness: item.thickness || "",
-    size: item.size || "",
+    size: customFieldValue ?? item.size ?? "",
     quantity: item.quantity,
     rate: item.unit_price ?? item.unitPrice ?? item.rate ?? "",
     unit_price: item.unit_price ?? item.unitPrice ?? item.rate ?? "",
@@ -49,7 +50,7 @@ function getItemDisplayFieldValue(item = {}, key) {
   };
   const rawValue = Object.prototype.hasOwnProperty.call(directValueMap, normalizedKey)
     ? directValueMap[normalizedKey]
-    : (customFields[normalizedKey] ?? (customFieldEntry ? customFieldEntry[1] : undefined));
+    : customFieldValue;
   if (rawValue === undefined || rawValue === null) return "";
   if (typeof rawValue === "boolean") return rawValue ? "Yes" : "";
   return String(rawValue).trim();
@@ -113,8 +114,23 @@ function humanizeQuotationFieldKey(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const INTERNAL_QUOTATION_META_KEYS = new Set([
+  "area_sqm",
+  "area_sqft",
+  "area_sqin",
+  "line_amount",
+  "line_amount_std",
+  "line_amount_sqft",
+  "line_amount_sqin",
+  "line_amount_final",
+  "base_price",
+  "limit_rate_edit",
+  "category"
+]);
+
 function getQuotationCustomFieldEntries(customFields = {}) {
   return Object.entries(customFields || {})
+    .filter(([key]) => !INTERNAL_QUOTATION_META_KEYS.has(normalizeItemDisplayKey(key)))
     .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
     .map(([key, value]) => ({
       key,

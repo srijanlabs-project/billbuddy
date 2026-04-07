@@ -63,6 +63,12 @@ function normalizeOptionValues(rawValue) {
     .filter(Boolean);
 }
 
+function normalizeCategoryVisibility(rawValue) {
+  return (Array.isArray(rawValue) ? rawValue : String(rawValue || "").split(/[,\n|]/))
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+}
+
 function normalizeCatalogueFields(fields = []) {
   return (Array.isArray(fields) ? fields : [])
     .map((field, index) => ({
@@ -94,6 +100,7 @@ function normalizeQuotationColumns(columns = []) {
       visibleInPdf: Boolean(column.visibleInPdf),
       helpTextInPdf: Boolean(column.helpTextInPdf),
       includedInCalculation: Boolean(column.includedInCalculation),
+      categoryVisibility: normalizeCategoryVisibility(column.categoryVisibility ?? column.category_visibility),
       displayOrder: Number.isFinite(Number(column.displayOrder)) ? Number(column.displayOrder) : index
     }))
     .filter((column) => column.key && column.label);
@@ -137,7 +144,8 @@ function buildProfileResponse(profileRow, catalogueRows, quotationRows, versionR
       visibleInForm: Boolean(column.visible_in_form),
       visibleInPdf: Boolean(column.visible_in_pdf),
       helpTextInPdf: Boolean(column.help_text_in_pdf),
-      includedInCalculation: Boolean(column.included_in_calculation)
+      includedInCalculation: Boolean(column.included_in_calculation),
+      categoryVisibility: Array.isArray(column.category_visibility) ? column.category_visibility : []
     })),
     versions: versionRows.map((version) => ({
       id: version.id,
@@ -392,9 +400,10 @@ router.put(
            visible_in_form,
            visible_in_pdf,
            help_text_in_pdf,
-           included_in_calculation
+           included_in_calculation,
+           category_visibility
          )
-         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb)`,
         [
           profile.id,
           column.key,
@@ -408,7 +417,8 @@ router.put(
           column.visibleInForm,
           column.visibleInPdf,
           column.helpTextInPdf,
-          column.includedInCalculation
+          column.includedInCalculation,
+          JSON.stringify(column.categoryVisibility || [])
         ]
       );
     }

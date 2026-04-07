@@ -161,6 +161,8 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approval_required BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS active_approval_request_id INTEGER`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approved_for_download_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS document_snapshot JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS calculation_snapshot JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`CREATE SEQUENCE IF NOT EXISTS quotation_number_seq START WITH 1 INCREMENT BY 1`);
   await pool.query(`
     SELECT setval(
@@ -267,11 +269,15 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_header_image BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS logo_image_data TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_logo_only BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS footer_image_data TEXT`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_footer_image BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS template_preset VARCHAR(80) DEFAULT 'commercial_offer'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS template_theme_key VARCHAR(80) DEFAULT 'default'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS accent_color VARCHAR(20) DEFAULT '#2563eb'`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS notes_text TEXT`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS notes_rich_text TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS terms_text TEXT`);
+  await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS terms_rich_text TEXT`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_bank_details BOOLEAN DEFAULT TRUE`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_notes BOOLEAN DEFAULT TRUE`);
   await pool.query(`ALTER TABLE quotation_templates ADD COLUMN IF NOT EXISTS show_terms BOOLEAN DEFAULT TRUE`);
@@ -625,6 +631,7 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE seller_quotation_columns ADD COLUMN IF NOT EXISTS visible_in_pdf BOOLEAN DEFAULT TRUE`);
   await pool.query(`ALTER TABLE seller_quotation_columns ADD COLUMN IF NOT EXISTS help_text_in_pdf BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE seller_quotation_columns ADD COLUMN IF NOT EXISTS included_in_calculation BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE seller_quotation_columns ADD COLUMN IF NOT EXISTS category_visibility JSONB NOT NULL DEFAULT '[]'::jsonb`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS seller_configuration_versions (
@@ -838,6 +845,23 @@ async function initializeDatabase() {
   await pool.query(`UPDATE quotations SET discount_amount = COALESCE(discount_amount, 0)`);
   await pool.query(`UPDATE quotations SET advance_amount = COALESCE(advance_amount, 0)`);
   await pool.query(`UPDATE quotations SET balance_amount = COALESCE(balance_amount, total_amount, 0)`);
+
+  // Keep quotation math safe for larger values from advanced formulas.
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN subtotal TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN gst_amount TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN transport_charges TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN design_charges TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN total_amount TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN discount_amount TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN advance_amount TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN balance_amount TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotations ALTER COLUMN transportation_cost TYPE NUMERIC(14,2)`);
+
+  await pool.query(`ALTER TABLE quotation_items ALTER COLUMN quantity TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotation_items ALTER COLUMN unit_price TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotation_items ALTER COLUMN total_price TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotation_items ALTER COLUMN dimension_height TYPE NUMERIC(14,2)`);
+  await pool.query(`ALTER TABLE quotation_items ALTER COLUMN dimension_width TYPE NUMERIC(14,2)`);
   await pool.query(`UPDATE payments SET seller_id = COALESCE(seller_id, $1)`, [defaultSellerId]);
   await pool.query(`UPDATE ledger SET seller_id = COALESCE(seller_id, $1)`, [defaultSellerId]);
   await pool.query(`UPDATE products SET always_available = COALESCE(always_available, FALSE)`);
@@ -908,6 +932,8 @@ async function initializeDatabase() {
   );
   await pool.query(`UPDATE quotations SET record_status = COALESCE(record_status, 'submitted')`);
   await pool.query(`UPDATE quotations SET customer_monthly_billing = COALESCE(customer_monthly_billing, FALSE)`);
+  await pool.query(`UPDATE quotations SET document_snapshot = COALESCE(document_snapshot, '{}'::jsonb)`);
+  await pool.query(`UPDATE quotations SET calculation_snapshot = COALESCE(calculation_snapshot, '{}'::jsonb)`);
   await pool.query(`UPDATE quotation_items SET ps_included = COALESCE(ps_included, FALSE)`);
   await pool.query(`UPDATE quotation_items SET pricing_type = COALESCE(pricing_type, 'SFT')`);
 

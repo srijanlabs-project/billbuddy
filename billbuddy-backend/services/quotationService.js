@@ -1,6 +1,14 @@
 const pool = require("../db/db");
 const { assertQuotationCreationAllowed, getQuotationWatermark } = require("./subscriptionService");
 const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("./quotationViewService");
+const { applyTemplateAccessPolicy } = require("./quotationTemplatePolicy");
+const {
+  applyFrozenPresentationToQuotation,
+  buildFrozenQuotationCalculationSnapshot,
+  buildFrozenQuotationDocumentSnapshot,
+  getDefaultDocumentTemplate
+} = require("./quotationSnapshotService");
+const { getRichTextHtml, richTextToPlainText } = require("./richTextService");
 
 const ORDER_STATUS = {
   NEW: "NEW",
@@ -29,6 +37,18 @@ const BUILT_IN_QUOTATION_KEYS = new Set([
   "note"
 ]);
 
+function normalizePdfColumnKey(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
+  if (["material", "service", "services", "service_name", "services_name", "service_title", "services_title", "item_name", "product_name"].includes(normalized)) {
+    return "material_name";
+  }
+  if (normalized === "qty") return "quantity";
+  return normalized;
+}
+
 function toAmount(value) {
   if (value === null || value === undefined || value === "") return 0;
   const parsed = Number(value);
@@ -39,6 +59,32 @@ function toFormulaAmount(value) {
   if (value === null || value === undefined || value === "") return 1;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 1;
+}
+
+function normalizeCategoryToken(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function buildCategoryFormulaFlags(categoryValue) {
+  const normalized = normalizeCategoryToken(categoryValue);
+  const compact = normalized.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return {
+    normalized,
+    compact
+  };
+}
+
+function isColumnApplicableForItemCategory(column, itemCategory) {
+  const configuredCategories = Array.isArray(column?.category_visibility)
+    ? column.category_visibility
+    : (Array.isArray(column?.categoryVisibility) ? column.categoryVisibility : []);
+  const normalizedAllowed = configuredCategories
+    .map((entry) => normalizeCategoryToken(entry))
+    .filter(Boolean);
+  if (!normalizedAllowed.length) return true;
+  const normalizedCategory = normalizeCategoryToken(itemCategory);
+  if (!normalizedCategory) return false;
+  return normalizedAllowed.includes(normalizedCategory);
 }
 
 function parsePercentLike(value) {
@@ -82,6 +128,64 @@ async function getPlatformUnitConversionMap(clientOrPool) {
   return map;
 }
 
+async function getPublishedQuotationPdfConfiguration(clientOrPool, sellerId) {
+  const result = await clientOrPool.query(
+    `SELECT
+        scp.modules,
+        sqc.column_key,
+        sqc.label,
+        sqc.column_type,
+        sqc.visible_in_pdf,
+        sqc.help_text_in_pdf,
+        sqc.display_order
+     FROM seller_configuration_profiles scp
+     INNER JOIN seller_quotation_columns sqc ON sqc.profile_id = scp.id
+     WHERE scp.seller_id = $1
+       AND scp.status = 'published'
+     ORDER BY sqc.display_order ASC, sqc.id ASC`,
+    [sellerId]
+  );
+
+  const modules = result.rows[0]?.modules || {};
+  const visibleColumns = result.rows
+    .filter((column) => Boolean(column.visible_in_pdf))
+    .map((column) => ({
+      key: normalizePdfColumnKey(column.column_key),
+      label: column.label || column.column_key || "Column",
+      type: column.column_type || "text",
+      helpTextInPdf: Boolean(column.help_text_in_pdf)
+    }));
+
+  if (visibleColumns.length) {
+    const tableColumns = visibleColumns.filter((column) => !column.helpTextInPdf || normalizePdfColumnKey(column.key) === "material_name");
+    if (!tableColumns.some((column) => normalizePdfColumnKey(column.key) === "material_name")) {
+      tableColumns.unshift({ key: "material_name", label: "Item", type: "text" });
+    }
+
+    return {
+      modules,
+      columns: tableColumns,
+      allPdfColumns: visibleColumns
+    };
+  }
+
+  return {
+    modules,
+    allPdfColumns: [
+      { key: "material_name", label: "Item", type: "text" },
+      { key: "quantity", label: "Qty", type: "number" },
+      { key: "rate", label: "Rate", type: "number" },
+      { key: "amount", label: "Amount", type: "number" }
+    ],
+    columns: [
+      { key: "material_name", label: "Item", type: "text" },
+      { key: "quantity", label: "Qty", type: "number" },
+      { key: "rate", label: "Rate", type: "number" },
+      { key: "amount", label: "Amount", type: "number" }
+    ]
+  };
+}
+
 function getUnitMeterFactor(unit, conversionMap = null) {
   const map = conversionMap || getDefaultUnitConversionMap();
   const normalized = String(unit || "").trim().toLowerCase();
@@ -123,6 +227,7 @@ function buildComputedFieldContext(item, contextOptions = {}) {
   const areaSqin = (!hasWidth && !hasHeight)
     ? null
     : Number((((widthSqinBase ?? 1) * (heightSqinBase ?? 1))).toFixed(6));
+  const category = buildCategoryFormulaFlags(item.item_category || item.itemCategory || item.category);
   const context = {
     quantity: toAmount(item.quantity),
     rate: toAmount(item.unitPrice ?? item.unit_price),
@@ -146,8 +251,15 @@ function buildComputedFieldContext(item, contextOptions = {}) {
     area_sqft: areaSqft,
     area_sqm: areaSqm,
     area_sqin: areaSqin,
-    area_base: areaSqft
+    area_base: areaSqft,
+    is_services: category.normalized === "services" || category.normalized === "service" ? 1 : 0,
+    is_product: category.normalized === "product" ? 1 : 0,
+    is_sheet: category.normalized === "sheet" ? 1 : 0
   };
+
+  if (category.compact) {
+    context[`is_category_${category.compact}`] = 1;
+  }
 
   Object.entries(customFields).forEach(([key, value]) => {
     const normalizedKey = String(key || "").trim();
@@ -172,7 +284,13 @@ function evaluateFormulaExpression(expression, context) {
     throw new Error(`Unsupported characters in formula: ${source}`);
   }
 
-  const replaced = source.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (token) => String(toFormulaAmount(context[token])));
+  const replaced = source.replace(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g, (token) => {
+    if (Object.prototype.hasOwnProperty.call(context, token)) {
+      return String(toFormulaAmount(context[token]));
+    }
+    if (token.startsWith("is_")) return "0";
+    return String(toFormulaAmount(undefined));
+  });
   if (/[^0-9+\-*/().\s]/.test(replaced)) {
     throw new Error(`Formula could not be evaluated safely: ${source}`);
   }
@@ -273,7 +391,17 @@ function computeQuotationTotals({ items, gstPercent, gstMode = false, transportC
   const calcColumns = Array.isArray(calculationColumns)
     ? calculationColumns.filter((column) => Boolean(column.included_in_calculation))
     : [];
-  const calcKeys = calcColumns.map((column) => String(column.column_key || "").trim()).filter(Boolean);
+  const calcKeys = calcColumns
+    .map((column) => ({
+      key: String(column.column_key || "").trim(),
+      displayOrder: Number.isFinite(Number(column.display_order)) ? Number(column.display_order) : Number.MAX_SAFE_INTEGER
+    }))
+    .filter((entry) => Boolean(entry.key))
+    .sort((left, right) => {
+      if (left.displayOrder !== right.displayOrder) return left.displayOrder - right.displayOrder;
+      return left.key.localeCompare(right.key);
+    })
+    .map((entry) => entry.key);
 
   const computedLineItems = normalizedItems.map((item) => {
     const quantity = toAmount(item.quantity);
@@ -283,18 +411,14 @@ function computeQuotationTotals({ items, gstPercent, gstMode = false, transportC
 
     if (calcKeys.length) {
       const customFields = item.custom_fields || item.customFields || {};
-      let derivedTotal = 0;
-      calcKeys.forEach((key) => {
+      for (const key of calcKeys) {
         const value = customFields[key];
-        if (value === undefined || value === null || value === "") return;
+        if (value === undefined || value === null || value === "") continue;
         const numericValue = toAmount(value);
-        if (Number.isFinite(numericValue)) {
-          derivedTotal += numericValue;
-          usedCalcColumn = true;
-        }
-      });
-      if (usedCalcColumn) {
-        totalPrice = Number(derivedTotal.toFixed(2));
+        if (!Number.isFinite(numericValue)) continue;
+        totalPrice = Number(numericValue.toFixed(2));
+        usedCalcColumn = true;
+        break;
       }
     }
 
@@ -864,15 +988,16 @@ async function logOrderEvent(client, { sellerId, quotationId, eventType, eventNo
 }
 
 async function createQuotationVersionSnapshot(client, { sellerId, quotation, items, actorUserId }) {
+  const frozenQuotation = applyFrozenPresentationToQuotation(quotation);
   await client.query(
     `INSERT INTO quotation_versions
      (seller_id, quotation_id, version_no, quotation_snapshot, items_snapshot, actor_user_id)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)`,
     [
       sellerId,
-      quotation.id,
-      quotation.version_no || 1,
-      JSON.stringify(quotation),
+      frozenQuotation.id,
+      frozenQuotation.version_no || 1,
+      JSON.stringify(frozenQuotation),
       JSON.stringify(items || []),
       actorUserId || null
     ]
@@ -989,7 +1114,7 @@ async function updateQuotationPaymentStatus(client, quotationId, sellerId) {
 
 async function getSellerCustomQuotationColumns(clientOrPool, sellerId) {
   const result = await clientOrPool.query(
-    `SELECT sqc.column_key, sqc.label, sqc.column_type, sqc.option_values, sqc.definition_text, sqc.formula_expression, sqc.required, sqc.visible_in_form, sqc.included_in_calculation
+    `SELECT sqc.column_key, sqc.label, sqc.column_type, sqc.option_values, sqc.definition_text, sqc.formula_expression, sqc.required, sqc.visible_in_form, sqc.included_in_calculation, sqc.category_visibility
      FROM seller_configuration_profiles scp
      INNER JOIN seller_quotation_columns sqc ON sqc.profile_id = scp.id
      WHERE scp.seller_id = $1
@@ -1019,6 +1144,7 @@ async function getSellerCustomQuotationColumns(clientOrPool, sellerId) {
             FALSE AS required,
             FALSE AS visible_in_form,
             pfd.included_in_calculation,
+            '[]'::jsonb AS category_visibility,
             pfd.display_order,
             pfd.target_scope
      FROM platform_formula_definitions pfd
@@ -1074,6 +1200,9 @@ function validateCustomQuotationFields(items, customColumns = []) {
     customColumns
       .filter((column) => Boolean(column.visible_in_form))
       .forEach((column) => {
+        if (!isColumnApplicableForItemCategory(column, item.item_category || item.category)) {
+          return;
+        }
         const fieldLabel = column.label || column.column_key || "Custom field";
         const fieldValue = customFields[column.column_key];
         const fieldType = String(column.column_type || "text").toLowerCase();
@@ -1130,6 +1259,7 @@ function applyComputedQuotationFields(items, customColumns = [], contextOptions 
 
     formulaColumns.forEach((column) => {
       if (!column.column_key || !column.formula_expression) return;
+      if (!isColumnApplicableForItemCategory(column, nextItem.item_category || nextItem.category)) return;
       const context = buildComputedFieldContext(nextItem, contextOptions);
       const computedValue = evaluateFormulaExpression(column.formula_expression, context);
       if (computedValue !== null) {
@@ -1165,7 +1295,9 @@ async function createQuotationWithItems(payload) {
     advanceAmount,
     gstMode,
     customQuotationNumber,
-    referenceRequestId
+    referenceRequestId,
+    notesRichText,
+    termsRichText
   } = payload;
 
   if (!sellerId) {
@@ -1190,7 +1322,7 @@ async function createQuotationWithItems(payload) {
     const unitConversionMap = await getPlatformUnitConversionMap(client);
 
     const customerCheck = await client.query(
-      `SELECT id, gst_number, shipping_addresses
+      `SELECT id, name, firm_name, mobile, email, address, gst_number, monthly_billing, shipping_addresses
        FROM customers
        WHERE id = $1 AND seller_id = $2
        LIMIT 1`,
@@ -1227,8 +1359,8 @@ async function createQuotationWithItems(payload) {
 
       const customerRow = customerCheck.rows[0] || {};
       const effectiveCustomerGstin = getEffectiveCustomerGstinForQuotation(customerRow, deliveryAddress, deliveryPincode);
-      if (!isValidGstinFormat(effectiveCustomerGstin)) {
-        throw new Error("Customer GST is required for GST quotation. Add valid customer GST or matching shipping GST.");
+      if (effectiveCustomerGstin && !isValidGstinFormat(effectiveCustomerGstin)) {
+        throw new Error("Customer GST format is invalid. Enter valid GST or leave GST blank.");
       }
     }
 
@@ -1256,6 +1388,67 @@ async function createQuotationWithItems(payload) {
 
     const inventoryWarnings = await reserveInventoryForItems(client, sellerId, displayReadyItems, { strict: false });
 
+    const [
+      templateResult,
+      sellerResult,
+      pdfConfig
+    ] = await Promise.all([
+      client.query(
+        `SELECT *
+         FROM quotation_templates
+         WHERE seller_id = $1
+           AND template_name = 'default'
+         LIMIT 1`,
+        [sellerId]
+      ),
+      client.query(
+        `SELECT id, name, business_name, email, mobile, gst_number, bank_name, bank_branch, bank_account_no, bank_ifsc
+         FROM sellers
+         WHERE id = $1
+         LIMIT 1`,
+        [sellerId]
+      ),
+      getPublishedQuotationPdfConfiguration(client, sellerId)
+    ]);
+    const resolvedTemplate = applyTemplateAccessPolicy(
+      templateResult.rows[0] || getDefaultDocumentTemplate(),
+      currentSubscription
+    );
+    const documentSnapshot = buildFrozenQuotationDocumentSnapshot({
+      template: {
+        ...resolvedTemplate,
+        notes_rich_text: getRichTextHtml(notesRichText, resolvedTemplate.notes_text || ""),
+        notes_text: richTextToPlainText(getRichTextHtml(notesRichText, resolvedTemplate.notes_text || "")),
+        terms_rich_text: getRichTextHtml(termsRichText, resolvedTemplate.terms_text || ""),
+        terms_text: richTextToPlainText(getRichTextHtml(termsRichText, resolvedTemplate.terms_text || ""))
+      },
+      seller: sellerResult.rows[0] || null,
+      customer: customerCheck.rows[0] || null,
+      pdfConfig
+    });
+    const calculationSnapshot = buildFrozenQuotationCalculationSnapshot({
+      customColumns,
+      unitConversionMap,
+      totals: {
+        subtotal,
+        gstAmount,
+        transport,
+        design,
+        totalAmount,
+        discountAmount: discount,
+        advanceAmount: advance,
+        balanceAmount
+      },
+      inputs: {
+        gstPercent,
+        gstMode: nextGstMode,
+        transportCharges: toAmount(transportCharges) + toAmount(transportationCost),
+        designCharges,
+        discountAmount,
+        advanceAmount
+      }
+    });
+
     const quotationNumber = await getNextQuotationNumber(client, sellerId);
     const { sellerQuotationSerial, sellerQuotationNumber } = await getNextSellerQuotationMeta(client, sellerId);
     const normalizedCustomQuotationNumber = normalizeCustomQuotationNumber(customQuotationNumber);
@@ -1263,8 +1456,8 @@ async function createQuotationWithItems(payload) {
 
     const quotationResult = await client.query(
       `INSERT INTO quotations
-       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, gst_mode, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, reference_request_id, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, FALSE, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
+       (quotation_number, seller_quotation_serial, seller_quotation_number, custom_quotation_number, seller_id, customer_id, created_by, subtotal, gst_amount, gst_mode, transport_charges, design_charges, total_amount, discount_amount, advance_amount, balance_amount, reference_request_id, payment_status, order_status, quotation_sent, delivery_type, delivery_date, delivery_address, delivery_pincode, transportation_cost, design_cost_confirmed, source_channel, record_status, customer_monthly_billing, watermark_text, created_under_plan_id, document_snapshot, calculation_snapshot)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, FALSE, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::jsonb, $32::jsonb)
        RETURNING *`,
       [
         quotationNumber,
@@ -1296,7 +1489,9 @@ async function createQuotationWithItems(payload) {
         recordStatus || "submitted",
         Boolean(customerMonthlyBilling),
         getQuotationWatermark(currentSubscription),
-        currentSubscription.plan_id
+        currentSubscription.plan_id,
+        JSON.stringify(documentSnapshot),
+        JSON.stringify(calculationSnapshot)
       ]
     );
 
@@ -1398,7 +1593,7 @@ async function createQuotationWithItems(payload) {
     await client.query("COMMIT");
 
     return {
-      quotation,
+      quotation: applyFrozenPresentationToQuotation(quotation),
       items: computedItems,
       customerOutstanding,
       inventoryWarnings,

@@ -12,7 +12,7 @@ export default function PlanDetailModal(props) {
   if (!showPlanDetailModal || !selectedPlanDetail) return null;
 
   return (
-    <div className="modal-overlay" onClick={closePlanDetailModal}>
+    <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
       <div className="modal-card modal-wide glass-panel seller-detail-modal" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
           <h3>Plan Detail</h3>

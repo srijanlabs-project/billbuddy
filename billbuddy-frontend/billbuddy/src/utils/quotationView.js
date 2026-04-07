@@ -114,8 +114,23 @@ export function humanizeQuotationFieldKey(key) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const INTERNAL_QUOTATION_META_KEYS = new Set([
+  "area_sqm",
+  "area_sqft",
+  "area_sqin",
+  "line_amount",
+  "line_amount_std",
+  "line_amount_sqft",
+  "line_amount_sqin",
+  "line_amount_final",
+  "base_price",
+  "limit_rate_edit",
+  "category"
+]);
+
 export function getQuotationCustomFieldEntries(customFields = {}) {
   return Object.entries(customFields || {})
+    .filter(([key]) => !INTERNAL_QUOTATION_META_KEYS.has(normalizeItemDisplayKey(key)))
     .filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "")
     .map(([key, value]) => ({
       key,

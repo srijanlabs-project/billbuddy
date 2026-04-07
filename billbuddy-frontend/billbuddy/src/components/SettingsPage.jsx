@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import LimitedRichTextEditor from "./LimitedRichTextEditor";
+import { getRichTextValue, richTextToPlainText } from "../utils/richText";
 
 function formatTemplateFieldLabel(key) {
   return key
@@ -118,8 +120,11 @@ export default function SettingsPage({
   const usageCards = useMemo(() => renderUsageSummary(usageOverview), [usageOverview]);
   const previewBody = renderTemplateText(quotationTemplate.body_template, quotationPreview);
   const previewFooter = renderTemplateText(quotationTemplate.footer_text, quotationPreview);
+  const previewNotesRichText = getRichTextValue(quotationTemplate.notes_rich_text, quotationTemplate.notes_text || "-");
+  const previewTermsRichText = getRichTextValue(quotationTemplate.terms_rich_text, quotationTemplate.terms_text || "-");
   const showHeaderImage = Boolean(quotationTemplate.show_header_image && quotationTemplate.header_image_data);
   const hasVerifiedSellerGst = Boolean(String(seller?.gst_number || "").trim());
+  const isSellerIdentityLockedByGst = hasVerifiedSellerGst && Boolean(String(sellerGstNumber || "").trim());
   const showLogoOnly = Boolean(!showHeaderImage && quotationTemplate.show_logo_only && quotationTemplate.logo_image_data);
   const currentPlanTier = getPlanTemplateAccessTier(currentSellerSubscription);
   const isFreePlan = currentPlanTier === "FREE";
@@ -159,6 +164,14 @@ export default function SettingsPage({
 
   function updateTemplateField(field, value) {
     setQuotationTemplate((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function updateTemplateRichTextField(richField, plainField, value) {
+    setQuotationTemplate((prev) => ({
+      ...prev,
+      [richField]: value,
+      [plainField]: richTextToPlainText(value)
+    }));
   }
 
   function resetFormulaDraft() {
@@ -280,13 +293,13 @@ export default function SettingsPage({
             {Boolean(quotationTemplate.show_notes ?? true) ? (
               <>
                 <h6>Notes</h6>
-                <p>{quotationTemplate.notes_text || presetMeta.defaults.notes_text || "-"}</p>
+                <div className="limited-rich-text-preview" dangerouslySetInnerHTML={{ __html: previewNotesRichText }} />
               </>
             ) : null}
             {Boolean(quotationTemplate.show_terms ?? true) ? (
               <>
                 <h6>Terms & Conditions</h6>
-                <p>{quotationTemplate.terms_text || presetMeta.defaults.terms_text || "-"}</p>
+                <div className="limited-rich-text-preview" dangerouslySetInnerHTML={{ __html: previewTermsRichText }} />
               </>
             ) : null}
             {!Boolean(quotationTemplate.show_notes ?? true) && !Boolean(quotationTemplate.show_terms ?? true) ? (
@@ -513,10 +526,11 @@ export default function SettingsPage({
                     <input
                       value={formulaDraft.formulaExpression}
                       onChange={(event) => setFormulaDraft((prev) => ({ ...prev, formulaExpression: event.target.value }))}
-                      placeholder="(width * unit_factor) * (height * unit_factor)"
+                      placeholder="is_services * (quantity * rate) + (1 - is_services) * (area_sqft * quantity * rate)"
                       disabled={platformFormulaLoading}
                       required
                     />
+                    <small className="muted">Use category flags like is_services, is_product, is_sheet, and dynamic is_category_name.</small>
                   </label>
                   <label className="settings-field settings-field-wide">
                     <span>Definition</span>
@@ -819,21 +833,19 @@ export default function SettingsPage({
 
         <div className="settings-tab-body">
           {activeTab === "business" ? (
-            <form className="settings-card compact-settings-card" onSubmit={handleSaveThemeSettings}>
-              <div className="settings-card-head">
-                <div>
-                  <span>Business Settings</span>
-                  <h3>Identity, GST, and banking</h3>
-                  <p>Keep the reusable business information clear so every quotation starts from the same base.</p>
+            <form className="settings-card compact-settings-card settings-business-card" onSubmit={handleSaveThemeSettings}>
+              <div className="settings-business-topbar">
+                <div className="settings-business-heading">
+                  <h3>Identity, GST, and Banking</h3>
+                  <p>Manage your reusable business information for consistent quotations.</p>
                 </div>
-                <button className="primary-button" type="submit" disabled={!canEditSettings}>Save Business Settings</button>
+                <button className="primary-button settings-business-save-btn" type="submit" disabled={!canEditSettings}>Save Settings</button>
               </div>
 
-              <div className="settings-form-grid settings-form-grid-wide">
-                <section className="settings-panel">
+              <div className="settings-form-grid settings-form-grid-wide settings-business-grid">
+                <section className="settings-panel settings-business-panel">
                   <div className="settings-panel-head">
                     <h4>Brand Identity</h4>
-                    <p>Workspace appearance stays separate from quotation themes.</p>
                   </div>
                   <div className="settings-two-column">
                     <label className="settings-field">
@@ -843,6 +855,8 @@ export default function SettingsPage({
                         value={businessName || ""}
                         onChange={(event) => setBusinessName(event.target.value)}
                         placeholder="Your registered business name"
+                        readOnly={isSellerIdentityLockedByGst || !canEditSettings}
+                        disabled={isSellerIdentityLockedByGst || !canEditSettings}
                       />
                     </label>
                     <label className="settings-field">
@@ -892,10 +906,9 @@ export default function SettingsPage({
                   </div>
                 </section>
 
-                <section className="settings-panel">
+                <section className="settings-panel settings-business-panel">
                   <div className="settings-panel-head">
                     <h4>Bank Details</h4>
-                    <p>Shown consistently in the quotation footer and closing section.</p>
                   </div>
                   <div className="settings-two-column">
                     <label className="settings-field">
@@ -917,10 +930,9 @@ export default function SettingsPage({
                   </div>
                 </section>
 
-                <section className="settings-panel">
+                <section className="settings-panel settings-business-panel settings-business-contact-panel">
                   <div className="settings-panel-head">
                     <h4>Company Contact Details</h4>
-                    <p>Used in quotation header/footer and onboarding completion checks.</p>
                   </div>
                   <div className="settings-two-column">
                     <label className="settings-field">
@@ -947,17 +959,17 @@ export default function SettingsPage({
                         rows={3}
                         value={quotationTemplate.company_address || ""}
                         onChange={(event) => updateTemplateField("company_address", event.target.value)}
-                        readOnly={hasVerifiedSellerGst || !canEditSettings}
-                        disabled={hasVerifiedSellerGst || !canEditSettings}
-                        placeholder={hasVerifiedSellerGst ? "Auto-filled from validated Seller GST" : "Enter company address"}
+                        readOnly={isSellerIdentityLockedByGst || !canEditSettings}
+                        disabled={isSellerIdentityLockedByGst || !canEditSettings}
+                        placeholder={isSellerIdentityLockedByGst ? "Auto-filled from validated Seller GST" : "Enter company address"}
                       />
-                      <small style={{ color: "var(--muted)" }}>
-                        {hasVerifiedSellerGst
-                          ? "GST is verified, so company address is auto-synced and locked."
-                          : "Without verified GST, you can edit company address manually."}
-                      </small>
                     </label>
                   </div>
+                  <p className="settings-business-lock-note">
+                    {isSellerIdentityLockedByGst
+                      ? "GST is verified, so business name and company address are auto-synced and locked."
+                      : "Business name and company address stay editable until Seller GST is verified."}
+                  </p>
                 </section>
               </div>
             </form>
@@ -1285,9 +1297,7 @@ export default function SettingsPage({
                   <div className="settings-two-column">
                     {[
                       ["body_template", "Body Template", 3],
-                      ["footer_text", "Footer Text", 2],
-                      ["notes_text", "Notes", 3],
-                      ["terms_text", "Terms & Conditions", 4]
+                      ["footer_text", "Footer Text", 2]
                     ].map(([field, label, rows]) => (
                       <label className={`settings-field ${field === "footer_text" ? "" : "settings-field-wide"}`} key={field}>
                         <span>{label}</span>
@@ -1298,6 +1308,22 @@ export default function SettingsPage({
                         />
                       </label>
                     ))}
+                    <LimitedRichTextEditor
+                      className="settings-field settings-field-wide"
+                      label="Notes"
+                      value={quotationTemplate.notes_rich_text}
+                      plainFallback={quotationTemplate.notes_text || ""}
+                      placeholder="Add notes for future quotations"
+                      onChange={(nextValue) => updateTemplateRichTextField("notes_rich_text", "notes_text", nextValue)}
+                    />
+                    <LimitedRichTextEditor
+                      className="settings-field settings-field-wide"
+                      label="Terms & Conditions"
+                      value={quotationTemplate.terms_rich_text}
+                      plainFallback={quotationTemplate.terms_text || ""}
+                      placeholder="Add terms and conditions for future quotations"
+                      onChange={(nextValue) => updateTemplateRichTextField("terms_rich_text", "terms_text", nextValue)}
+                    />
                   </div>
                 </section>
 

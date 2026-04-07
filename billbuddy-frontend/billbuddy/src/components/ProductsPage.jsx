@@ -49,6 +49,11 @@ export default function ProductsPage(props) {
 
   if (activeModule !== "Products") return null;
 
+  const catalogueTableFields = (visibleCatalogueTableFields || []).filter((field) => {
+    const normalizedKey = String(field?.normalizedKey || field?.key || "").trim().toLowerCase();
+    return normalizedKey !== "category";
+  });
+
   function renderFieldLabel(field, helpText = "") {
     return (
       <span className="field-label-with-help">
@@ -71,19 +76,15 @@ export default function ProductsPage(props) {
     <section className="module-placeholder glass-panel">
       <div className="page-banner">
         <div>
-          <p className="eyebrow">Catalogue</p>
           <h2>Product Catalogue</h2>
           <p>Upload structured products for smarter quotation matching, inventory rules, and cleaner quotations.</p>
         </div>
-        <div className="banner-stat">
-          <span>Total Products</span>
-          <strong>{products.length}</strong>
+        <div className="banner-stat single-line">
+          <span>Total Products - {products.length}</span>
         </div>
       </div>
-      <div className="section-head">
-        <h3>Product Catalogue</h3>
+      <div className="section-head products-toolbar">
         <div className="toolbar-controls">
-          <span>{filteredProducts.length} shown / {products.length} total</span>
           <select value={productSourceFilter} onChange={(e) => setProductSourceFilter(e.target.value)}>
             <option value="all">All Catalogue</option>
             <option value="primary">Main Catalogue</option>
@@ -97,21 +98,15 @@ export default function ProductsPage(props) {
                 <input type="file" accept=".xlsx,.xls,.csv" onChange={handleExcelProductUpload} />
               </label>
               <button type="button" className="action-btn" onClick={() => setShowSingleProductModal(true)}>Add Single Product</button>
-              <button type="button" className="ghost-btn" onClick={() => setShowProductUploadModal(true)}>Bulk Paste</button>
             </>
           )}
         </div>
       </div>
-      {!isPlatformAdmin && (
-        <div className="notice info">
-          Product form and template are using the seller&apos;s published catalogue configuration.
-        </div>
-      )}
-      <table className="data-table">
+      <table className="data-table product-catalogue-table">
         <thead>
           <tr>
             <th>Sr</th>
-            {visibleCatalogueTableFields.map((field) => (
+            {catalogueTableFields.map((field) => (
               <th key={field.id}>{field.label}</th>
             ))}
             <th>Source</th>
@@ -121,13 +116,13 @@ export default function ProductsPage(props) {
         <tbody>
           {filteredProducts.length === 0 ? (
             <tr>
-              <td colSpan={visibleCatalogueTableFields.length + 3} className="muted">No products found for selected catalogue source.</td>
+              <td colSpan={catalogueTableFields.length + 3} className="muted">No products found for selected catalogue source.</td>
             </tr>
           ) : (
             pagedProducts.map((product, index) => (
               <tr key={product.id}>
                 <td>{(productPage - 1) * PAGE_SIZE + index + 1}</td>
-                {visibleCatalogueTableFields.map((field) => (
+                {catalogueTableFields.map((field) => (
                   <td key={`${product.id}-${field.id}`}>{getProductFieldDisplayValue(product, field.normalizedKey || field.key)}</td>
                 ))}
                 <td>
@@ -138,7 +133,7 @@ export default function ProductsPage(props) {
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                       <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
                       {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? (
-                        <button type="button" className="ghost-btn" onClick={() => handleMoveProductToPrimary(product)}>Move to Main</button>
+                        <button type="button" className="table-link-btn" onClick={() => handleMoveProductToPrimary(product)}>Move to Main</button>
                       ) : null}
                     </div>
                   ) : (
@@ -153,10 +148,7 @@ export default function ProductsPage(props) {
       {renderPagination(productPage, setProductPage, filteredProducts.length)}
 
       {showProductUploadModal && (
-        <div className="modal-overlay" onClick={() => {
-          setShowProductUploadModal(false);
-          setProductUploadModalMessage("");
-        }}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Bulk Paste Products</h3>
@@ -185,7 +177,7 @@ export default function ProductsPage(props) {
       )}
 
       {showSingleProductModal && (
-        <div className="modal-overlay" onClick={() => setShowSingleProductModal(false)}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>{editingProductId ? "Edit Product" : "Add Single Product"}</h3>
@@ -321,10 +313,7 @@ export default function ProductsPage(props) {
       )}
 
       {showProductPreviewModal && (
-        <div className="modal-overlay" onClick={() => {
-          setShowProductPreviewModal(false);
-          setProductUploadModalMessage("");
-        }}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Validate Product Upload</h3>

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 function SentStatusIcon({ sent }) {
   if (sent) {
     return (
@@ -59,6 +61,323 @@ function getApprovalLabel(status) {
   return "Not Required";
 }
 
+function QuotsyDashboardDesignPreview({
+  formatCurrency,
+  setActiveModule,
+  openQuotationWizard,
+  openCreateCustomerModal,
+  dashboardRange,
+  setDashboardRange,
+  dashboardData,
+  quotations,
+  customers,
+  notifications,
+  canCreateQuotation,
+  canCreateCustomer
+}) {
+  const [topArticleRange, setTopArticleRange] = useState("7d");
+  const [trendMetric, setTrendMetric] = useState("count");
+
+  const periodLabelMap = {
+    today: "Today",
+    yesterday: "Yesterday",
+    last7: "Last 7 Days",
+    last30: "Last 30 Days"
+  };
+  const periodLabel = periodLabelMap[dashboardRange] || "Selected Period";
+
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const last7Start = new Date(todayStart);
+  last7Start.setDate(last7Start.getDate() - 6);
+  const last30Start = new Date(todayStart);
+  last30Start.setDate(last30Start.getDate() - 29);
+
+  const rangeFilteredQuotations = (quotations || []).filter((quotation) => {
+    const createdAt = quotation?.created_at ? new Date(quotation.created_at) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return false;
+    if (dashboardRange === "yesterday") {
+      return createdAt >= yesterdayStart && createdAt < todayStart;
+    }
+    if (dashboardRange === "last7") {
+      return createdAt >= last7Start && createdAt <= now;
+    }
+    if (dashboardRange === "last30") {
+      return createdAt >= last30Start && createdAt <= now;
+    }
+    return createdAt >= todayStart && createdAt <= now;
+  });
+
+  const periodQuotationsCount = rangeFilteredQuotations.length;
+  const periodQuotationsValue = rangeFilteredQuotations.reduce((sum, quotation) => sum + Number(quotation.total_amount || 0), 0);
+  const periodCustomerSet = new Set(
+    rangeFilteredQuotations.map((quotation) => String(quotation.customer_id || quotation.mobile || quotation.firm_name || quotation.customer_name || "")).filter(Boolean)
+  );
+  const periodCustomers = periodCustomerSet.size;
+
+  const deliveryCounts = dashboardData?.deliveriesNext3Days || [];
+  const deliveryByDay = [0, 1, 2].map((offset) => {
+    const keyDate = new Date();
+    keyDate.setHours(0, 0, 0, 0);
+    keyDate.setDate(keyDate.getDate() + offset);
+    const key = keyDate.toISOString().slice(0, 10);
+    const matched = deliveryCounts.find((entry) => String(entry.day || "").slice(0, 10) === key);
+    return Number(matched?.count || 0);
+  });
+  const totalDelivery3Days = deliveryByDay.reduce((sum, value) => sum + value, 0);
+
+  const latestCustomers = (dashboardData?.latestCustomers || []).slice(0, 10);
+  const staleProducts = (dashboardData?.staleProducts30Days || []).slice(0, 10);
+  const topArticles = (dashboardData?.topArticlesByRange?.[topArticleRange] || []).slice(0, 10);
+  const latestNotification = Array.isArray(notifications) && notifications.length > 0 ? notifications[0] : null;
+
+  function resolveStaleProductDisplayName(entry) {
+    const configuredDisplayName = String(entry?.item_display_name || "").trim();
+    if (configuredDisplayName) return configuredDisplayName;
+
+    const customFields = typeof entry?.custom_fields === "string"
+      ? (() => {
+        try {
+          return JSON.parse(entry.custom_fields);
+        } catch (_error) {
+          return {};
+        }
+      })()
+      : (entry?.custom_fields || {});
+
+    const preferredKeys = [
+      "item_display_text",
+      "material_name",
+      "product_name",
+      "item_name",
+      "service_name",
+      "design_name"
+    ];
+
+    for (const key of preferredKeys) {
+      const value = String(customFields?.[key] || "").trim();
+      if (value) return value;
+    }
+
+    return String(entry?.material_name || entry?.design_name || "Item").trim() || "Item";
+  }
+
+  const trendMap = new Map();
+  rangeFilteredQuotations.forEach((quotation) => {
+    const createdAt = quotation?.created_at ? new Date(quotation.created_at) : null;
+    if (!createdAt || Number.isNaN(createdAt.getTime())) return;
+    const key = createdAt.toISOString().slice(0, 10);
+    const existing = trendMap.get(key) || { count: 0, value: 0 };
+    trendMap.set(key, {
+      count: Number(existing.count || 0) + 1,
+      value: Number(existing.value || 0) + Number(quotation.total_amount || 0)
+    });
+  });
+
+  const trendRows = [];
+  if (dashboardRange === "today" || dashboardRange === "yesterday") {
+    const keyDate = dashboardRange === "yesterday" ? yesterdayStart : todayStart;
+    const key = keyDate.toISOString().slice(0, 10);
+    trendRows.push({
+      day: key,
+      dayLabel: keyDate.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+      count: Number(trendMap.get(key)?.count || 0),
+      value: Number(trendMap.get(key)?.value || 0)
+    });
+  } else {
+    const startDate = dashboardRange === "last30" ? last30Start : last7Start;
+    const totalDays = dashboardRange === "last30" ? 30 : 7;
+    for (let index = 0; index < totalDays; index += 1) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + index);
+      const key = date.toISOString().slice(0, 10);
+      trendRows.push({
+        day: key,
+        dayLabel: date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
+        count: Number(trendMap.get(key)?.count || 0),
+        value: Number(trendMap.get(key)?.value || 0)
+      });
+    }
+  }
+
+  const valueRows = trendRows.map((entry) => Number(entry.value || 0)).filter((value) => value > 0);
+  const lakhRows = valueRows.filter((value) => value >= 100000).length;
+  const useLakhs = valueRows.length > 0 && lakhRows >= Math.ceil(valueRows.length / 2);
+
+  function formatTrendMetric(entry) {
+    if (trendMetric === "count") {
+      const countValue = Number(entry.count || 0);
+      if (countValue <= 0) return "-";
+      return countValue.toLocaleString("en-IN");
+    }
+    const value = Number(entry.value || 0);
+    if (value <= 0) return "-";
+    if (useLakhs) {
+      return `${(value / 100000).toFixed(2)} L`;
+    }
+    return `${(value / 1000).toFixed(2)} K`;
+  }
+
+  return (
+    <section className="glass-panel dashboard-design-preview">
+      <div className="section-head">
+        <div>
+          <h3>Business Dashboard</h3>
+          <span>Quotation, delivery, customer, and product insights in one place</span>
+        </div>
+        <div className="toolbar-controls">
+          <select value={dashboardRange} onChange={(event) => setDashboardRange(event.target.value)}>
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="last7">Last 7 Days</option>
+            <option value="last30">Last 30 Days</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="dashboard-preview-kpis">
+        <article>
+          <span>{periodLabel} Quotations</span>
+          <strong>{periodQuotationsCount}</strong>
+        </article>
+        <article>
+          <span>{periodLabel} Quotation Value</span>
+          <strong>{formatCurrency(periodQuotationsValue)}</strong>
+        </article>
+        <article>
+          <span>{periodLabel} Customers</span>
+          <strong>{periodCustomers}</strong>
+        </article>
+        <article>
+          <span>Delivery (3 Days)</span>
+          <strong>{totalDelivery3Days}</strong>
+          <small>Today {deliveryByDay[0]} | Tomorrow {deliveryByDay[1]} | Day+2 {deliveryByDay[2]}</small>
+        </article>
+      </div>
+
+      <div className="dashboard-preview-main-grid">
+        <section className="dashboard-preview-card">
+          <div className="section-head">
+            <h3>Daily Quotation</h3>
+            <div className="dashboard-preview-trend-tabs">
+              <button
+                type="button"
+                className={`ghost-btn compact-btn ${trendMetric === "count" ? "active" : ""}`}
+                onClick={() => setTrendMetric("count")}
+              >
+                Count
+              </button>
+              <button
+                type="button"
+                className={`ghost-btn compact-btn ${trendMetric === "value" ? "active" : ""}`}
+                onClick={() => setTrendMetric("value")}
+              >
+                Value
+              </button>
+            </div>
+          </div>
+          <div className="dashboard-preview-date-grid">
+            {trendRows.map((entry) => (
+              <div key={entry.day} className="dashboard-preview-date-cell">
+                <strong>{String(entry.dayLabel || entry.day || "").slice(0, 6)}</strong>
+                <span>{formatTrendMetric(entry)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="dashboard-preview-card">
+          <div className="section-head">
+            <h3>Latest Notification</h3>
+            <button type="button" className="link-btn" onClick={() => setActiveModule("Notifications")}>More</button>
+          </div>
+          <div className="dashboard-preview-notice">
+            <strong>{latestNotification?.title || "No notifications yet"}</strong>
+            <p>{latestNotification?.message || "New notifications from platform and team updates will appear here."}</p>
+          </div>
+        </section>
+      </div>
+
+      <div className="dashboard-preview-lists-grid">
+        <section className="dashboard-preview-card">
+          <div className="section-head">
+            <h3>Latest Customers</h3>
+            <button type="button" className="link-btn" onClick={() => setActiveModule("Customers")}>More</button>
+          </div>
+          <ul className="dashboard-preview-list">
+            {latestCustomers.length
+              ? latestCustomers.map((entry) => (
+                <li key={entry.id || `${entry.name}-${entry.mobile}`}>{entry.firm_name || entry.name || "-"}</li>
+              ))
+              : <li className="muted">No customers found.</li>}
+          </ul>
+        </section>
+
+        <section className="dashboard-preview-card">
+          <div className="section-head">
+            <h3>Products Not Quoted (30 Days)</h3>
+          </div>
+          <ul className="dashboard-preview-list">
+            {staleProducts.length
+              ? staleProducts.map((entry) => (
+                <li key={entry.id || entry.material_name}>{resolveStaleProductDisplayName(entry)}</li>
+              ))
+              : <li className="muted">No products pending quotation follow-up.</li>}
+          </ul>
+        </section>
+
+        <section className="dashboard-preview-card">
+          <div className="section-head">
+            <h3>Top Articles Quoted</h3>
+            <div className="toolbar-controls dashboard-top-articles-filter">
+              <select value={topArticleRange} onChange={(event) => setTopArticleRange(event.target.value)}>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="60d">Last 60 Days</option>
+              </select>
+            </div>
+          </div>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Article</th>
+                <th>Qty</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topArticles.length ? topArticles.map((row) => (
+                <tr key={row.article_name || row.name}>
+                  <td>{row.article_name || row.name || "Item"}</td>
+                  <td>{Number(row.total_qty || row.qty || 0).toLocaleString("en-IN")}</td>
+                </tr>
+              )) : (
+                <tr><td colSpan={2} className="muted">No article data found for selected range.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <section className="dashboard-preview-card dashboard-preview-quick-links">
+        <div className="section-head">
+          <h3>Quick Links</h3>
+          <span>One-click daily actions</span>
+        </div>
+        <div className="quick-action-grid">
+          <button type="button" className="ghost-btn quick-action-btn dashboard-quick-link-btn" disabled={!canCreateQuotation} onClick={openQuotationWizard}>Create Quotation</button>
+          <button type="button" className="ghost-btn quick-action-btn dashboard-quick-link-btn" disabled={!canCreateCustomer} onClick={openCreateCustomerModal}>Create Customer</button>
+          <button type="button" className="ghost-btn quick-action-btn dashboard-quick-link-btn" onClick={() => setActiveModule("Users")}>Create User</button>
+          <button type="button" className="ghost-btn quick-action-btn dashboard-quick-link-btn" onClick={() => setActiveModule("Products")}>Add Product</button>
+        </div>
+      </section>
+    </section>
+  );
+}
+
 export default function DashboardPage(props) {
   const {
     activeModule,
@@ -71,6 +390,8 @@ export default function DashboardPage(props) {
     formatCurrency,
     formatDateIST,
     quotations,
+    customers = [],
+    notifications = [],
     dashboardData,
     QUICK_ACTIONS,
     openQuotationWizard,
@@ -285,161 +606,20 @@ export default function DashboardPage(props) {
   return (
     <main className="dashboard-grid">
       <section className="main-column">
-        <div className="dashboard-hero-grid">
-          <article className="glass-panel spotlight-card">
-            <div className="spotlight-copy">
-              <p className="eyebrow">Today at a glance</p>
-              <h2>{formatCurrency(dashboardData?.totals?.total_sales)}</h2>
-              <p>Live quotation movement and pending collection in one place for the seller team.</p>
-            </div>
-            <div className="spotlight-stack">
-              <div>
-                <span>Quotations saved</span>
-                <strong>{dashboardData?.totals?.invoices_generated || 0}</strong>
-              </div>
-              <div>
-                <span>Pending overall</span>
-                <strong>{formatCurrency(dashboardData?.pendingOverall)}</strong>
-              </div>
-              <div>
-                <span>Walk-in sales</span>
-                <strong>{formatCurrency(dashboardData?.totals?.walk_in_sales)}</strong>
-              </div>
-              <div>
-                <span>Pending approvals</span>
-                <strong>{pendingApprovalCount || 0}</strong>
-              </div>
-            </div>
-          </article>
-          <article className="glass-panel quick-actions-panel">
-            <div className="section-head"><h3>Quick Actions</h3><span>Fast operations</span></div>
-            <div className="quick-action-grid">
-              {QUICK_ACTIONS.map((action) => (
-                <button
-                  key={action}
-                  type="button"
-                  className="action-btn quick-action-btn"
-                  disabled={(action === "Create Quotation" && !canCreateQuotation) || (action === "Add Customer" && !canCreateCustomer)}
-                  onClick={() => {
-                    if (action === "Create Quotation") openQuotationWizard();
-                    if (action === "Add Customer") openCreateCustomerModal();
-                  }}
-                >
-                  {action}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="action-btn quick-action-btn secondary-action-btn"
-                onClick={() => setActiveModule("Approvals")}
-              >
-                Approvals ({requesterPendingApprovalCount || pendingApprovalCount || 0})
-              </button>
-            </div>
-          </article>
-        </div>
-
-        <div className="toolbar-row">
-          <div>
-            <h2>Business Pulse</h2>
-            <p>Track cash movement, quotation momentum, and customer follow-up priority in a focused layout.</p>
-          </div>
-          <div className="toolbar-controls">
-            <select value={dashboardRange} onChange={(e) => setDashboardRange(e.target.value)}>
-              <option value="daily">Today</option>
-              <option value="weekly">Last 7 Days</option>
-              <option value="monthly">This Month</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="kpi-grid">
-          <article className="kpi-card glass-panel"><p>Today's Sales</p><h3>{formatCurrency(dashboardData?.totals?.total_sales)}</h3></article>
-          <article className="kpi-card glass-panel"><p>Quotations Saved</p><h3>{dashboardData?.totals?.invoices_generated || 0}</h3></article>
-          <article className="kpi-card glass-panel"><p>Quotation Value</p><h3>{formatCurrency(dashboardData?.totals?.total_sales)}</h3></article>
-          <article className="kpi-card glass-panel"><p>Pending Payments</p><h3>{formatCurrency(dashboardData?.pendingOverall)}</h3></article>
-          <article className="kpi-card glass-panel"><p>Approvals Pending</p><h3>{pendingApprovalCount || 0}</h3></article>
-        </div>
-
-        <section className="glass-panel chart-card">
-          <div className="section-head"><h3>Sales Analytics</h3><span>Weekly trend</span></div>
-          <div className="bar-chart">
-            {chartSeries.map((point) => (
-              <div key={point.label} className="bar-item">
-                <div className="bar-track"><div className="bar-fill" style={{ height: `${point.height}%` }} /></div>
-                <span>{point.label}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="glass-panel table-card">
-          <div className="section-head"><h3>Recent Quotations</h3><span>{filteredOrders.length} records</span></div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>{isPlatformAdmin ? "Seller" : <button type="button" onClick={() => changeSort("quotation_number")}>Quotation #</button>}</th>
-                <th><button type="button" onClick={() => changeSort("customer_name")}>Customer</button></th>
-                <th><button type="button" onClick={() => changeSort("total_amount")}>Amount</button></th>
-                <th>Payment</th><th>Quotation</th><th>Approval</th><th>Sent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredOrders.slice(0, 8).map((order) => (
-                <tr key={order.id}>
-                  <td>
-                    {isPlatformAdmin
-                      ? (order.seller_name || seller?.name || "Seller")
-                      : <button type="button" className="link-btn" onClick={() => handleOpenOrderDetails(order.id)}>{formatQuotationLabel(order)}</button>}
-                  </td>
-                  <td>{order.firm_name || order.customer_name}</td>
-                  <td>{formatCurrency(order.total_amount)}</td>
-                  <td><span className={`badge ${getPaymentBadgeClass(order.payment_status)}`}>{statusLabel(order.payment_status)}</span></td>
-                  <td><span className={`badge ${getQuotationBadgeClass(order.order_status)}`}>{orderStatusLabel(order.order_status)}</span></td>
-                  <td><span className={`badge ${getApprovalBadgeClass(order.approval_status)}`}>{getApprovalLabel(order.approval_status)}</span></td>
-                  <td>
-                    <span
-                      className={`status-icon-badge ${order.quotation_sent ? "sent" : "not-sent"}`}
-                      title={order.quotation_sent ? "Quotation Sent" : "Quotation Not Sent"}
-                      aria-label={order.quotation_sent ? "Quotation Sent" : "Quotation Not Sent"}
-                    >
-                      <SentStatusIcon sent={Boolean(order.quotation_sent)} />
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="dashboard-bottom-grid">
-          <section className="glass-panel">
-            <div className="section-head"><h3>Low Stock Alerts</h3><span>{lowStockItems.length} items</span></div>
-            {lowStockItems.length === 0 ? (
-              <p className="muted">No critical low stock right now.</p>
-            ) : (
-              lowStockItems.map((item) => (
-                <div key={item.id} className="stock-item">
-                  <p>{item.name}</p>
-                  <div className="progress-wrap"><div className="progress-bar" style={{ width: `${Math.max(8, item.stock * 3)}%` }} /></div>
-                  <small>{item.stock} units left</small>
-                </div>
-              ))
-            )}
-          </section>
-
-          <section className="glass-panel">
-            <div className="section-head"><h3>Top Selling</h3><span>By category</span></div>
-            {topSelling.map((item) => (
-              <div className="top-item" key={item.category}><span>{item.category}</span><strong>{formatCurrency(item.total)}</strong></div>
-            ))}
-          </section>
-
-          <section className="glass-panel ai-panel">
-            <div className="section-head"><h3>AI Suggestions</h3><span>Smart assistant</span></div>
-            {aiSuggestions.map((tip, idx) => <div className="ai-tip" key={idx}>{tip}</div>)}
-          </section>
-        </section>
+        <QuotsyDashboardDesignPreview
+          formatCurrency={formatCurrency}
+          setActiveModule={setActiveModule}
+          openQuotationWizard={openQuotationWizard}
+          openCreateCustomerModal={openCreateCustomerModal}
+          dashboardRange={dashboardRange}
+          setDashboardRange={setDashboardRange}
+          dashboardData={dashboardData}
+          quotations={quotations}
+          customers={customers}
+          notifications={notifications}
+          canCreateQuotation={canCreateQuotation}
+          canCreateCustomer={canCreateCustomer}
+        />
       </section>
     </main>
   );

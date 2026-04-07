@@ -18,7 +18,7 @@ export default function SubscriptionDetailModal(props) {
   if (!showSubscriptionModal || !selectedSellerSubscription) return null;
 
   return (
-    <div className="modal-overlay" onClick={closeSubscriptionModal}>
+    <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
       <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
           <h3>Subscription Detail</h3>

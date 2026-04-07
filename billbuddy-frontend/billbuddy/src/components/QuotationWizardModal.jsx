@@ -1,7 +1,11 @@
+import LimitedRichTextEditor from "./LimitedRichTextEditor";
+import { richTextToPlainText } from "../utils/richText";
+
 export default function QuotationWizardModal(props) {
   const {
     showMessageSimulatorModal,
     closeQuotationWizard,
+    clearQuotationWizardDraft,
     quotationWizard,
     setQuotationWizard,
     quotationWizardCustomerMatches,
@@ -55,6 +59,7 @@ export default function QuotationWizardModal(props) {
     handleQuotationWizardBack,
     quotationPreviewUrl,
     quotationPreviewError,
+    quotationTemplate,
     downloadQuotationWizardPdf,
     formatQuotationLabel,
     handleOpenOrderDetails
@@ -91,6 +96,18 @@ export default function QuotationWizardModal(props) {
   const isCustomerGstLocked = quotationWizard.customerMode === "new"
     && quotationWizardCustomerGstValidation?.status === "verified"
     && String(quotationWizardCustomerGstValidation?.gstNumber || "") === String(quotationWizard.customer.gstNumber || "").trim().toUpperCase();
+  const normalizeCategoryToken = (value) => String(value || "").trim().toLowerCase();
+  const currentItemCategory = normalizeCategoryToken(quotationWizard.itemForm.category);
+  const isColumnVisibleInForm = (column) => Boolean(column?.visibleInForm ?? column?.visible_in_form);
+  const isColumnVisibleForCurrentCategory = (column) => {
+    const mappedCategories = Array.isArray(column?.categoryVisibility)
+      ? column.categoryVisibility
+      : (Array.isArray(column?.category_visibility) ? column.category_visibility : []);
+    if (!mappedCategories.length) return true;
+    if (!currentItemCategory) return true;
+    return mappedCategories.some((entry) => normalizeCategoryToken(entry) === currentItemCategory);
+  };
+  const isNonFormulaColumn = (column) => String(column?.type || column?.column_type || "").toLowerCase() !== "formula";
   const renderAutosuggestInput = ({ id, value, onChange, options, placeholder, disabled = false, className = "" }) => {
     const normalizedOptions = Array.from(
       new Set((Array.isArray(options) ? options : [])
@@ -118,26 +135,38 @@ export default function QuotationWizardModal(props) {
   };
 
   return (
-    <div className="modal-overlay" onClick={closeQuotationWizard}>
+    <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
       <div className="modal-card modal-wide glass-panel quotation-wizard-modal" onClick={(event) => event.stopPropagation()}>
         <div className="section-head">
           <h3>{isRevision ? "Revise Quotation" : "Create Quotation"}</h3>
-          <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <button
+              type="button"
+              className="link-btn"
+              style={{ fontSize: "0.82rem" }}
+              onClick={() => clearQuotationWizardDraft?.()}
+            >
+              Clear saved draft
+            </button>
+            <button type="button" className="ghost-btn" onClick={closeQuotationWizard}>Close</button>
+          </div>
         </div>
 
         <div className="quotation-wizard-steps">
-          {["customer", "items", "amounts", "preview"].map((step) => (
+          {["customer", "items", "amounts", "terms", "preview"].map((step) => (
             <div key={step} className={`quotation-wizard-step ${quotationWizard.step === step ? "active" : ""}`}>
               {step.toUpperCase()}
             </div>
           ))}
         </div>
-        <div className="context-help-strip">
-          <div className="context-help-card">
-            <strong>{activeWizardHelp.title}</strong>
-            <p>{activeWizardHelp.text}</p>
+        {quotationWizard.step !== "terms" ? (
+          <div className="context-help-strip">
+            <div className="context-help-card">
+              <strong>{activeWizardHelp.title}</strong>
+              <p>{activeWizardHelp.text}</p>
+            </div>
           </div>
-        </div>
+        ) : null}
         {error && <div className="notice error">{error}</div>}
         {quotationWizardNotice && <div className="notice success">{quotationWizardNotice}</div>}
 
@@ -411,19 +440,13 @@ export default function QuotationWizardModal(props) {
 
               {runtimeSellerConfiguration?.modules?.quotationProductSelector !== false &&
                 runtimeQuotationColumns
-                  .filter((column) => column.visibleInForm)
+                  .filter((column) => isColumnVisibleInForm(column) && isColumnVisibleForCurrentCategory(column))
                   .map((column) => {
                     const normalizedKey = column.normalizedKey || column.key;
                     const normalizedType = String(column.type || "").toLowerCase();
                     const meta = column.meta || {};
                     if (normalizedKey === "material_name") return null;
                     if (quotationWizardVisibleVariantFields.some((field) => field.key === normalizedKey)) return null;
-                    if (["width", "height", "unit"].includes(normalizedKey) && quotationWizardItemRules.isServices) {
-                      return null;
-                    }
-                    if (normalizedKey === "ps" && quotationWizardItemRules.isServices) {
-                      return null;
-                    }
 
                     if (normalizedKey === "ps" && normalizedType === "dropdown") {
                       return (
@@ -461,7 +484,7 @@ export default function QuotationWizardModal(props) {
                             id: `quotation-category-${column.id}`,
                             value: quotationWizard.itemForm.category,
                             onChange: (e) => updateQuotationWizardItemForm("category", e.target.value),
-                            options: ["Sheet", "Product", "Services"],
+                            options: Array.isArray(quotationCategoryOptions) ? quotationCategoryOptions : [],
                             placeholder: column.label
                           })}
                         </div>
@@ -496,7 +519,7 @@ export default function QuotationWizardModal(props) {
                   })}
 
               {unsupportedRuntimeQuotationColumns
-                .filter((column) => column.visibleInForm && column.type !== "formula")
+                .filter((column) => isColumnVisibleInForm(column) && isNonFormulaColumn(column) && isColumnVisibleForCurrentCategory(column))
                 .map((column) => {
                   if (quotationWizardVisibleVariantFields.some((field) => field.key === column.key)) {
                     return null;
@@ -713,6 +736,41 @@ export default function QuotationWizardModal(props) {
           </div>
         )}
 
+        {quotationWizard.step === "terms" && (
+          <div className="quotation-wizard-body">
+            <div className="quotation-rich-text-stack">
+              <LimitedRichTextEditor
+                label="Terms & Conditions"
+                value={quotationWizard.amounts.termsRichText}
+                plainFallback={quotationTemplate?.terms_rich_text || quotationTemplate?.terms_text || ""}
+                placeholder="Add quotation terms and conditions"
+                onChange={(nextValue) => setQuotationWizard((prev) => ({
+                  ...prev,
+                  amounts: {
+                    ...prev.amounts,
+                    termsRichText: nextValue,
+                    termsText: richTextToPlainText(nextValue)
+                  }
+                }))}
+              />
+              <LimitedRichTextEditor
+                label="Notes"
+                value={quotationWizard.amounts.notesRichText}
+                plainFallback={quotationTemplate?.notes_rich_text || quotationTemplate?.notes_text || ""}
+                placeholder="Add quotation notes"
+                onChange={(nextValue) => setQuotationWizard((prev) => ({
+                  ...prev,
+                  amounts: {
+                    ...prev.amounts,
+                    notesRichText: nextValue,
+                    notesText: richTextToPlainText(nextValue)
+                  }
+                }))}
+              />
+            </div>
+          </div>
+        )}
+
         {quotationWizard.step === "preview" && (
           <div className="quotation-wizard-body quotation-preview-screen">
             <div className="quotation-preview-header">
@@ -747,7 +805,7 @@ export default function QuotationWizardModal(props) {
             <button type="button" className="ghost-btn quotation-wizard-footer-secondary" onClick={quotationWizard.step === "customer" ? closeQuotationWizard : handleQuotationWizardBack}>
               {quotationWizard.step === "customer" ? "Cancel" : "Back"}
             </button>
-            {quotationWizard.step === "amounts" ? (
+            {quotationWizard.step === "terms" ? (
               <button type="button" className="quotation-wizard-footer-primary" onClick={handleSubmitQuotationWizard} disabled={quotationWizardSubmitting || !quotationWizard.items.length}>
                 {quotationWizardSubmitting ? "Submitting..." : (isRevision ? "Save New Version" : "Submit Quotation")}
               </button>

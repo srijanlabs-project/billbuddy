@@ -2,6 +2,7 @@ const express = require("express");
 const pool = require("../db/db");
 const { getTenantId } = require("../middleware/auth");
 const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
+const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("../services/quotationViewService");
 
 const router = express.Router();
 
@@ -11,12 +12,17 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     const tenantId = getTenantId(req);
 
     const dateFilter = {
+      today: "DATE(q.created_at) = CURRENT_DATE",
+      yesterday: "DATE(q.created_at) = CURRENT_DATE - INTERVAL '1 day'",
+      last7: "q.created_at >= CURRENT_DATE - INTERVAL '7 days'",
+      last30: "q.created_at >= CURRENT_DATE - INTERVAL '30 days'",
+      last60: "q.created_at >= CURRENT_DATE - INTERVAL '60 days'",
       daily: "DATE(q.created_at) = CURRENT_DATE",
       weekly: "q.created_at >= CURRENT_DATE - INTERVAL '7 days'",
       monthly: "q.created_at >= DATE_TRUNC('month', CURRENT_DATE)"
     };
 
-    const condition = dateFilter[range] || dateFilter.daily;
+    const condition = dateFilter[range] || dateFilter.today;
 
     const whereParts = [condition];
     const whereValues = [];
@@ -101,11 +107,276 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
       salesValues
     );
 
+    async function safeQueryRows(query, values = []) {
+      try {
+        const result = await pool.query(query, values);
+        return result.rows;
+      } catch (_error) {
+        return [];
+      }
+    }
+
+    async function safeQueryCount(query, values = []) {
+      try {
+        const result = await pool.query(query, values);
+        return Number(result.rows?.[0]?.count || 0);
+      } catch (_error) {
+        return 0;
+      }
+    }
+
+    function parseJsonObject(value) {
+      if (!value) return {};
+      if (typeof value === "object" && !Array.isArray(value)) return value;
+      if (typeof value !== "string") return {};
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+      } catch (_error) {
+        return {};
+      }
+    }
+
+    function resolveProductDisplayName(product = {}, itemDisplayConfig = {}) {
+      const customFields = parseJsonObject(product.custom_fields);
+      const latestItemDisplayText = String(product.latest_item_display_text || "").trim();
+      if (latestItemDisplayText) return latestItemDisplayText;
+
+      const configuredTitle = String(
+        buildConfiguredQuotationItemTitle(
+          {
+            ...product,
+            custom_fields: customFields,
+            item_category: product.category || null
+          },
+          itemDisplayConfig
+        ) || ""
+      ).trim();
+
+      if (configuredTitle) return configuredTitle;
+
+      const fallbackKeys = [
+        "item_display_text",
+        "material_name",
+        "item_name",
+        "product_name",
+        "service_name",
+        "design_name"
+      ];
+      for (const key of fallbackKeys) {
+        const value = String(customFields?.[key] || "").trim();
+        if (value) return value;
+      }
+
+      return String(product.material_name || product.design_name || "Item").trim() || "Item";
+    }
+
+    const customerCount = tenantId
+      ? await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers WHERE seller_id = $1`, [tenantId])
+      : await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers`);
+
+    const customerCountInRangeRows = await safeQueryRows(
+      `SELECT COUNT(DISTINCT q.customer_id)::int AS count
+       FROM quotations q
+       WHERE ${whereClause}
+         AND q.customer_id IS NOT NULL`,
+      whereValues
+    );
+    const customerCountInRange = Number(customerCountInRangeRows[0]?.count || 0);
+
+    const latestCustomers = tenantId
+      ? await safeQueryRows(
+        `SELECT id, name, firm_name, mobile, created_at
+         FROM customers
+         WHERE seller_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 10`,
+        [tenantId]
+      )
+      : await safeQueryRows(
+        `SELECT id, name, firm_name, mobile, created_at
+         FROM customers
+         ORDER BY created_at DESC, id DESC
+         LIMIT 10`
+      );
+
+    const deliveryValues = [];
+    const deliveryWhere = ["q.delivery_date IS NOT NULL", "q.delivery_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '2 day'"];
+    if (tenantId) {
+      deliveryValues.push(tenantId);
+      deliveryWhere.push(`q.seller_id = $${deliveryValues.length}`);
+    }
+    const deliveriesNext3Days = await safeQueryRows(
+      `SELECT q.delivery_date::date AS day, COUNT(*)::int AS count
+       FROM quotations q
+       WHERE ${deliveryWhere.join(" AND ")}
+       GROUP BY q.delivery_date::date
+       ORDER BY q.delivery_date::date ASC`,
+      deliveryValues
+    );
+
+    const trendWindowByRange = {
+      today: 1,
+      yesterday: 1,
+      last7: 7,
+      last30: 30,
+      last60: 60,
+      daily: 1,
+      weekly: 7,
+      monthly: 30
+    };
+    const trendDays = Number(trendWindowByRange[range] || 7);
+    const salesTrendValues = [];
+    const salesTrendWhere = [];
+    if (String(range) === "yesterday") {
+      salesTrendWhere.push(`DATE(q.created_at) = CURRENT_DATE - INTERVAL '1 day'`);
+    } else if (trendDays <= 1) {
+      salesTrendWhere.push(`DATE(q.created_at) = CURRENT_DATE`);
+    } else {
+      salesTrendWhere.push(`q.created_at >= CURRENT_DATE - INTERVAL '${trendDays - 1} day'`);
+    }
+    if (tenantId) {
+      salesTrendValues.push(tenantId);
+      salesTrendWhere.push(`q.seller_id = $${salesTrendValues.length}`);
+    }
+    const salesTrend = await safeQueryRows(
+      `SELECT
+         DATE(q.created_at) AS day,
+         TO_CHAR(DATE(q.created_at), 'DD Mon') AS day_label,
+         COALESCE(SUM(q.total_amount), 0) AS total
+       FROM quotations q
+       WHERE ${salesTrendWhere.join(" AND ")}
+       GROUP BY DATE(q.created_at)
+       ORDER BY DATE(q.created_at) ASC`,
+      salesTrendValues
+    );
+
+    const periodMetricsRows = await safeQueryRows(
+      `SELECT
+         COUNT(*)::int AS quotation_count,
+         COALESCE(SUM(q.total_amount), 0) AS quotation_value
+       FROM quotations q
+       WHERE ${whereClause}`,
+      whereValues
+    );
+
+    async function fetchTopArticlesByRange(days) {
+      const values = [];
+      const whereParts = [`q.created_at >= CURRENT_DATE - INTERVAL '${Number(days)} day'`];
+      if (tenantId) {
+        values.push(tenantId);
+        whereParts.push(`q.seller_id = $${values.length}`);
+      }
+
+      const result = await safeQueryRows(
+        `SELECT
+           COALESCE(
+             NULLIF(TRIM(qi.item_display_text), ''),
+             NULLIF(TRIM(p.material_name), ''),
+             NULLIF(TRIM(qi.material_type), ''),
+             NULLIF(TRIM(qi.design_name), ''),
+             'Item'
+           ) AS article_name,
+           COALESCE(SUM(COALESCE(qi.quantity, 0)), 0) AS total_qty,
+           COALESCE(SUM(COALESCE(qi.total_price, 0)), 0) AS total_value
+         FROM quotation_items qi
+         INNER JOIN quotations q ON q.id = qi.quotation_id
+         LEFT JOIN products p ON p.id = qi.product_id
+         WHERE ${whereParts.join(" AND ")}
+         GROUP BY 1
+         ORDER BY total_value DESC, total_qty DESC
+         LIMIT 10`,
+        values
+      );
+      return result;
+    }
+
+    const [topArticles7, topArticles30, topArticles60] = await Promise.all([
+      fetchTopArticlesByRange(7),
+      fetchTopArticlesByRange(30),
+      fetchTopArticlesByRange(60)
+    ]);
+
+    const staleProductValues = [];
+    const staleProductWhere = [];
+    if (tenantId) {
+      staleProductValues.push(tenantId);
+      staleProductWhere.push(`p.seller_id = $${staleProductValues.length}`);
+    }
+
+    let itemDisplayConfig = normalizeItemDisplayConfig({});
+    if (tenantId) {
+      const itemDisplayConfigRows = await safeQueryRows(
+        `SELECT modules
+         FROM seller_configuration_profiles
+         WHERE seller_id = $1
+           AND status = 'published'
+         ORDER BY published_at DESC NULLS LAST, updated_at DESC, id DESC
+         LIMIT 1`,
+        [tenantId]
+      );
+      itemDisplayConfig = normalizeItemDisplayConfig(itemDisplayConfigRows[0]?.modules?.itemDisplayConfig || {});
+    }
+
+    const staleProductsRaw = await safeQueryRows(
+      `SELECT
+         p.id,
+         p.material_name,
+         p.design_name,
+         p.custom_fields,
+         p.category,
+         p.base_price,
+         li.item_display_text AS latest_item_display_text,
+         qh.last_quoted_at
+       FROM products p
+       LEFT JOIN LATERAL (
+         SELECT NULLIF(TRIM(qi.item_display_text), '') AS item_display_text
+         FROM quotation_items qi
+         INNER JOIN quotations q2 ON q2.id = qi.quotation_id
+         WHERE qi.product_id = p.id
+           ${tenantId ? "AND q2.seller_id = $1" : ""}
+         ORDER BY q2.created_at DESC, qi.id DESC
+         LIMIT 1
+       ) li ON TRUE
+       LEFT JOIN (
+         SELECT qi.product_id, MAX(q.created_at) AS last_quoted_at
+         FROM quotation_items qi
+         INNER JOIN quotations q ON q.id = qi.quotation_id
+         ${tenantId ? "WHERE q.seller_id = $1" : ""}
+         GROUP BY qi.product_id
+       ) qh ON qh.product_id = p.id
+       ${staleProductWhere.length ? `WHERE ${staleProductWhere.join(" AND ")} AND ` : "WHERE "}
+       (qh.last_quoted_at IS NULL OR qh.last_quoted_at < CURRENT_DATE - INTERVAL '30 day')
+       ORDER BY COALESCE(qh.last_quoted_at, TIMESTAMP '1900-01-01') ASC, p.id DESC
+       LIMIT 10`,
+      staleProductValues
+    );
+
+    const staleProducts30Days = staleProductsRaw.map((row) => ({
+      ...row,
+      item_display_name: resolveProductDisplayName(row, itemDisplayConfig)
+    }));
+
     res.json({
       range,
       sellerId: tenantId,
       totals: totals.rows[0],
       pendingOverall,
+      customerCount,
+      customerCountInRange,
+      latestCustomers,
+      deliveriesNext3Days,
+      salesTrend,
+      periodMetrics: {
+        quotationCount: Number(periodMetricsRows[0]?.quotation_count || 0),
+        quotationValue: Number(periodMetricsRows[0]?.quotation_value || 0)
+      },
+      topArticlesByRange: {
+        "7d": topArticles7,
+        "30d": topArticles30,
+        "60d": topArticles60
+      },
+      staleProducts30Days,
       outstandingByCustomer: outstandingByCustomer.rows,
       salesByCategory: salesByCategory.rows
     });

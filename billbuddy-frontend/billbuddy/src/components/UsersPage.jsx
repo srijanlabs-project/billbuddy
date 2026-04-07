@@ -104,13 +104,13 @@ export default function UsersPage(props) {
         <div>
           <p className="eyebrow">{currentModuleMeta.Users.eyebrow}</p>
           <h2>{currentModuleMeta.Users.title}</h2>
-          <p>{isPlatformAdmin ? "Manage platform-visible user access, lock controls, and governance." : "Create seller-side users, seed roles, and keep access governance organized."}</p>
+          <p>{isPlatformAdmin ? "Manage platform-visible user access, lock controls, and governance." : "Create seller-side users and keep access governance organized."}</p>
         </div>
       </div>
       <div className="section-head">
         <h3>User Access Management</h3>
         <div className="toolbar-controls">
-          <button className="ghost-btn" type="button" onClick={handleSeedRoles}>Seed Roles</button>
+          {isPlatformAdmin ? <button className="ghost-btn" type="button" onClick={handleSeedRoles}>Seed Roles</button> : null}
           {canCreateUser && <button className="action-btn" type="button" onClick={() => { setUserFormErrors({}); setShowUserModal(true); }}>Create New User</button>}
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function UsersPage(props) {
       </div>
 
       {showUserModal && (
-        <div className="modal-overlay" onClick={() => setShowUserModal(false)}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Create User</h3>
@@ -277,7 +277,7 @@ export default function UsersPage(props) {
       )}
 
       {showUserEditModal && (
-        <div className="modal-overlay" onClick={handleCloseEditUser}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Edit User</h3>

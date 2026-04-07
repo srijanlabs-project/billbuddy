@@ -72,7 +72,7 @@ export default function NotificationsPage(props) {
       </table>
 
       {showNotificationCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowNotificationCreateModal(false)}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Create Notification</h3>

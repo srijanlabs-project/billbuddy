@@ -679,9 +679,9 @@ export default function ConfigurationStudio(props) {
                 )}
                 <p className="muted" style={{ marginTop: "12px" }}>Blank field tokens are removed automatically. If a token is missing, the immediately preceding connector text is also hidden.</p>
               </div>
-              <table className="data-table">
+              <table className="data-table seller-config-quotation-table">
                 <thead>
-                  <tr><th>Seq</th><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th>Definition</th><th>{renderInlineHelp("Formula", "Formula columns are calculated automatically at quotation save time. Use supported variables like width, height, quantity, rate, amount, or total_price.")}</th><th>Required</th><th>Form</th><th>PDF</th><th>{renderInlineHelp("Helping", "Helping text appears below the item name in the PDF instead of behaving like a main table column. Use it for supporting details like colour, thickness, or notes.")}</th><th>Calc</th><th /></tr>
+                  <tr><th>Seq</th><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th>Category</th><th>{renderInlineHelp("Formula", "Formula columns are calculated automatically at quotation save time. Use supported variables like width, height, quantity, rate, amount, total_price, and category flags like is_services.")}</th><th>Required</th><th>Form</th><th>PDF</th><th>{renderInlineHelp("Helping", "Helping text appears below the item name in the PDF instead of behaving like a main table column. Use it for supporting details like colour, thickness, or notes.")}</th><th>Calc</th><th /></tr>
                 </thead>
                 <tbody>
                   {sortConfigEntries(activeSellerConfiguration.quotationColumns).map((column) => (
@@ -721,14 +721,58 @@ export default function ConfigurationStudio(props) {
                           disabled={!canEditConfiguration || column.type !== "dropdown"}
                         />
                       </td>
-                      <td><input disabled={!canEditConfiguration} value={column.definition || ""} onChange={(e) => updateQuotationColumn(column.id, "definition", e.target.value)} placeholder="What this column means" /></td>
+                      <td>
+                        <details className="seller-config-category-dropdown">
+                          <summary>
+                            {Array.isArray(column.categoryVisibility) && column.categoryVisibility.length
+                              ? `${column.categoryVisibility.length} selected`
+                              : "All categories"}
+                          </summary>
+                          <div className="seller-config-category-dropdown-panel">
+                            {availableCategories.map((category) => {
+                              const selected = Array.isArray(column.categoryVisibility)
+                                ? column.categoryVisibility.includes(category)
+                                : false;
+                              return (
+                                <label key={`${column.id}-cat-${category}`} className="seller-toggle">
+                                  <input
+                                    type="checkbox"
+                                    style={{ width: "auto" }}
+                                    checked={selected}
+                                    disabled={!canEditConfiguration}
+                                    onChange={(e) => {
+                                      const base = Array.isArray(column.categoryVisibility) ? [...column.categoryVisibility] : [];
+                                      const next = e.target.checked
+                                        ? [...new Set([...base, category])]
+                                        : base.filter((entry) => entry !== category);
+                                      updateQuotationColumn(column.id, "categoryVisibility", next);
+                                    }}
+                                  />
+                                  <span>{category}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </details>
+                      </td>
                       <td><input value={column.formulaExpression || ""} onChange={(e) => updateQuotationColumn(column.id, "formulaExpression", e.target.value)} placeholder={column.type === "formula" ? "width * height * quantity * rate" : "Only for formula type"} disabled={!canEditConfiguration || column.type !== "formula"} /></td>
                       <td><input type="checkbox" disabled={!canEditConfiguration} checked={Boolean(column.required)} onChange={(e) => updateQuotationColumn(column.id, "required", e.target.checked)} style={{ width: "auto" }} /></td>
                       <td><input type="checkbox" disabled={!canEditConfiguration} checked={Boolean(column.visibleInForm)} onChange={(e) => updateQuotationColumn(column.id, "visibleInForm", e.target.checked)} style={{ width: "auto" }} /></td>
                       <td><input type="checkbox" disabled={!canEditConfiguration} checked={Boolean(column.visibleInPdf)} onChange={(e) => updateQuotationColumn(column.id, "visibleInPdf", e.target.checked)} style={{ width: "auto" }} /></td>
                       <td><input type="checkbox" disabled={!canEditConfiguration} checked={Boolean(column.helpTextInPdf)} onChange={(e) => updateQuotationColumn(column.id, "helpTextInPdf", e.target.checked)} style={{ width: "auto" }} /></td>
                       <td><input type="checkbox" disabled={!canEditConfiguration} checked={Boolean(column.includedInCalculation)} onChange={(e) => updateQuotationColumn(column.id, "includedInCalculation", e.target.checked)} style={{ width: "auto" }} /></td>
-                      <td><button type="button" className="ghost-btn" disabled={!canEditConfiguration} onClick={() => removeQuotationColumn(column.id)}>Remove</button></td>
+                      <td>
+                        <button
+                          type="button"
+                          className="ghost-btn seller-config-remove-cross"
+                          aria-label="Remove column"
+                          title="Remove column"
+                          disabled={!canEditConfiguration}
+                          onClick={() => removeQuotationColumn(column.id)}
+                        >
+                          ×
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

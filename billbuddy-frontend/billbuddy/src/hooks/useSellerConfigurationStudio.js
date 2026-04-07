@@ -216,7 +216,8 @@ export default function useSellerConfigurationStudio({
           visibleInForm: true,
           visibleInPdf: true,
           helpTextInPdf: false,
-          includedInCalculation: false
+          includedInCalculation: false,
+          categoryVisibility: []
         }
       ]
     }));
@@ -266,6 +267,23 @@ export default function useSellerConfigurationStudio({
     }));
   }
 
+  function commitQuotationColumnCategoryVisibility(columnId, rawValue) {
+    if (!configurationStudioSeller?.id) return;
+    const parsedCategories = parseOptionsInput(rawValue);
+    updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
+      ...current,
+      quotationColumns: current.quotationColumns.map((column) => (
+        column.id === columnId
+          ? {
+              ...column,
+              categoryVisibility: parsedCategories,
+              categoryVisibilityText: parsedCategories.join(", ")
+            }
+          : column
+      ))
+    }));
+  }
+
   function updateItemDisplayConfig(updater) {
     if (!configurationStudioSeller?.id) return;
     updateSellerConfiguration(configurationStudioSeller.id, (current) => ({
@@ -299,6 +317,7 @@ export default function useSellerConfigurationStudio({
     addQuotationColumn,
     updateQuotationColumn,
     commitQuotationColumnOptions,
+    commitQuotationColumnCategoryVisibility,
     removeQuotationColumn,
     updateSellerConfigurationModule,
     updateItemDisplayConfig

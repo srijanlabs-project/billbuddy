@@ -78,7 +78,7 @@ export default function PlansPage(props) {
       </table>
 
       {showPlanCreateModal && (
-        <div className="modal-overlay" onClick={() => setShowPlanCreateModal(false)}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Create Plan</h3>

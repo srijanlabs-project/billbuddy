@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildConfiguredQuotationItemTitle } from "../utils/quotationView";
 import { applyShippingAddressGstReuse, createEmptyShippingAddress, updateShippingAddressValue } from "../utils/customerShipping";
+import { getRichTextValue } from "../utils/richText";
 
 const BUILT_IN_VARIANT_FIELDS = [
   { key: "color_name", label: "Colour", kind: "supported", formKey: "color" },
   { key: "thickness", label: "Thickness", kind: "supported", formKey: "thickness" }
 ];
+const QUOTATION_WIZARD_DRAFT_KEY_PREFIX = "billbuddyQuotationWizardDraft";
 
 function normalizeComparableValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function normalizeCategoryToken(value) {
   return String(value || "").trim().toLowerCase();
 }
 
@@ -33,6 +39,24 @@ function buildSecondarySku(materialName) {
   return `SEC-${slug}-${Date.now().toString().slice(-6)}`;
 }
 
+function isColumnVisibleForItemCategory(column, itemCategory) {
+  const mapped = Array.isArray(column?.categoryVisibility)
+    ? column.categoryVisibility
+    : (Array.isArray(column?.category_visibility) ? column.category_visibility : []);
+  if (!mapped.length) return true;
+  const normalizedCategory = normalizeCategoryToken(itemCategory);
+  if (!normalizedCategory) return true;
+  return mapped.some((entry) => normalizeCategoryToken(entry) === normalizedCategory);
+}
+
+function isColumnVisibleInForm(column) {
+  return Boolean(column?.visibleInForm ?? column?.visible_in_form);
+}
+
+function isNonFormulaColumn(column) {
+  return String(column?.type || column?.column_type || "").toLowerCase() !== "formula";
+}
+
 export default function useQuotationWizard({
   auth,
   products,
@@ -40,6 +64,7 @@ export default function useQuotationWizard({
   runtimeCatalogueFields,
   unsupportedRuntimeCatalogueFields,
   unsupportedRuntimeQuotationColumns,
+  quotationTemplate,
   createInitialQuotationWizardState,
   createQuotationWizardItem,
   getCatalogueDrivenQuotationCustomFields,
@@ -74,6 +99,11 @@ export default function useQuotationWizard({
     message: ""
   });
   const [quotationWizardShippingGstValidation, setQuotationWizardShippingGstValidation] = useState({});
+  const quotationWizardDraftStorageKey = useMemo(() => {
+    const sellerId = auth?.user?.sellerId || auth?.user?.seller_id || "seller";
+    const userId = auth?.user?.id || auth?.user?.userId || "user";
+    return `${QUOTATION_WIZARD_DRAFT_KEY_PREFIX}:${sellerId}:${userId}`;
+  }, [auth?.user?.id, auth?.user?.sellerId, auth?.user?.seller_id, auth?.user?.userId]);
 
   function getVisibleQuotationNumber(quotation) {
     return quotation?.custom_quotation_number || quotation?.seller_quotation_number || quotation?.quotation_number || "";
@@ -265,19 +295,104 @@ export default function useQuotationWizard({
     };
   }, [quotationPreviewUrl]);
 
+  useEffect(() => {
+    if (!showMessageSimulatorModal) return;
+    if (quotationWizard?.mode === "revise") return;
+    try {
+      localStorage.setItem(
+        quotationWizardDraftStorageKey,
+        JSON.stringify({
+          wizard: quotationWizard,
+          customerGstValidation: quotationWizardCustomerGstValidation,
+          shippingGstValidation: quotationWizardShippingGstValidation,
+          savedAt: Date.now()
+        })
+      );
+    } catch (_error) {
+      // Draft persistence is best-effort and should not block the form.
+    }
+  }, [
+    showMessageSimulatorModal,
+    quotationWizard,
+    quotationWizardCustomerGstValidation,
+    quotationWizardShippingGstValidation,
+    quotationWizardDraftStorageKey
+  ]);
+
   function openQuotationWizard(initialState = null) {
     if (!auth?.user?.isPlatformAdmin) {
-      setQuotationWizard(initialState || createInitialQuotationWizardState(null));
+      let nextState = initialState || createInitialQuotationWizardState(null);
+      if (!initialState) {
+        try {
+          const raw = localStorage.getItem(quotationWizardDraftStorageKey);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed?.wizard && typeof parsed.wizard === "object") {
+            nextState = {
+              ...nextState,
+              ...parsed.wizard
+            };
+            setQuotationWizardCustomerGstValidation(parsed.customerGstValidation || { status: "idle", gstNumber: "", profile: null, message: "" });
+            setQuotationWizardShippingGstValidation(parsed.shippingGstValidation || {});
+            setQuotationWizardNotice("Recovered your last unsaved quotation draft.");
+          } else {
+            setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+            setQuotationWizardShippingGstValidation({});
+          }
+        } catch (_error) {
+          setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+          setQuotationWizardShippingGstValidation({});
+        }
+      } else {
+        setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+        setQuotationWizardShippingGstValidation({});
+      }
+      setQuotationWizard(nextState);
+      setQuotationWizard((prev) => ({
+        ...prev,
+        amounts: {
+          ...prev.amounts,
+          notesRichText: prev.amounts.notesRichText || getRichTextValue(quotationTemplate?.notes_rich_text, quotationTemplate?.notes_text || ""),
+          termsRichText: prev.amounts.termsRichText || getRichTextValue(quotationTemplate?.terms_rich_text, quotationTemplate?.terms_text || "")
+        }
+      }));
       if (quotationPreviewUrl) {
         URL.revokeObjectURL(quotationPreviewUrl);
       }
       setQuotationPreviewUrl("");
       setQuotationPreviewError("");
-      setQuotationWizardNotice("");
-      setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
-      setQuotationWizardShippingGstValidation({});
+      if (initialState) {
+        setQuotationWizardNotice("");
+      }
       setShowMessageSimulatorModal(true);
       setError("");
+    }
+  }
+
+  function clearQuotationWizardDraft(options = {}) {
+    const {
+      notice = "Saved draft cleared. Fresh form is ready.",
+      keepModalOpen = true
+    } = options;
+
+    try {
+      localStorage.removeItem(quotationWizardDraftStorageKey);
+    } catch (_error) {
+      // Ignore local storage cleanup failures.
+    }
+
+    if (quotationPreviewUrl) {
+      URL.revokeObjectURL(quotationPreviewUrl);
+    }
+    setQuotationPreviewUrl("");
+    setQuotationPreviewError("");
+    setQuotationWizard(createInitialQuotationWizardState(null));
+    setQuotationWizardSubmitting(false);
+    setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
+    setQuotationWizardShippingGstValidation({});
+    setQuotationWizardNotice(notice);
+
+    if (!keepModalOpen) {
+      setShowMessageSimulatorModal(false);
     }
   }
 
@@ -404,7 +519,11 @@ export default function useQuotationWizard({
         ...createQuotationWizardItem(selectedProduct),
         customFields: getCatalogueDrivenQuotationCustomFields(
           selectedProduct,
-          unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+          unsupportedRuntimeQuotationColumns.filter((column) => (
+            isColumnVisibleInForm(column)
+            && isNonFormulaColumn(column)
+            && isColumnVisibleForItemCategory(column, prev.itemForm.category || selectedProduct?.category)
+          )),
           prev.itemForm.customFields
         )
       }
@@ -465,7 +584,11 @@ export default function useQuotationWizard({
       note: previousItemForm?.note ?? baseItemForm.note,
       customFields: getCatalogueDrivenQuotationCustomFields(
         selectedProduct,
-        unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+        unsupportedRuntimeQuotationColumns.filter((column) => (
+          isColumnVisibleInForm(column)
+          && isNonFormulaColumn(column)
+          && isColumnVisibleForItemCategory(column, previousItemForm?.category || baseItemForm.category)
+        )),
         existingCustomFields
       )
     };
@@ -494,6 +617,12 @@ export default function useQuotationWizard({
         materialName
       });
       const matches = (products || []).filter((product) => normalizeComparableValue(product.material_name) === normalizeComparableValue(materialName));
+      if (matches.length > 1) {
+        const categories = uniqueValues(matches.map((product) => String(product.category || "").trim()).filter(Boolean));
+        if (categories.length === 1) {
+          nextItemForm.category = categories[0];
+        }
+      }
       if (matches.length === 1) {
         return {
           ...prev,
@@ -612,11 +741,19 @@ export default function useQuotationWizard({
 
     const effectiveCustomFields = getCatalogueDrivenQuotationCustomFields(
       quotationWizardSelectedProduct,
-      unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+      unsupportedRuntimeQuotationColumns.filter((column) => (
+        isColumnVisibleInForm(column)
+        && isNonFormulaColumn(column)
+        && isColumnVisibleForItemCategory(column, quotationWizard.itemForm.category)
+      )),
       quotationWizard.itemForm.customFields
     );
     const customFieldError = getCustomQuotationValidationError(
-      unsupportedRuntimeQuotationColumns.filter((column) => column.visibleInForm && column.type !== "formula"),
+      unsupportedRuntimeQuotationColumns.filter((column) => (
+        isColumnVisibleInForm(column)
+        && isNonFormulaColumn(column)
+        && isColumnVisibleForItemCategory(column, quotationWizard.itemForm.category)
+      )),
       effectiveCustomFields
     );
     const rateValidationMessage = getQuotationRateValidationMessage({
@@ -651,7 +788,10 @@ export default function useQuotationWizard({
         ? prev.items.map((item) => (item.id === prev.editingItemId ? { ...itemToAdd, id: prev.editingItemId } : item))
         : [...prev.items, itemToAdd],
       editingItemId: null,
-      itemForm: createQuotationWizardItem(null)
+      itemForm: {
+        ...createQuotationWizardItem(null),
+        category: prev.itemForm.category || createQuotationWizardItem(null).category
+      }
     }));
     setError("");
     setQuotationWizardNotice("");
@@ -723,6 +863,13 @@ export default function useQuotationWizard({
       setQuotationWizard((prev) => ({ ...prev, step: "amounts" }));
       setError("");
       setQuotationWizardNotice("");
+      return;
+    }
+
+    if (quotationWizard.step === "amounts") {
+      setQuotationWizard((prev) => ({ ...prev, step: "terms" }));
+      setError("");
+      setQuotationWizardNotice("");
     }
   }
 
@@ -731,7 +878,9 @@ export default function useQuotationWizard({
     setQuotationWizardNotice("");
     setQuotationWizard((prev) => ({
       ...prev,
-      step: prev.step === "amounts" ? "items" : "customer"
+      step: prev.step === "terms"
+        ? "amounts"
+        : (prev.step === "amounts" ? "items" : "customer")
     }));
   }
 
@@ -914,6 +1063,8 @@ export default function useQuotationWizard({
           deliveryType: normalizedDeliveryType,
           deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryAddress || "").trim() || null : null,
           deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryPincode || "").trim() || null : null,
+          notesRichText: quotationWizard.amounts.notesRichText || "",
+          termsRichText: quotationWizard.amounts.termsRichText || "",
           sourceChannel: isRevision ? "seller-dashboard-revision" : "seller-dashboard-modal",
           recordStatus: "submitted",
           customerMonthlyBilling: Boolean(quotationWizard.customer.monthlyBilling)
@@ -937,6 +1088,12 @@ export default function useQuotationWizard({
       } catch (previewError) {
         setQuotationPreviewUrl("");
         setQuotationPreviewError(previewError?.message || "Preview could not be loaded. You can still download the PDF.");
+      }
+
+      try {
+        localStorage.removeItem(quotationWizardDraftStorageKey);
+      } catch (_error) {
+        // Ignore local draft cleanup failures.
       }
 
       await Promise.all([
@@ -1001,6 +1158,7 @@ export default function useQuotationWizard({
     quotationWizardGstMode,
     showQuotationWizardNotice: setQuotationWizardNotice,
     openQuotationWizard,
+    clearQuotationWizardDraft,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
     validateQuotationWizardCustomerGst,

@@ -14,23 +14,27 @@ export default function SubscriptionsPage(props) {
 
   if (activeModule !== "Subscriptions") return null;
 
+  const currentPlanName = currentSellerSubscription?.plan_name || currentSellerSubscription?.plan_code || "No active plan";
+  const currentPlanStatus = currentSellerSubscription?.status || "-";
+  const currentPlanBilling = currentSellerSubscription?.billing_cycle || "-";
+
   return (
-    <section className="module-placeholder glass-panel">
+    <section className="module-placeholder glass-panel subscriptions-modern-shell">
       <div className="page-banner">
         <div>
-          <p className="eyebrow">{currentModuleMeta.Subscriptions.eyebrow}</p>
-          <h2>{currentModuleMeta.Subscriptions.title}</h2>
+          <p className="eyebrow">Plan</p>
+          <h2>Subscription History</h2>
           <p>{currentModuleMeta.Subscriptions.subtitle}</p>
         </div>
-        <div className="banner-stat">
+        <div className="banner-stat subscriptions-total-card">
           <span>Total Subscriptions</span>
           <strong>{subscriptions.length}</strong>
         </div>
       </div>
 
-      <div className="section-head">
+      <div className="section-head subscriptions-toolbar">
         <h3>Subscription List</h3>
-        <div className="toolbar-controls">
+        <div className="toolbar-controls subscriptions-search-wrap">
           <input
             type="search"
             className="toolbar-search"
@@ -38,40 +42,33 @@ export default function SubscriptionsPage(props) {
             value={subscriptionSearch}
             onChange={(e) => setSubscriptionSearch(e.target.value)}
           />
-          <span>{filteredSubscriptions.length} subscription(s)</span>
         </div>
       </div>
 
       {!isPlatformAdmin && (
-        <div className="seller-subscription-summary">
-          {currentSellerSubscription ? (
-            <>
-              <div className="seller-subscription-summary-card">
-                <span className="eyebrow">Current Active Plan</span>
-                <h3>{currentSellerSubscription.plan_name || currentSellerSubscription.plan_code || "Plan"}</h3>
-                <div className="seller-detail-list">
-                  <div><span>Status</span><strong>{currentSellerSubscription.status || "-"}</strong></div>
-                  <div><span>Billing</span><strong>{currentSellerSubscription.billing_cycle || "-"}</strong></div>
-                  <div><span>Trial End</span><strong>{formatDateIST(currentSellerSubscription.trial_end_at)}</strong></div>
-                  <div><span>Start Date</span><strong>{formatDateIST(currentSellerSubscription.start_date)}</strong></div>
-                </div>
-              </div>
-              <div className="seller-subscription-summary-card">
-                <span className="eyebrow">Plan Visibility</span>
-                <p className="muted">This block always shows the currently active subscription for your seller account. Historical and expired subscriptions remain listed below.</p>
-              </div>
-            </>
-          ) : (
-            <div className="seller-subscription-summary-card">
+        <div className="seller-subscription-summary subscriptions-current-block">
+          <div className="seller-subscription-summary-card subscriptions-current-plan-card">
+            <div className="subscriptions-current-plan-head">
               <span className="eyebrow">Current Active Plan</span>
-              <h3>No subscription activated</h3>
-              <p className="muted">No active or trial subscription record is currently linked to this seller account.</p>
+              <button type="button" className="action-btn compact-btn subscriptions-upgrade-btn">Upgrade</button>
             </div>
-          )}
+            <h3>{currentPlanName}</h3>
+            <div className="seller-detail-list">
+              <div><span>Status</span><strong>{currentPlanStatus}</strong></div>
+              <div><span>Billing</span><strong>{currentPlanBilling}</strong></div>
+              <div><span>Trial End</span><strong>{formatDateIST(currentSellerSubscription?.trial_end_at)}</strong></div>
+              <div><span>Start Date</span><strong>{formatDateIST(currentSellerSubscription?.start_date)}</strong></div>
+            </div>
+          </div>
+          <div className="seller-subscription-summary-card subscriptions-current-info-card">
+            <h4>New subscription list</h4>
+            <p className="muted">Review all active, trial, expired, and suspended subscriptions for this seller account below.</p>
+          </div>
         </div>
       )}
 
-      <table className="data-table">
+      <div className="subscriptions-table-wrap">
+      <table className="data-table subscriptions-table">
         <thead>
           <tr>
             {isPlatformAdmin ? <th>Seller</th> : <th>Subscription</th>}
@@ -119,6 +116,7 @@ export default function SubscriptionsPage(props) {
           )}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import "./App.css";
 import { apiFetch } from "./api";
@@ -347,7 +347,9 @@ const QUOTATION_TEMPLATE_PRESETS = {
       footer_text: "Thank you for your business.",
       accent_color: "#737373",
       notes_text: "",
-      terms_text: ""
+      notes_rich_text: "",
+      terms_text: "",
+      terms_rich_text: ""
     }
   }
 };
@@ -1340,7 +1342,9 @@ function buildQuotationWizardRevisionState(details, {
       referenceRequestId: quotation.reference_request_id || "",
       deliveryType: quotation.delivery_type || "PICKUP",
       deliveryAddress: quotation.delivery_address || "",
-      deliveryPincode: quotation.delivery_pincode || ""
+      deliveryPincode: quotation.delivery_pincode || "",
+      notesRichText: quotation.document_snapshot?.template?.notes_rich_text || quotation.document_snapshot?.template?.notes_text || "",
+      termsRichText: quotation.document_snapshot?.template?.terms_rich_text || quotation.document_snapshot?.template?.terms_text || ""
     }
   };
 }
@@ -1511,7 +1515,9 @@ function createInitialQuotationWizardState(firstProduct = null) {
       referenceRequestId: "",
       deliveryType: "PICKUP",
       deliveryAddress: "",
-      deliveryPincode: ""
+      deliveryPincode: "",
+      notesRichText: "",
+      termsRichText: ""
     },
     submittedQuotation: null
   };
@@ -1526,6 +1532,7 @@ function createInitialCustomerForm() {
     address: "",
     gstNumber: "",
     monthlyBilling: false,
+    sameAsBillingShipping: false,
     shippingAddresses: [createEmptyShippingAddress()]
   };
 }
@@ -1853,13 +1860,13 @@ function createDefaultSellerConfiguration(seller) {
       { id: "cat-max-discount", displayOrder: 8, key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false }
     ],
     quotationColumns: [
-        { id: "col-material", displayOrder: 1, key: "material_name", label: "Material", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false },
-        { id: "col-thickness", displayOrder: 2, key: "thickness", label: "Thickness", type: "text", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false },
-        { id: "col-width", displayOrder: 3, key: "width", label: "Width", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true },
-        { id: "col-height", displayOrder: 4, key: "height", label: "Height", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true },
-        { id: "col-quantity", displayOrder: 5, key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true },
-        { id: "col-rate", displayOrder: 6, key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true },
-        { id: "col-amount", displayOrder: 7, key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "width * height * quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true }
+        { id: "col-material", displayOrder: 1, key: "material_name", label: "Material", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, categoryVisibility: [] },
+        { id: "col-thickness", displayOrder: 2, key: "thickness", label: "Thickness", type: "text", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, categoryVisibility: [] },
+        { id: "col-width", displayOrder: 3, key: "width", label: "Width", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-height", displayOrder: 4, key: "height", label: "Height", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-quantity", displayOrder: 5, key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-rate", displayOrder: 6, key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-amount", displayOrder: 7, key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "width * height * quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] }
       ]
     };
 }
@@ -1904,12 +1911,18 @@ function mapSellerConfigurationResponse(config, seller) {
     quotationColumns: (Array.isArray(config.quotationColumns) && config.quotationColumns.length ? config.quotationColumns : fallback.quotationColumns)
       .map((column) => ({
         ...column,
-          options: Array.isArray(column.options) ? column.options : [],
-          definition: column.definition || "",
-          formulaExpression: column.formulaExpression || ""
-          ,
-          helpTextInPdf: Boolean(column.helpTextInPdf)
-        }))
+        options: Array.isArray(column.options) ? column.options : [],
+        definition: column.definition || column.definition_text || "",
+        formulaExpression: column.formulaExpression || column.formula_expression || "",
+        required: Boolean(column.required ?? column.is_required),
+        visibleInForm: Boolean(column.visibleInForm ?? column.visible_in_form),
+        visibleInPdf: Boolean(column.visibleInPdf ?? column.visible_in_pdf),
+        helpTextInPdf: Boolean(column.helpTextInPdf ?? column.help_text_in_pdf),
+        includedInCalculation: Boolean(column.includedInCalculation ?? column.included_in_calculation),
+        categoryVisibility: Array.isArray(column.categoryVisibility)
+          ? column.categoryVisibility
+          : (Array.isArray(column.category_visibility) ? column.category_visibility : [])
+      }))
   };
 }
 
@@ -2211,7 +2224,7 @@ function PublicPageHeader({ activePath }) {
       <div className="labs-topbar-inner public-page-topbar-inner">
         <a className="public-page-brand" href="/" aria-label="Go to Quotsy home">
           <div className="brand-block public-page-brand-lockup">
-            <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogoDark} alt="Quotsy" />
+            <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogo} alt="Quotsy" />
           </div>
         </a>
         <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
@@ -3390,7 +3403,7 @@ function App() {
   const [cookieConsent, setCookieConsent] = useState(getStoredCookieConsent);
 
   const [activeModule, setActiveModule] = useState("Dashboard");
-  const [dashboardRange, setDashboardRange] = useState("daily");
+  const [dashboardRange, setDashboardRange] = useState("today");
   const [search, setSearch] = useState("");
   const [orderSort, setOrderSort] = useState({ key: "created_at", direction: "desc" });
 
@@ -3487,14 +3500,21 @@ function App() {
     footer_image_data: null,
     show_footer_image: false,
     accent_color: "#737373",
-    notes_text: "Delivery and installation charges are extra unless mentioned.",
-    terms_text: "Payment terms and final scope will be confirmed at quotation stage.",
+    notes_text: "",
+    notes_rich_text: "",
+    terms_text: "",
+    terms_rich_text: "",
     show_bank_details: true,
     show_notes: true,
     show_terms: true,
     email_enabled: false,
     whatsapp_enabled: true
   });
+  const quotationTemplateRef = useRef(quotationTemplate);
+
+  useEffect(() => {
+    quotationTemplateRef.current = quotationTemplate;
+  }, [quotationTemplate]);
 
   const [sellerForm, setSellerForm] = useState({
     name: "",
@@ -3695,6 +3715,12 @@ function App() {
     if (sellerSetupStage === "configuration") return new Set(["Settings", "Configuration Studio", "Help Center", "Subscriptions"]);
     return null;
   }, [isPlatformAdmin, isSubUser, sellerSetupStage]);
+  const normalizedCustomerFormGstNumber = String(customerForm.gstNumber || "").trim().toUpperCase();
+  const isCustomerIdentityLockedByGst = Boolean(normalizedCustomerFormGstNumber) && (
+    (customerGstValidation.status === "verified"
+      && String(customerGstValidation.gstNumber || "") === normalizedCustomerFormGstNumber)
+    || Boolean(editingCustomerId)
+  );
   const getModuleSetupLockMessage = (module) => {
     if (isPlatformAdmin || isSubUser || !setupAllowedModules || setupAllowedModules.has(module)) return "";
     if (sellerSetupStage === "settings") {
@@ -3707,7 +3733,7 @@ function App() {
   };
   const isModuleSetupLocked = (module) => Boolean(getModuleSetupLockMessage(module));
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
-  const sidebarBrandLogo = ["deep-ocean", "cobalt-frost"].includes(theme) ? quotsyLogo : quotsyLogoDark;
+  const sidebarBrandLogo = ["deep-ocean", "cobalt-frost"].includes(theme) ? quotsyLogoDark : quotsyLogo;
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
   const publicVisitorHelpPaths = new Set(["/user-guide", "/visitor-help", "/visitor-faqs"]);
@@ -4574,6 +4600,7 @@ function App() {
     addQuotationColumn,
     updateQuotationColumn,
     commitQuotationColumnOptions,
+    commitQuotationColumnCategoryVisibility,
     removeQuotationColumn,
     updateSellerConfigurationModule,
     updateItemDisplayConfig
@@ -4732,6 +4759,7 @@ function App() {
     quotationWizardBalanceAmount,
     quotationWizardGstMode,
     openQuotationWizard,
+    clearQuotationWizardDraft,
     closeQuotationWizard,
     updateQuotationWizardCustomerField,
     validateQuotationWizardCustomerGst,
@@ -4761,6 +4789,7 @@ function App() {
     runtimeCatalogueFields,
     unsupportedRuntimeCatalogueFields,
     unsupportedRuntimeQuotationColumns,
+    quotationTemplate,
     createInitialQuotationWizardState,
     createQuotationWizardItem,
     getCatalogueDrivenQuotationCustomFields,
@@ -5103,6 +5132,10 @@ function App() {
           gstNumber: String(entry?.gstNumber || "").toUpperCase()
         }))
       : [createEmptyShippingAddress()];
+    const firstShippingAddress = shippingAddresses[0]?.address || "";
+    const sameAsBillingShipping = shippingAddresses.length === 1
+      && String(firstShippingAddress || "").trim()
+      && String(firstShippingAddress || "").trim() === String(customer.address || "").trim();
 
     setEditingCustomerId(customer.id);
     setCustomerForm({
@@ -5113,6 +5146,7 @@ function App() {
       address: customer.address || "",
       gstNumber: customer.gst_number || "",
       monthlyBilling: Boolean(customer.monthly_billing),
+      sameAsBillingShipping: Boolean(sameAsBillingShipping),
       shippingAddresses
     });
     setCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
@@ -5129,10 +5163,28 @@ function App() {
       return;
     }
 
+    const normalizedBillingAddress = String(customerForm.address || "").trim();
+    const normalizedShippingAddresses = Array.isArray(customerForm.shippingAddresses)
+      ? customerForm.shippingAddresses.map((entry, index) => {
+          if (customerForm.sameAsBillingShipping && index === 0) {
+            return {
+              ...entry,
+              label: String(entry?.label || "Billing Address"),
+              address: normalizedBillingAddress
+            };
+          }
+          return entry;
+        })
+      : [];
+    const payload = {
+      ...customerForm,
+      shippingAddresses: normalizedShippingAddresses
+    };
+
     try {
       await apiFetch(editingCustomerId ? `/api/customers/${editingCustomerId}` : "/api/customers", {
         method: editingCustomerId ? "PATCH" : "POST",
-        body: JSON.stringify(customerForm)
+        body: JSON.stringify(payload)
       });
 
       const customerRows = await apiFetch("/api/customers");
@@ -5203,10 +5255,20 @@ function App() {
   }
 
   function handleCustomerShippingAddressChange(index, field, value) {
-    setCustomerForm((prev) => ({
-      ...prev,
-      shippingAddresses: updateShippingAddressValue(prev.shippingAddresses, index, field, value)
-    }));
+    setCustomerForm((prev) => {
+      const nextShippingAddresses = updateShippingAddressValue(prev.shippingAddresses, index, field, value);
+      if (field === "address" && prev.sameAsBillingShipping && index === 0) {
+        return {
+          ...prev,
+          address: String(value || ""),
+          shippingAddresses: nextShippingAddresses
+        };
+      }
+      return {
+        ...prev,
+        shippingAddresses: nextShippingAddresses
+      };
+    });
     if (field === "gstNumber") {
       setCustomerShippingGstValidation((prev) => ({
         ...prev,
@@ -5218,6 +5280,7 @@ function App() {
   function handleAddCustomerShippingAddress() {
     setCustomerForm((prev) => ({
       ...prev,
+      sameAsBillingShipping: false,
       shippingAddresses: [...applyShippingAddressGstReuse(prev.shippingAddresses), createEmptyShippingAddress()]
     }));
   }
@@ -5503,6 +5566,14 @@ function App() {
       return;
     }
     try {
+      if (typeof document !== "undefined") {
+        const activeElement = document.activeElement;
+        if (activeElement?.classList?.contains("limited-rich-text-editor")) {
+          activeElement.blur();
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      const currentTemplate = quotationTemplateRef.current;
       const sellerSettingsRequest = apiFetch("/api/sellers/me/settings", {
         method: "PUT",
         body: JSON.stringify({
@@ -5511,7 +5582,7 @@ function App() {
           businessName,
           quotationNumberPrefix,
           sellerGstNumber,
-          companyAddress: quotationTemplate.company_address,
+          companyAddress: currentTemplate.company_address,
           bankName,
           bankBranch,
           bankAccountNo,
@@ -5522,27 +5593,29 @@ function App() {
       const templateSettingsRequest = apiFetch("/api/quotations/templates/current", {
         method: "PUT",
         body: JSON.stringify({
-          templatePreset: quotationTemplate.template_preset,
-          templateThemeKey: quotationTemplate.template_theme_key || "default",
-          headerText: quotationTemplate.header_text,
-          bodyTemplate: quotationTemplate.body_template,
-          footerText: quotationTemplate.footer_text,
-          companyPhone: quotationTemplate.company_phone,
-          companyEmail: quotationTemplate.company_email,
-          headerImageData: quotationTemplate.header_image_data,
-          showHeaderImage: quotationTemplate.show_header_image,
-          logoImageData: quotationTemplate.logo_image_data,
-          showLogoOnly: quotationTemplate.show_logo_only,
-          footerImageData: quotationTemplate.footer_image_data,
-          showFooterImage: quotationTemplate.show_footer_image,
-          accentColor: quotationTemplate.accent_color,
-          notesText: quotationTemplate.notes_text,
-          termsText: quotationTemplate.terms_text,
-          showBankDetails: quotationTemplate.show_bank_details,
-          showNotes: quotationTemplate.show_notes,
-          showTerms: quotationTemplate.show_terms,
-          emailEnabled: quotationTemplate.email_enabled,
-          whatsappEnabled: quotationTemplate.whatsapp_enabled
+          templatePreset: currentTemplate.template_preset,
+          templateThemeKey: currentTemplate.template_theme_key || "default",
+          headerText: currentTemplate.header_text,
+          bodyTemplate: currentTemplate.body_template,
+          footerText: currentTemplate.footer_text,
+          companyPhone: currentTemplate.company_phone,
+          companyEmail: currentTemplate.company_email,
+          headerImageData: currentTemplate.header_image_data,
+          showHeaderImage: currentTemplate.show_header_image,
+          logoImageData: currentTemplate.logo_image_data,
+          showLogoOnly: currentTemplate.show_logo_only,
+          footerImageData: currentTemplate.footer_image_data,
+          showFooterImage: currentTemplate.show_footer_image,
+          accentColor: currentTemplate.accent_color,
+          notesText: currentTemplate.notes_text,
+          notesRichText: currentTemplate.notes_rich_text,
+          termsText: currentTemplate.terms_text,
+          termsRichText: currentTemplate.terms_rich_text,
+          showBankDetails: currentTemplate.show_bank_details,
+          showNotes: currentTemplate.show_notes,
+          showTerms: currentTemplate.show_terms,
+          emailEnabled: currentTemplate.email_enabled,
+          whatsappEnabled: currentTemplate.whatsapp_enabled
         })
       });
 
@@ -6185,30 +6258,40 @@ function App() {
       return;
     }
     try {
+      if (typeof document !== "undefined") {
+        const activeElement = document.activeElement;
+        if (activeElement?.classList?.contains("limited-rich-text-editor")) {
+          activeElement.blur();
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
+      const currentTemplate = quotationTemplateRef.current;
       const savedTemplate = await apiFetch("/api/quotations/templates/current", {
         method: "PUT",
         body: JSON.stringify({
-          templatePreset: quotationTemplate.template_preset,
-          templateThemeKey: quotationTemplate.template_theme_key || "default",
-          headerText: quotationTemplate.header_text,
-          bodyTemplate: quotationTemplate.body_template,
-          footerText: quotationTemplate.footer_text,
-          companyPhone: quotationTemplate.company_phone,
-          companyEmail: quotationTemplate.company_email,
-          headerImageData: quotationTemplate.header_image_data,
-          showHeaderImage: quotationTemplate.show_header_image,
-          logoImageData: quotationTemplate.logo_image_data,
-          showLogoOnly: quotationTemplate.show_logo_only,
-          footerImageData: quotationTemplate.footer_image_data,
-          showFooterImage: quotationTemplate.show_footer_image,
-          accentColor: quotationTemplate.accent_color,
-          notesText: quotationTemplate.notes_text,
-          termsText: quotationTemplate.terms_text,
-          showBankDetails: quotationTemplate.show_bank_details,
-          showNotes: quotationTemplate.show_notes,
-          showTerms: quotationTemplate.show_terms,
-          emailEnabled: quotationTemplate.email_enabled,
-          whatsappEnabled: quotationTemplate.whatsapp_enabled
+          templatePreset: currentTemplate.template_preset,
+          templateThemeKey: currentTemplate.template_theme_key || "default",
+          headerText: currentTemplate.header_text,
+          bodyTemplate: currentTemplate.body_template,
+          footerText: currentTemplate.footer_text,
+          companyPhone: currentTemplate.company_phone,
+          companyEmail: currentTemplate.company_email,
+          headerImageData: currentTemplate.header_image_data,
+          showHeaderImage: currentTemplate.show_header_image,
+          logoImageData: currentTemplate.logo_image_data,
+          showLogoOnly: currentTemplate.show_logo_only,
+          footerImageData: currentTemplate.footer_image_data,
+          showFooterImage: currentTemplate.show_footer_image,
+          accentColor: currentTemplate.accent_color,
+          notesText: currentTemplate.notes_text,
+          notesRichText: currentTemplate.notes_rich_text,
+          termsText: currentTemplate.terms_text,
+          termsRichText: currentTemplate.terms_rich_text,
+          showBankDetails: currentTemplate.show_bank_details,
+          showNotes: currentTemplate.show_notes,
+          showTerms: currentTemplate.show_terms,
+          emailEnabled: currentTemplate.email_enabled,
+          whatsappEnabled: currentTemplate.whatsapp_enabled
         })
       });
       if (savedTemplate) {
@@ -6742,10 +6825,6 @@ function App() {
       <aside className="sidebar glass-panel">
         <div className="brand-block">
           <img className="quotsy-brand-logo" src={sidebarBrandLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
-          <div className="brand-text">
-            <h2>{isPlatformAdmin ? "Quotsy Platform" : "Quotsy"}</h2>
-            <p>{isPlatformAdmin ? "Control Plane" : (seller?.name || "Seller")}</p>
-          </div>
         </div>
 
         <nav className="nav-list">
@@ -6804,11 +6883,11 @@ function App() {
       </aside>
 
       <div className="workspace">
-      <header className="topbar glass-panel">
+      <header className="topbar">
           <div className={`topbar-main ${!isPlatformAdmin ? "topbar-main-seller" : ""}`}>
             {!isPlatformAdmin && (
               <div className="topbar-intro">
-                <h1>{seller?.name || "Seller"}</h1>
+                <h1>{seller?.business_name || seller?.name || "Seller"}</h1>
               </div>
             )}
             {!isSubUser && canSearchQuotation && (
@@ -6981,7 +7060,7 @@ function App() {
             {renderPagination(sellerPage, setSellerPage, filteredSellers.length)}
 
             {showSellerCreateModal && (
-              <div className="modal-overlay" onClick={() => setShowSellerCreateModal(false)}>
+              <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
                   <div className="section-head">
                     <h3>Create Seller</h3>
@@ -7193,6 +7272,8 @@ function App() {
               canSendQuotation={canSendQuotation}
               canMarkPaid={canMarkPaid}
               canDownloadQuotationPdf={canDownloadQuotationPdf}
+              canCreateQuotation={canCreateQuotation}
+              openQuotationWizard={openQuotationWizardWithSetupGuard}
               loadQuotationExportDraft={loadQuotationExportDraft}
               downloadQuotationExportSheet={downloadQuotationExportSheet}
             />
@@ -7201,8 +7282,13 @@ function App() {
           <CustomersPage
             activeModule={activeModule}
             customers={customers}
+            quotations={quotations}
             openCreateCustomerModal={openCreateCustomerModal}
             handleEditCustomer={handleEditCustomer}
+            formatQuotationLabel={formatQuotationLabel}
+            formatCurrency={formatCurrency}
+            formatDateIST={formatDateIST}
+            handleOpenOrderDetails={handleOpenOrderDetails}
             canCreateCustomer={canCreateCustomer}
             canEditCustomer={canEditCustomer}
             isSubUser={isSubUser}
@@ -7344,6 +7430,8 @@ function App() {
             formatCurrency={formatCurrency}
             formatDateIST={formatDateIST}
             quotations={quotations}
+            customers={customers}
+            notifications={notifications}
             dashboardData={dashboardData}
             QUICK_ACTIONS={QUICK_ACTIONS}
             openQuotationWizard={openQuotationWizardWithSetupGuard}
@@ -7380,6 +7468,7 @@ function App() {
         <QuotationWizardModal
           showMessageSimulatorModal={showMessageSimulatorModal}
           closeQuotationWizard={closeQuotationWizard}
+          clearQuotationWizardDraft={clearQuotationWizardDraft}
           quotationWizard={quotationWizard}
           setQuotationWizard={setQuotationWizard}
           quotationWizardCustomerMatches={quotationWizardCustomerMatches}
@@ -7433,13 +7522,14 @@ function App() {
           handleQuotationWizardBack={handleQuotationWizardBack}
           quotationPreviewUrl={quotationPreviewUrl}
           quotationPreviewError={quotationPreviewError}
+          quotationTemplate={quotationTemplate}
           downloadQuotationWizardPdf={downloadQuotationWizardPdf}
           formatQuotationLabel={formatQuotationLabel}
           handleOpenOrderDetails={handleOpenOrderDetails}
         />
 
         {showCustomerModal && (
-          <div className="modal-overlay" onClick={closeCustomerModal}>
+          <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
             <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
               <div className="section-head">
                 <h3>{editingCustomerId ? "Edit Customer" : "Create Customer"}</h3>
@@ -7448,11 +7538,39 @@ function App() {
               {error && <div className="notice error">{error}</div>}
               <form className="auth-card customer-form-card" onSubmit={handleCreateCustomer}>
                 <div className="customer-form-grid">
-                  <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
-                  <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
-                  <input placeholder="Mobile" value={customerForm.mobile} onChange={(e) => setCustomerForm((prev) => ({ ...prev, mobile: e.target.value }))} />
+                  <input placeholder="Customer name" value={customerForm.name} onChange={(e) => setCustomerForm((prev) => ({ ...prev, name: e.target.value }))} required disabled={isCustomerIdentityLockedByGst} />
+                  <input placeholder="Firm name" value={customerForm.firmName} onChange={(e) => setCustomerForm((prev) => ({ ...prev, firmName: e.target.value }))} disabled={isCustomerIdentityLockedByGst} />
+                  <input
+                    placeholder="Mobile"
+                    value={customerForm.mobile}
+                    onChange={(e) => setCustomerForm((prev) => ({ ...prev, mobile: e.target.value }))}
+                    disabled={Boolean(editingCustomerId)}
+                  />
+                  {editingCustomerId ? (
+                    <small style={{ color: "var(--muted)" }}>Mobile number cannot be changed while editing customer details.</small>
+                  ) : null}
                   <input placeholder="Email" type="email" value={customerForm.email} onChange={(e) => setCustomerForm((prev) => ({ ...prev, email: e.target.value }))} />
-                  <textarea className="customer-form-wide" rows={3} placeholder="Billing / primary address" value={customerForm.address} onChange={(e) => setCustomerForm((prev) => ({ ...prev, address: e.target.value }))} disabled={customerGstValidation.status === "verified" && customerGstValidation.gstNumber === String(customerForm.gstNumber || "").trim().toUpperCase()} />
+                  <textarea
+                    className="customer-form-wide"
+                    rows={3}
+                    placeholder="Billing / primary address"
+                    value={customerForm.address}
+                    onChange={(e) => {
+                      const nextAddress = e.target.value;
+                      setCustomerForm((prev) => ({
+                        ...prev,
+                        address: nextAddress,
+                        shippingAddresses: prev.sameAsBillingShipping && (prev.shippingAddresses || []).length === 1
+                          ? (prev.shippingAddresses || []).map((entry, index) => (
+                              index === 0
+                                ? { ...entry, label: String(entry?.label || "Billing Address"), address: nextAddress }
+                                : entry
+                            ))
+                          : prev.shippingAddresses
+                      }));
+                    }}
+                    disabled={isCustomerIdentityLockedByGst}
+                  />
                   <div className="customer-form-wide" style={{ display: "grid", gap: "8px" }}>
                     <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       <input
@@ -7498,6 +7616,34 @@ function App() {
                     ) : null}
                   </div>
                 </div>
+                {(customerForm.shippingAddresses || []).length === 1 ? (
+                  <label className="customer-form-wide" style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--muted)" }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(customerForm.sameAsBillingShipping)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setCustomerForm((prev) => ({
+                          ...prev,
+                          sameAsBillingShipping: checked,
+                          shippingAddresses: checked
+                            ? (prev.shippingAddresses || []).map((entry, index) => (
+                                index === 0
+                                  ? { ...entry, label: String(entry?.label || "Billing Address"), address: String(prev.address || "") }
+                                  : entry
+                              ))
+                            : prev.shippingAddresses
+                        }));
+                      }}
+                      style={{ width: "auto" }}
+                    />
+                    Same as Billing address
+                  </label>
+                ) : (
+                  <small className="customer-form-wide" style={{ color: "var(--muted)" }}>
+                    Same as Billing address is available only when one shipping address is used.
+                  </small>
+                )}
                 <div className="customer-shipping-section">
                   <div className="customer-shipping-head">
                     <div>
@@ -7540,7 +7686,14 @@ function App() {
                               </small>
                             ) : null}
                           </div>
-                          <textarea className="customer-form-wide" rows={2} placeholder="Shipping address" value={entry.address || ""} onChange={(e) => handleCustomerShippingAddressChange(index, "address", e.target.value)} />
+                          <textarea
+                            className="customer-form-wide"
+                            rows={2}
+                            placeholder="Shipping address"
+                            value={entry.address || ""}
+                            onChange={(e) => handleCustomerShippingAddressChange(index, "address", e.target.value)}
+                            disabled={Boolean(customerForm.sameAsBillingShipping && index === 0 && (customerForm.shippingAddresses || []).length === 1)}
+                          />
                         </div>
                       </div>
                     ))}
@@ -7597,10 +7750,11 @@ function App() {
           removeCatalogueField={removeCatalogueField}
           MANDATORY_SYSTEM_CATALOGUE_KEYS={MANDATORY_SYSTEM_CATALOGUE_KEYS}
           normalizeConfigKey={normalizeConfigKey}
-          addQuotationColumn={addQuotationColumn}
-          updateQuotationColumn={updateQuotationColumn}
-          commitQuotationColumnOptions={commitQuotationColumnOptions}
-          removeQuotationColumn={removeQuotationColumn}
+            addQuotationColumn={addQuotationColumn}
+            updateQuotationColumn={updateQuotationColumn}
+            commitQuotationColumnOptions={commitQuotationColumnOptions}
+            commitQuotationColumnCategoryVisibility={commitQuotationColumnCategoryVisibility}
+            removeQuotationColumn={removeQuotationColumn}
           updateItemDisplayConfig={updateItemDisplayConfig}
           sellerConfigPreviewTab={sellerConfigPreviewTab}
           setSellerConfigPreviewTab={setSellerConfigPreviewTab}
@@ -7625,7 +7779,7 @@ function App() {
         />
 
         {showNotificationCreateModal && (
-          <div className="modal-overlay" onClick={() => setShowNotificationCreateModal(false)}>
+          <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
             <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
               <div className="section-head">
                 <h3>Create Notification</h3>

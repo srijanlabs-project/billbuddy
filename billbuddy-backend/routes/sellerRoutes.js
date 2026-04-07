@@ -159,10 +159,23 @@ router.get("/me", async (req, res) => {
       return res.json({ seller: null });
     }
 
+    let normalizedSeller = seller;
+    if (!String(seller.business_name || "").trim() && String(seller.name || "").trim()) {
+      const businessNameFallback = String(seller.name).trim();
+      const fallbackUpdateResult = await pool.query(
+        `UPDATE sellers
+         SET business_name = $1::text
+         WHERE id = $2::int
+         RETURNING *`,
+        [businessNameFallback, req.user.sellerId]
+      );
+      normalizedSeller = fallbackUpdateResult.rows[0] || { ...seller, business_name: businessNameFallback };
+    }
+
     const currentSubscription = await getCurrentSubscription(pool, req.user.sellerId);
     return res.json({
       seller: {
-        ...seller,
+        ...normalizedSeller,
         currentSubscription: currentSubscription ? {
           ...currentSubscription,
           is_expired: isSubscriptionExpired(currentSubscription),
@@ -303,7 +316,7 @@ router.put("/me/settings", requirePermission(PERMISSIONS.SETTINGS_EDIT), async (
       `UPDATE sellers
        SET theme_key = COALESCE($1::text, theme_key),
            brand_primary_color = COALESCE($2::text, brand_primary_color),
-           business_name = COALESCE($3::text, business_name),
+           business_name = COALESCE($3::text, business_name, name),
            quotation_number_prefix = COALESCE($4::text, quotation_number_prefix),
            gst_number = COALESCE($5::text, gst_number),
            business_address = COALESCE($6::text, business_address),

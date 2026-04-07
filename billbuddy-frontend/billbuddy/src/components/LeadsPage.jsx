@@ -73,7 +73,7 @@ export default function LeadsPage(props) {
       </table>
 
       {showLeadConvertModal && selectedLeadDetail?.lead && (
-        <div className="modal-overlay" onClick={closeLeadConvertModal}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Convert Lead to Demo</h3>
@@ -121,7 +121,7 @@ export default function LeadsPage(props) {
       )}
 
       {showLeadDetailModal && (
-        <div className="modal-overlay" onClick={closeLeadDetailModal}>
+        <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
           <div className="modal-card modal-wide glass-panel lead-detail-modal" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Lead Detail</h3>
