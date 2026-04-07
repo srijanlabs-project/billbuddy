@@ -357,6 +357,51 @@ function getEffectiveCustomerGstinForQuotation(customer = {}, deliveryAddress = 
   return normalizeGstin(matchingShippingAddress?.gstNumber || customerGstin);
 }
 
+function normalizeCustomerShippingAddressEntry(entry = {}) {
+  const label = String(entry?.label || "").trim();
+  const address = String(entry?.address || "").trim();
+  const pincode = String(entry?.pincode || "").trim();
+  const gstNumber = normalizeGstin(entry?.gstNumber || "");
+  if (!address) return null;
+  return {
+    label,
+    address,
+    pincode,
+    gstNumber
+  };
+}
+
+function normalizeCustomerShippingAddresses(addresses = []) {
+  const normalized = (Array.isArray(addresses) ? addresses : [])
+    .map((entry) => normalizeCustomerShippingAddressEntry(entry))
+    .filter(Boolean);
+  const deduped = [];
+  const seen = new Set();
+  normalized.forEach((entry) => {
+    const key = `${normalizeComparableAddress(entry.address)}|${String(entry.pincode || "").trim()}`;
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    deduped.push(entry);
+  });
+  return deduped;
+}
+
+function mergeCustomerShippingAddresses(existingAddresses = [], incomingAddresses = [], deliveryAddress = "", deliveryPincode = "") {
+  const deliveryEntry = String(deliveryAddress || "").trim()
+    ? [{
+        label: "",
+        address: String(deliveryAddress || "").trim(),
+        pincode: String(deliveryPincode || "").trim(),
+        gstNumber: ""
+      }]
+    : [];
+  return normalizeCustomerShippingAddresses([
+    ...(Array.isArray(existingAddresses) ? existingAddresses : []),
+    ...(Array.isArray(incomingAddresses) ? incomingAddresses : []),
+    ...deliveryEntry
+  ]);
+}
+
 function normalizeQuotationItems(items = []) {
   return (items || []).map((item) => {
     const quantity = toAmount(item.quantity);
@@ -1297,7 +1342,8 @@ async function createQuotationWithItems(payload) {
     customQuotationNumber,
     referenceRequestId,
     notesRichText,
-    termsRichText
+    termsRichText,
+    shippingAddresses
   } = payload;
 
   if (!sellerId) {
@@ -1333,6 +1379,13 @@ async function createQuotationWithItems(payload) {
     }
 
     const normalizedDeliveryType = normalizeDeliveryType(deliveryType || DELIVERY_TYPE.PICKUP);
+    const customerRow = customerCheck.rows[0] || {};
+    const mergedShippingAddresses = mergeCustomerShippingAddresses(
+      customerRow.shipping_addresses,
+      shippingAddresses,
+      normalizedDeliveryType === DELIVERY_TYPE.DOORSTEP ? deliveryAddress : "",
+      normalizedDeliveryType === DELIVERY_TYPE.DOORSTEP ? deliveryPincode : ""
+    );
     if (normalizedDeliveryType === DELIVERY_TYPE.DOORSTEP) {
       if (!deliveryAddress || !deliveryPincode) {
         throw new Error("deliveryAddress and deliveryPincode are required for DOORSTEP delivery");
@@ -1357,11 +1410,25 @@ async function createQuotationWithItems(payload) {
         throw new Error("Seller GST is required and must be valid for GST quotation.");
       }
 
-      const customerRow = customerCheck.rows[0] || {};
-      const effectiveCustomerGstin = getEffectiveCustomerGstinForQuotation(customerRow, deliveryAddress, deliveryPincode);
+      const effectiveCustomerGstin = getEffectiveCustomerGstinForQuotation({
+        ...customerRow,
+        shipping_addresses: mergedShippingAddresses
+      }, deliveryAddress, deliveryPincode);
       if (effectiveCustomerGstin && !isValidGstinFormat(effectiveCustomerGstin)) {
         throw new Error("Customer GST format is invalid. Enter valid GST or leave GST blank.");
       }
+    }
+
+    const existingShippingAddresses = normalizeCustomerShippingAddresses(customerRow.shipping_addresses);
+    if (JSON.stringify(existingShippingAddresses) !== JSON.stringify(mergedShippingAddresses)) {
+      await client.query(
+        `UPDATE customers
+         SET shipping_addresses = COALESCE($1::jsonb, '[]'::jsonb),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2
+           AND seller_id = $3`,
+        [JSON.stringify(mergedShippingAddresses), customerId, sellerId]
+      );
     }
 
     const normalizedItems = normalizeQuotationItems(items);
@@ -1423,7 +1490,10 @@ async function createQuotationWithItems(payload) {
         terms_text: richTextToPlainText(getRichTextHtml(termsRichText, resolvedTemplate.terms_text || ""))
       },
       seller: sellerResult.rows[0] || null,
-      customer: customerCheck.rows[0] || null,
+      customer: {
+        ...(customerCheck.rows[0] || {}),
+        shipping_addresses: mergedShippingAddresses
+      },
       pdfConfig
     });
     const calculationSnapshot = buildFrozenQuotationCalculationSnapshot({

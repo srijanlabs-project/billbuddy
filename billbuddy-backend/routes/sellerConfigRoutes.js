@@ -11,7 +11,8 @@ const DEFAULT_MODULES = {
   payments: true,
   reports: true,
   quotationProductSelector: true,
-  combineHelpingTextInItemColumn: false
+  combineHelpingTextInItemColumn: false,
+  pdfNumberFormat: {}
 };
 
 const DEFAULT_ITEM_DISPLAY_CONFIG = {
@@ -45,9 +46,19 @@ function normalizeItemDisplayConfig(config = {}) {
 }
 
 function normalizeModules(modules = {}) {
+  const rawPdfNumberFormat = modules?.pdfNumberFormat && typeof modules.pdfNumberFormat === "object"
+    ? modules.pdfNumberFormat
+    : {};
+  const normalizedPdfNumberFormat = Object.fromEntries(
+    Object.entries(rawPdfNumberFormat)
+      .map(([key, mode]) => [String(key || "").trim(), String(mode || "").trim().toLowerCase()])
+      .filter(([key, mode]) => key && (mode === "normal" || mode === "roundoff"))
+  );
+
   return {
     ...DEFAULT_MODULES,
     ...(modules || {}),
+    pdfNumberFormat: normalizedPdfNumberFormat,
     itemDisplayConfig: normalizeItemDisplayConfig(modules?.itemDisplayConfig || DEFAULT_ITEM_DISPLAY_CONFIG)
   };
 }

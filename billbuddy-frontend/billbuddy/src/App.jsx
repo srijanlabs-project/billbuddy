@@ -1847,7 +1847,8 @@ function createDefaultSellerConfiguration(seller) {
         payments: true,
         reports: true,
         quotationProductSelector: true,
-        combineHelpingTextInItemColumn: false
+        combineHelpingTextInItemColumn: false,
+        pdfNumberFormat: {}
       },
     catalogueFields: [
       { id: "cat-material-name", displayOrder: 1, key: "material_name", label: "Material Name", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true },
@@ -1904,7 +1905,10 @@ function mapSellerConfigurationResponse(config, seller) {
     },
     modules: {
       ...fallback.modules,
-      ...(config.modules || {})
+      ...(config.modules || {}),
+      pdfNumberFormat: (config.modules && typeof config.modules.pdfNumberFormat === "object" && !Array.isArray(config.modules.pdfNumberFormat))
+        ? config.modules.pdfNumberFormat
+        : (fallback.modules.pdfNumberFormat || {})
     },
     catalogueFields: (Array.isArray(config.catalogueFields) && config.catalogueFields.length ? config.catalogueFields : fallback.catalogueFields)
       .map((field) => ({ ...field, options: Array.isArray(field.options) ? field.options : [] })),
@@ -4603,7 +4607,8 @@ function App() {
     commitQuotationColumnCategoryVisibility,
     removeQuotationColumn,
     updateSellerConfigurationModule,
-    updateItemDisplayConfig
+    updateItemDisplayConfig,
+    updateSellerPdfNumberFormat
   } = useSellerConfigurationStudio({
     isPlatformAdmin,
     seller,
@@ -7743,6 +7748,7 @@ function App() {
           sellerConfigTab={sellerConfigTab}
           setSellerConfigTab={setSellerConfigTab}
           updateSellerConfigurationModule={updateSellerConfigurationModule}
+          updateSellerPdfNumberFormat={updateSellerPdfNumberFormat}
           formatDateTime={formatDateTime}
           addCatalogueField={addCatalogueField}
           sortConfigEntries={sortConfigEntries}

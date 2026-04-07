@@ -1074,6 +1074,7 @@ function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previo
           deliveryType: normalizedDeliveryType,
           deliveryAddress: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryAddress || "").trim() || null : null,
           deliveryPincode: normalizedDeliveryType === "DOORSTEP" ? String(quotationWizard.amounts.deliveryPincode || "").trim() || null : null,
+          shippingAddresses: Array.isArray(quotationWizard.customer.shippingAddresses) ? quotationWizard.customer.shippingAddresses : [],
           notesRichText: quotationWizard.amounts.notesRichText || "",
           termsRichText: quotationWizard.amounts.termsRichText || "",
           sourceChannel: isRevision ? "seller-dashboard-revision" : "seller-dashboard-modal",

@@ -382,6 +382,23 @@ async function getPublishedQuotationPdfConfiguration(clientOrPool, sellerId) {
 }
 
 function getQuotationPdfColumnValue(item, columnKey, options = {}) {
+  const pdfNumberFormat = options.pdfNumberFormat && typeof options.pdfNumberFormat === "object"
+    ? options.pdfNumberFormat
+    : {};
+  const resolvePdfMode = (fieldKey) => {
+    const normalized = normalizeQuotationColumnKey(fieldKey);
+    const mode = String(pdfNumberFormat[normalized] || pdfNumberFormat[fieldKey] || "normal").trim().toLowerCase();
+    return mode === "roundoff" ? "roundoff" : "normal";
+  };
+  const formatNumberValue = (value, fieldKey) => {
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return "0";
+    return resolvePdfMode(fieldKey) === "roundoff"
+      ? Math.round(numeric).toLocaleString("en-IN")
+      : numeric.toLocaleString("en-IN");
+  };
+  const formatCurrencyValue = (value, fieldKey) => `Rs ${formatNumberValue(value, fieldKey)}`;
+
   const customFields = item.custom_fields || item.customFields || {};
   const normalizedKey = normalizeQuotationColumnKey(columnKey);
   const directRaw = customFields[columnKey] ?? customFields[normalizedKey];
@@ -408,18 +425,18 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
     case "height":
       return item.dimension_height ?? item.dimensionHeight ?? item.height ?? "-";
     case "quantity":
-      if (hasCustomValue) return Number(customRaw).toLocaleString("en-IN");
-      return Number(getQuotationItemQuantityValue(item)).toLocaleString("en-IN");
+      if (hasCustomValue) return formatNumberValue(customRaw, normalizedKey);
+      return formatNumberValue(getQuotationItemQuantityValue(item), normalizedKey);
     case "rate":
     case "unit_price":
-      if (hasCustomValue) return `Rs ${Number(customRaw).toLocaleString("en-IN")}`;
-      return `Rs ${Number(getQuotationItemRateValue(item)).toLocaleString("en-IN")}`;
+      if (hasCustomValue) return formatCurrencyValue(customRaw, normalizedKey);
+      return formatCurrencyValue(getQuotationItemRateValue(item), normalizedKey);
     case "amount":
     case "total":
     case "total_rate":
     case "total_price":
-      if (hasCustomValue) return `Rs ${Number(customRaw).toLocaleString("en-IN")}`;
-      return `Rs ${Number(getQuotationItemTotalValue(item)).toLocaleString("en-IN")}`;
+      if (hasCustomValue) return formatCurrencyValue(customRaw, normalizedKey);
+      return formatCurrencyValue(getQuotationItemTotalValue(item), normalizedKey);
     case "color_name":
       return item.color_name || item.colorName || item.imported_color_note || item.importedColorNote || "-";
     case "ps": {
@@ -434,6 +451,9 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
       return item.item_note || item.itemNote || "-";
     default: {
       if (!hasCustomValue) return "-";
+      if (typeof customRaw === "number" || (String(customRaw).trim() !== "" && Number.isFinite(Number(customRaw)))) {
+        return formatNumberValue(customRaw, normalizedKey);
+      }
       return typeof customRaw === "boolean" ? (customRaw ? "Yes" : "No") : String(customRaw);
     }
   }
@@ -1032,10 +1052,13 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   };
   const visiblePdfColumns = Array.isArray(allPdfColumns) && allPdfColumns.length ? allPdfColumns : columns;
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
+  const pdfNumberFormat = pdfModules?.pdfNumberFormat && typeof pdfModules.pdfNumberFormat === "object"
+    ? pdfModules.pdfNumberFormat
+    : {};
 
   const getItemHelpingText = (item) => {
     if (combineHelpingTextInItemColumn) return "";
-    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn: false })
+    const helping = getHelpingTextEntries(item, visiblePdfColumns, { combineHelpingTextInItemColumn: false, pdfNumberFormat })
       .map((entry) => `${entry.label}: ${entry.value}`)
       .join(", ");
     if (!helping) return "";
@@ -1043,7 +1066,7 @@ function buildHtmlPuppeteerTemplate({ quotation, items, template, seller = null,
   };
 
   const getCellValue = (item, columnKey, isItemColumn) => {
-    const rawValue = getQuotationPdfColumnValue(item, columnKey, { combineHelpingTextInItemColumn });
+    const rawValue = getQuotationPdfColumnValue(item, columnKey, { combineHelpingTextInItemColumn, pdfNumberFormat });
     if (isItemColumn) {
       const itemValue = String(rawValue ?? "").trim();
       return escapeHtml(itemValue || "-");
@@ -1656,7 +1679,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
     const itemColumnIndex = columns.findIndex((column) => column.key === "material_name");
     const rowValues = [
       String(index + 1),
-      ...configuredColumns.map((column) => toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn })))
+      ...configuredColumns.map((column) => toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn, pdfNumberFormat })))
     ];
     rowValues.forEach((value, valueIndex) => {
       doc.fillColor(textColor).font("Helvetica").fontSize(9).text(String(value || "-"), rowX + 6, rowY, {
@@ -2093,7 +2116,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
     const rowValues = [
       String(index + 1),
       ...configuredColumns.map((column) =>
-        toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }))
+        toSingleLinePdfValue(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn, pdfNumberFormat }))
       )
     ];
 
@@ -2315,6 +2338,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
   ];
   const visiblePdfColumns = Array.isArray(allPdfColumns) && allPdfColumns.length ? allPdfColumns : configuredColumns;
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
+  const pdfNumberFormat = pdfModules?.pdfNumberFormat && typeof pdfModules.pdfNumberFormat === "object"
+    ? pdfModules.pdfNumberFormat
+    : {};
 
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename=${quotationFileStem(quotation)}.pdf`);
@@ -2551,7 +2577,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
       const rowValues = [
         String(index + 1),
-        ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-"))
+        ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn, pdfNumberFormat }) || "-"))
       ];
       const materialText = materialColumnIndex >= 0 ? String(rowValues[materialColumnIndex] || "-") : "";
       const materialWidth = materialColumnIndex >= 0 ? tableColumns[materialColumnIndex].width - 8 : 220;
@@ -2972,7 +2998,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     items.forEach((item, index) => {
       const helpingText = getHelpingTextEntries(item, visiblePdfColumns, {
-        combineHelpingTextInItemColumn
+        combineHelpingTextInItemColumn,
+        pdfNumberFormat
       }).map((entry) => `${entry.label}: ${entry.value}`).join(", ");
       const rowHeight = helpingText ? 58 : 34;
       if (y > doc.page.height - doc.page.margins.bottom - 190) {
@@ -2982,7 +3009,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       let rowX = leftX;
       const rowValues = [
         String(index + 1),
-        ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-"))
+        ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn, pdfNumberFormat }) || "-"))
       ];
       rowValues.forEach((value, valueIndex) => {
         const column = tableColumns[valueIndex];
@@ -3249,7 +3276,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
     items.forEach((item, index) => {
       const helping = getHelpingTextEntries(item, visiblePdfColumns, {
-        combineHelpingTextInItemColumn
+        combineHelpingTextInItemColumn,
+        pdfNumberFormat
       }).map((entry) => `${entry.label}: ${entry.value}`).join(", ");
       const rowHeight = helping ? 44 : 28;
       if (y > doc.page.height - 6 - 170) {
@@ -3260,7 +3288,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       let rowX = contentLeft;
       const rowValues = [
         String(index + 1),
-        ...configured.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn: false }) || "-"))
+        ...configured.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn: false, pdfNumberFormat }) || "-"))
       ];
       rowValues.forEach((value, valueIndex) => {
         const column = tableColumns[valueIndex];
@@ -3756,7 +3784,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
 
   items.forEach((item, index) => {
     const helpingText = getHelpingTextEntries(item, visiblePdfColumns, {
-      combineHelpingTextInItemColumn
+      combineHelpingTextInItemColumn,
+      pdfNumberFormat
     })
       .map((entry) => `${entry.label}: ${entry.value}`)
       .join(", ");
@@ -3774,7 +3803,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     doc.restore();
     const rowValues = [
       String(index + 1),
-      ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn }) || "-"))
+      ...configuredColumns.map((column) => String(getQuotationPdfColumnValue(item, column.key, { combineHelpingTextInItemColumn, pdfNumberFormat }) || "-"))
     ];
     rowValues.forEach((value, valueIndex) => {
       const column = tableColumns[valueIndex];

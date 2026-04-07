@@ -16,6 +16,7 @@ export default function ConfigurationStudio(props) {
     sellerConfigTab,
     setSellerConfigTab,
     updateSellerConfigurationModule,
+    updateSellerPdfNumberFormat,
     formatDateTime,
     addCatalogueField,
     sortConfigEntries,
@@ -201,6 +202,14 @@ export default function ConfigurationStudio(props) {
       ...productCustomFieldKeys
     ].filter(Boolean))
   ].sort((left, right) => left.localeCompare(right));
+  const currentPdfNumberFormat = (activeSellerConfiguration?.modules && typeof activeSellerConfiguration.modules.pdfNumberFormat === "object" && !Array.isArray(activeSellerConfiguration.modules.pdfNumberFormat))
+    ? activeSellerConfiguration.modules.pdfNumberFormat
+    : {};
+  const numericPdfColumns = sortConfigEntries(activeSellerConfiguration.quotationColumns)
+    .filter((column) => {
+      const normalizedType = String(column.type || column.column_type || "").trim().toLowerCase();
+      return Boolean(column.visibleInPdf) && (normalizedType === "number" || normalizedType === "formula");
+    });
 
   function buildTokenInsertionValue(existingPattern, token, inputRef) {
     const currentPattern = String(existingPattern || "");
@@ -678,6 +687,42 @@ export default function ConfigurationStudio(props) {
                   </div>
                 )}
                 <p className="muted" style={{ marginTop: "12px" }}>Blank field tokens are removed automatically. If a token is missing, the immediately preceding connector text is also hidden.</p>
+              </div>
+              <div className="seller-config-preview-card">
+                <div className="section-head compact" style={{ marginBottom: "4px" }}>
+                  <h4>PDF Numeric Format</h4>
+                </div>
+                <p className="muted">Choose how each numeric field appears in PDF output. `Normal` keeps current decimal display, `Round Off` shows whole numbers.</p>
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Field</th><th>Key</th><th>Format</th></tr>
+                  </thead>
+                  <tbody>
+                    {numericPdfColumns.length === 0 ? (
+                      <tr><td colSpan="3">No numeric PDF fields found. Mark numeric/formula columns as PDF-visible to configure them.</td></tr>
+                    ) : (
+                      numericPdfColumns.map((column) => {
+                        const selectedMode = String(currentPdfNumberFormat[column.key] || "normal").toLowerCase();
+                        return (
+                          <tr key={`${column.id}-pdf-rounding`}>
+                            <td>{column.label || "-"}</td>
+                            <td><code>{column.key}</code></td>
+                            <td>
+                              <select
+                                disabled={!canEditConfiguration}
+                                value={selectedMode === "roundoff" ? "roundoff" : "normal"}
+                                onChange={(e) => updateSellerPdfNumberFormat(column.key, e.target.value)}
+                              >
+                                <option value="normal">Normal</option>
+                                <option value="roundoff">Round Off</option>
+                              </select>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
               <table className="data-table seller-config-quotation-table">
                 <thead>

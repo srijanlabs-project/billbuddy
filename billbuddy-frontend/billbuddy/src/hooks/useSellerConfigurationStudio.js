@@ -267,6 +267,32 @@ export default function useSellerConfigurationStudio({
     }));
   }
 
+  function updateSellerPdfNumberFormat(fieldKey, mode) {
+    if (!configurationStudioSeller?.id) return;
+    const normalizedFieldKey = String(fieldKey || "").trim();
+    const normalizedMode = String(mode || "").trim().toLowerCase();
+    if (!normalizedFieldKey) return;
+
+    updateSellerConfiguration(configurationStudioSeller.id, (current) => {
+      const existingMap = (current.modules && typeof current.modules.pdfNumberFormat === "object" && !Array.isArray(current.modules.pdfNumberFormat))
+        ? current.modules.pdfNumberFormat
+        : {};
+      const nextMap = { ...existingMap };
+      if (normalizedMode === "normal" || !normalizedMode) {
+        delete nextMap[normalizedFieldKey];
+      } else if (normalizedMode === "roundoff") {
+        nextMap[normalizedFieldKey] = "roundoff";
+      }
+      return {
+        ...current,
+        modules: {
+          ...current.modules,
+          pdfNumberFormat: nextMap
+        }
+      };
+    });
+  }
+
   function commitQuotationColumnCategoryVisibility(columnId, rawValue) {
     if (!configurationStudioSeller?.id) return;
     const parsedCategories = parseOptionsInput(rawValue);
@@ -320,6 +346,7 @@ export default function useSellerConfigurationStudio({
     commitQuotationColumnCategoryVisibility,
     removeQuotationColumn,
     updateSellerConfigurationModule,
-    updateItemDisplayConfig
+    updateItemDisplayConfig,
+    updateSellerPdfNumberFormat
   };
 }
