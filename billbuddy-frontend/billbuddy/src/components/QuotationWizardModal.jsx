@@ -779,7 +779,7 @@ export default function QuotationWizardModal(props) {
                 <h4>{formatQuotationLabel(quotationWizard.submittedQuotation)}</h4>
                 <p className="muted">{isRevision ? "Quotation revised successfully." : "Quotation created successfully."} Full document preview is shown below.</p>
               </div>
-              <div className="quotation-wizard-inline-actions">
+              <div className="quotation-wizard-inline-actions quotation-preview-actions">
                 <button
                   type="button"
                   className="ghost-btn"

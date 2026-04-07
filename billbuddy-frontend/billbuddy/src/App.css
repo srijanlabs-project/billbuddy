@@ -5223,7 +5223,7 @@ button:disabled {
 }
 
 .quotation-wizard-modal {
-  width: min(100%, 440px);
+  width: min(96vw, 1220px);
   min-width: min(350px, calc(100vw - 20px));
   display: grid;
   gap: 16px;
@@ -5272,6 +5272,19 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.quotation-preview-actions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.quotation-preview-actions .ghost-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  line-height: 1.1;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 .quotation-wizard-section,
 .quotation-wizard-items-table,
 .quotation-wizard-summary-grid,
@@ -5280,6 +5293,11 @@ button:disabled {
   border: 1px solid var(--border);
   background: rgba(255, 253, 251, 0.88);
   padding: 16px;
+}
+
+.quotation-preview-screen {
+  padding: 10px;
+  gap: 10px;
 }
 
 .quotation-wizard-grid {
@@ -5527,7 +5545,7 @@ button:disabled {
 
 .quotation-preview-frame {
   width: 100%;
-  min-height: 72vh;
+  min-height: 80vh;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #fff;

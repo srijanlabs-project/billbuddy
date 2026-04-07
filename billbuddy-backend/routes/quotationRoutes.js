@@ -2273,7 +2273,7 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 //---- new code ended 
 
 function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pdfColumns = [], allPdfColumns = [], pdfModules = {}, res }) {
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
+  const doc = new PDFDocument({ size: "A4", margin: 16 });
   const customerName = getCustomerDisplayName(quotation);
   const customerAddress = getCustomerDisplayAddress(quotation);
   const gstActive = isGstQuotationActive(quotation);
@@ -2330,8 +2330,63 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const headerFill = themeConfig.header;
     const borderWidth = 0.5;
     const sellerName = template?.company_name || seller?.business_name || seller?.name || template?.header_text || "Quotation";
-    const pageBottom = doc.page.height - doc.page.margins.bottom;
+    const footerRaw = String(
+      template?.show_footer_image && template?.footer_image_data
+        ? template.footer_image_data
+        : (getPrintableFooterText(template) || "")
+    ).trim();
+    const footerImage = imageBufferFromDataUrl(footerRaw);
+    const footerRawIsImagePayload = isDataImageString(footerRaw);
+    const footerReserve = footerRaw ? 54 : 0;
+    const pageBottom = doc.page.height - doc.page.margins.bottom - footerReserve;
     let y = doc.page.margins.top;
+
+    const drawFooterForCurrentPage = () => {
+      if (!footerRaw) return;
+      const footerBaselineY = doc.page.height - doc.page.margins.bottom - 2;
+
+      if (footerImage) {
+        try {
+          const imageMeta = doc.openImage(footerImage);
+          const maxFooterHeight = 46;
+          let drawWidth = pageWidth;
+          let drawHeight = Number((imageMeta.height * (drawWidth / imageMeta.width)).toFixed(2));
+
+          if (!Number.isFinite(drawHeight) || drawHeight <= 0) {
+            drawHeight = maxFooterHeight;
+          }
+
+          if (drawHeight > maxFooterHeight) {
+            drawHeight = maxFooterHeight;
+            drawWidth = Number((imageMeta.width * (drawHeight / imageMeta.height)).toFixed(2));
+          }
+
+          const drawX = leftX + Math.max(0, (pageWidth - drawWidth) / 2);
+          const drawY = footerBaselineY - drawHeight;
+          doc.image(footerImage, drawX, drawY, {
+            width: drawWidth,
+            height: drawHeight
+          });
+          return;
+        } catch (_error) {
+          // If image rendering fails, try plain text fallback below.
+        }
+      }
+
+      if (!footerRawIsImagePayload) {
+        doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerBaselineY - 8, {
+          width: pageWidth,
+          align: "center",
+          lineBreak: false
+        });
+      }
+    };
+
+    const addPageWithFooter = () => {
+      drawFooterForCurrentPage();
+      doc.addPage();
+      y = doc.page.margins.top;
+    };
 
     if (headerImageBuffer) {
       try {
@@ -2485,8 +2540,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     };
 
     if (y + rowHeaderHeight + 18 > pageBottom - itemsBlockReserve) {
-      doc.addPage();
-      y = doc.page.margins.top;
+      addPageWithFooter();
     }
     drawHeaderRow();
 
@@ -2506,8 +2560,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       const rowHeight = Math.max(16, Math.ceil(materialHeight + (helpingHeight ? helpingHeight + 2 : 0) + (rowPaddingY * 2)));
 
       if (y + rowHeight > pageBottom - itemsBlockReserve) {
-        doc.addPage();
-        y = doc.page.margins.top;
+        addPageWithFooter();
         drawHeaderRow();
       }
 
@@ -2548,8 +2601,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const totalsRightWidth = pageWidth - totalsLeftWidth - totalsGap;
     const totalsHeight = 90;
     if (y + totalsHeight + 120 > pageBottom) {
-      doc.addPage();
-      y = doc.page.margins.top;
+      addPageWithFooter();
     }
 
     doc.rect(leftX, y, totalsLeftWidth, totalsHeight).fillAndStroke("#ffffff", line);
@@ -2588,9 +2640,6 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       toDisplayString(seller?.bank_ifsc)
     );
     const shouldShowBankDetailsSection = showBankDetails && hasCompleteBankDetails;
-    const notesSections = [];
-    if (showTerms) notesSections.push({ title: "Terms & Conditions", bodyHtml: termsRichText || plainTextToRichText(termsText) });
-    if (showNotes) notesSections.push({ title: "Notes", bodyHtml: notesRichText || plainTextToRichText(notesText) });
 
     const footerGap = 12;
     const leftColumnWidth = Math.floor(pageWidth * 0.7) - Math.floor(footerGap / 2);
@@ -2601,7 +2650,6 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const noteCardPadding = 8;
     const noteTitleHeight = 16;
     const signatoryHeight = 106;
-    const bankHeight = shouldShowBankDetailsSection ? 70 : 0;
     const signatoryPageY = y;
 
     if (signatoryPageY + signatoryHeight + 12 <= pageBottom) {
@@ -2654,8 +2702,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       while (remainingEntries.length) {
         let availableHeight = pageBottom - y - 12;
         if (availableHeight < 40) {
-          doc.addPage();
-          y = doc.page.margins.top;
+          addPageWithFooter();
           continue;
         }
         const pageEntries = [];
@@ -2670,8 +2717,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
           usedHeight = nextHeight;
         }
         if (!pageEntries.length) {
-          doc.addPage();
-          y = doc.page.margins.top;
+          addPageWithFooter();
           continue;
         }
         const boxHeight = Math.max(36, noteCardPadding + noteTitleHeight + 4 + usedHeight + 6);
@@ -2691,93 +2737,33 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
         y += boxHeight + noteSectionGap;
         remainingEntries = remainingEntries.slice(pageEntries.length);
         if (remainingEntries.length) {
-          doc.addPage();
-          y = doc.page.margins.top;
+          addPageWithFooter();
         }
       }
     };
 
-    notesSections.forEach((section) => {
-      const entries = flattenSectionEntries(section.bodyHtml);
-      if (entries.length) {
-        renderSectionLines(section.title, entries);
-      }
-    });
+    const termsEntries = showTerms ? flattenSectionEntries(termsRichText || plainTextToRichText(termsText)) : [];
+    const notesEntries = showNotes ? flattenSectionEntries(notesRichText || plainTextToRichText(notesText)) : [];
 
-    y = Math.max(y, signatoryPageY + signatoryHeight + 8);
+    if (termsEntries.length) {
+      renderSectionLines("Terms & Conditions", termsEntries);
+    }
 
     if (shouldShowBankDetailsSection) {
-      if (y + bankHeight + 12 > pageBottom) {
-        doc.addPage();
-        y = doc.page.margins.top;
-      }
-      doc.rect(leftX, y, pageWidth, bankHeight).fillAndStroke("#ffffff", line);
-      doc.font("Helvetica-Bold").fontSize(9.3).fillColor(accent).text("Bank Details", leftX + 8, y + 8);
-      const bankLines = [
-        `Bank: ${seller?.bank_name}`,
-        `Branch: ${seller?.bank_branch}`,
-        `A/C: ${seller?.bank_account_no}`,
-        `IFSC: ${seller?.bank_ifsc}`
+      const bankEntries = [
+        { prefix: "", text: `Bank: ${seller?.bank_name}` },
+        { prefix: "", text: `Branch: ${seller?.bank_branch}` },
+        { prefix: "", text: `A/C: ${seller?.bank_account_no}` },
+        { prefix: "", text: `IFSC: ${seller?.bank_ifsc}` }
       ];
-      let by = y + 23;
-      bankLines.forEach((lineText) => {
-        doc.font("Helvetica").fontSize(9).fillColor(dark).text(lineText, leftX + 8, by, {
-          width: pageWidth - 16,
-          lineBreak: false
-        });
-        by += 13;
-      });
-      y += bankHeight + 8;
+      renderSectionLines("Bank Details", bankEntries);
     }
 
-    const footerRaw = String(
-      template?.show_footer_image && template?.footer_image_data
-        ? template.footer_image_data
-        : (getPrintableFooterText(template) || "")
-    ).trim();
-    if (footerRaw) {
-      const footerBaselineY = doc.page.height - doc.page.margins.bottom - 8;
-      const footerImage = imageBufferFromDataUrl(footerRaw);
-      const isImagePayload = isDataImageString(footerRaw);
-      if (footerImage) {
-        try {
-          const imageMeta = doc.openImage(footerImage);
-          const maxFooterHeight = 56;
-          let drawWidth = pageWidth;
-          let drawHeight = Number((imageMeta.height * (drawWidth / imageMeta.width)).toFixed(2));
-
-          if (!Number.isFinite(drawHeight) || drawHeight <= 0) {
-            drawHeight = maxFooterHeight;
-          }
-
-          if (drawHeight > maxFooterHeight) {
-            drawHeight = maxFooterHeight;
-            drawWidth = Number((imageMeta.width * (drawHeight / imageMeta.height)).toFixed(2));
-          }
-
-          const drawX = leftX + Math.max(0, (pageWidth - drawWidth) / 2);
-          const drawY = footerBaselineY - drawHeight;
-          doc.image(footerImage, drawX, drawY, {
-            width: drawWidth,
-            height: drawHeight
-          });
-        } catch (_error) {
-          if (!isImagePayload) {
-            doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerBaselineY - 2, {
-              width: pageWidth,
-              align: "center",
-              lineBreak: false
-            });
-          }
-        }
-      } else if (!isImagePayload) {
-        doc.font("Helvetica").fontSize(9).fillColor(accent).text(toSingleLinePdfValue(footerRaw, 140), leftX, footerBaselineY - 2, {
-          width: pageWidth,
-          align: "center",
-          lineBreak: false
-        });
-      }
+    if (notesEntries.length) {
+      renderSectionLines("Notes", notesEntries);
     }
+
+    drawFooterForCurrentPage();
 
     doc.end();
     return;
