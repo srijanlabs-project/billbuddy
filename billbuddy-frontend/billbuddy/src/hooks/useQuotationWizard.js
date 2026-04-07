@@ -578,14 +578,16 @@ export default function useQuotationWizard({
     });
   }
 
-  function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previousItemForm = null) {
-    const baseItemForm = createQuotationWizardItem(selectedProduct);
-    return {
-      ...baseItemForm,
-      id: previousItemForm?.id ?? baseItemForm.id,
-      category: previousItemForm?.category || baseItemForm.category,
-      otherInfo: previousItemForm?.otherInfo ?? baseItemForm.otherInfo,
-      ps: previousItemForm?.ps ?? baseItemForm.ps,
+function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previousItemForm = null) {
+  const baseItemForm = createQuotationWizardItem(selectedProduct);
+  return {
+    ...baseItemForm,
+    id: previousItemForm?.id ?? baseItemForm.id,
+    // Always align category with the resolved catalogue product so
+    // category-scoped quotation fields switch correctly per item.
+    category: baseItemForm.category,
+    otherInfo: previousItemForm?.otherInfo ?? baseItemForm.otherInfo,
+    ps: previousItemForm?.ps ?? baseItemForm.ps,
       height: previousItemForm?.height ?? baseItemForm.height,
       width: previousItemForm?.width ?? baseItemForm.width,
       unit: previousItemForm?.unit ?? baseItemForm.unit,
