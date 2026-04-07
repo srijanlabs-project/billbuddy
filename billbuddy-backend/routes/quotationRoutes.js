@@ -2439,9 +2439,19 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       ].filter(Boolean);
       doc.font("Helvetica").fontSize(9.5).fillColor(muted);
       let companyY = y + 20;
+      const companyTextWidth = pageWidth * 0.66;
       companyLines.forEach((lineText) => {
-        doc.text(lineText, leftX, companyY, { width: pageWidth * 0.66, lineBreak: false });
-        companyY += 12;
+        const safeText = String(lineText || "").trim();
+        if (!safeText) return;
+        const measuredHeight = Math.max(
+          12,
+          Math.ceil(doc.heightOfString(safeText, { width: companyTextWidth, lineGap: 1 }))
+        );
+        doc.text(safeText, leftX, companyY, {
+          width: companyTextWidth,
+          lineGap: 1
+        });
+        companyY += measuredHeight + 2;
       });
       y = Math.max(companyY + 2, y + 56);
     }
