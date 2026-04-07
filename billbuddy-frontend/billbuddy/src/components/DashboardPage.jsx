@@ -127,8 +127,10 @@ function QuotsyDashboardDesignPreview({
     return createdDayKey === todayKey;
   });
 
-  const periodQuotationsCount = rangeFilteredQuotations.length;
-  const periodQuotationsValue = rangeFilteredQuotations.reduce((sum, quotation) => sum + Number(quotation.total_amount || 0), 0);
+  const fallbackQuotationsCount = rangeFilteredQuotations.length;
+  const fallbackQuotationsValue = rangeFilteredQuotations.reduce((sum, quotation) => sum + Number(quotation.total_amount || 0), 0);
+  const periodQuotationsCount = Number(dashboardData?.periodMetrics?.quotationCount ?? fallbackQuotationsCount);
+  const periodQuotationsValue = Number(dashboardData?.periodMetrics?.quotationValue ?? fallbackQuotationsValue);
   const periodCustomerSet = new Set(
     rangeFilteredQuotations.map((quotation) => String(quotation.customer_id || quotation.mobile || quotation.firm_name || quotation.customer_name || "")).filter(Boolean)
   );
@@ -179,15 +181,27 @@ function QuotsyDashboardDesignPreview({
   }
 
   const trendMap = new Map();
-  rangeFilteredQuotations.forEach((quotation) => {
-    const key = toIstDayKey(quotation?.created_at);
-    if (!key) return;
-    const existing = trendMap.get(key) || { count: 0, value: 0 };
-    trendMap.set(key, {
-      count: Number(existing.count || 0) + 1,
-      value: Number(existing.value || 0) + Number(quotation.total_amount || 0)
+  const apiTrendRows = Array.isArray(dashboardData?.salesTrend) ? dashboardData.salesTrend : [];
+  if (apiTrendRows.length > 0) {
+    apiTrendRows.forEach((entry) => {
+      const key = toIstDayKey(entry?.day);
+      if (!key) return;
+      trendMap.set(key, {
+        count: Number(entry?.quotation_count ?? entry?.count ?? 0),
+        value: Number(entry?.total ?? entry?.value ?? 0)
+      });
     });
-  });
+  } else {
+    rangeFilteredQuotations.forEach((quotation) => {
+      const key = toIstDayKey(quotation?.created_at);
+      if (!key) return;
+      const existing = trendMap.get(key) || { count: 0, value: 0 };
+      trendMap.set(key, {
+        count: Number(existing.count || 0) + 1,
+        value: Number(existing.value || 0) + Number(quotation.total_amount || 0)
+      });
+    });
+  }
 
   const trendRows = [];
   if (dashboardRange === "today" || dashboardRange === "yesterday") {
@@ -221,7 +235,6 @@ function QuotsyDashboardDesignPreview({
   function formatTrendMetric(entry) {
     if (trendMetric === "count") {
       const countValue = Number(entry.count || 0);
-      if (countValue <= 0) return "-";
       return countValue.toLocaleString("en-IN");
     }
     const value = Number(entry.value || 0);

@@ -245,6 +245,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
       `SELECT
          ${IST_CREATED_DATE_SQL} AS day,
          TO_CHAR(${IST_CREATED_DATE_SQL}, 'DD Mon') AS day_label,
+         COUNT(*)::int AS quotation_count,
          COALESCE(SUM(q.total_amount), 0) AS total
        FROM quotations q
        WHERE ${salesTrendWhere.join(" AND ")}
