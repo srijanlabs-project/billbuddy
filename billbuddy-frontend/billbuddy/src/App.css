@@ -2691,6 +2691,10 @@ button:disabled {
   position: relative;
 }
 
+.seller-config-category-dropdown[open] {
+  z-index: 40;
+}
+
 .seller-config-category-dropdown > summary {
   list-style: none;
   cursor: pointer;
@@ -5027,6 +5031,16 @@ button:disabled {
   width: min(100%, 1200px);
   display: grid;
   gap: 16px;
+}
+
+.seller-config-workspace {
+  overflow: visible;
+}
+
+.seller-config-workspace .data-table,
+.seller-config-workspace .seller-config-quotation-table,
+.seller-config-workspace .seller-config-quotation-table td {
+  overflow: visible;
 }
 
 .seller-config-tabs {
