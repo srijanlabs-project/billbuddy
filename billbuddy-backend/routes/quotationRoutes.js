@@ -929,10 +929,21 @@ function isThemeAccessibleForTier(themeTier, planTier) {
 }
 
 function applyTemplateAccessPolicy(template, subscription) {
+  return applyTemplateAccessPolicyWithOptions(template, subscription, {});
+}
+
+function applyTemplateAccessPolicyWithOptions(template, subscription, options = {}) {
   const currentPlanTier = getSubscriptionTemplateAccessTier(subscription);
   const requestedThemeKey = normalizeTemplateThemeKey(template?.template_theme_key);
   const themeConfig = getQuotationThemeConfig(requestedThemeKey, template?.accent_color || null);
   const accessible = isThemeAccessibleForTier(themeConfig.accessTier, currentPlanTier);
+  const configuredFooterBanner = String(options?.freeFooterBanner || "").trim() || FIXED_FREE_FOOTER_BANNER;
+  const normalizedTemplateFooterImage = String(template?.footer_image_data || "").trim();
+  const hasSellerFooter = Boolean(
+    template?.show_footer_image
+    && normalizedTemplateFooterImage
+    && normalizedTemplateFooterImage !== FIXED_FREE_FOOTER_BANNER
+  );
 
   if (!accessible || currentPlanTier === "FREE") {
     const freeTheme = getQuotationThemeConfig("default");
@@ -941,8 +952,8 @@ function applyTemplateAccessPolicy(template, subscription) {
       template_preset: "default",
       template_theme_key: "default",
       accent_color: freeTheme.accent,
-      footer_image_data: FIXED_FREE_FOOTER_BANNER,
-      show_footer_image: true
+      footer_image_data: hasSellerFooter ? template.footer_image_data : configuredFooterBanner,
+      show_footer_image: hasSellerFooter ? true : Boolean(configuredFooterBanner)
     };
   }
 
@@ -952,6 +963,40 @@ function applyTemplateAccessPolicy(template, subscription) {
     template_theme_key: requestedThemeKey,
     accent_color: themeConfig.accent
   };
+}
+
+async function getRandomActivePlatformFooterBanner(clientOrPool) {
+  try {
+    if (!clientOrPool || typeof clientOrPool.query !== "function") return null;
+    const result = await clientOrPool.query(
+      `SELECT image_data
+       FROM platform_footer_banners
+       WHERE is_active = TRUE
+         AND NULLIF(TRIM(image_data), '') IS NOT NULL
+       ORDER BY RANDOM()
+       LIMIT 1`
+    );
+    return String(result.rows?.[0]?.image_data || "").trim() || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function getDefaultActivePlatformFooterBanner(clientOrPool) {
+  try {
+    if (!clientOrPool || typeof clientOrPool.query !== "function") return null;
+    const result = await clientOrPool.query(
+      `SELECT image_data
+       FROM platform_footer_banners
+       WHERE is_active = TRUE
+         AND NULLIF(TRIM(image_data), '') IS NOT NULL
+       ORDER BY display_order ASC, id ASC
+       LIMIT 1`
+    );
+    return String(result.rows?.[0]?.image_data || "").trim() || null;
+  } catch (_error) {
+    return null;
+  }
 }
 
 function getPuppeteerExecutablePath() {
@@ -4391,7 +4436,10 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       show_terms: true
     };
     const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
-    const effectiveTemplate = applyTemplateAccessPolicy(tpl, subscription);
+    const randomPlatformFooterBanner = await getRandomActivePlatformFooterBanner(pool);
+    const effectiveTemplate = applyTemplateAccessPolicyWithOptions(tpl, subscription, {
+      freeFooterBanner: randomPlatformFooterBanner
+    });
     const pdfConfig = await getPublishedQuotationPdfConfiguration(pool, quotation.seller_id);
     const documentContext = resolveQuotationDocumentContext(quotation, {
       template: effectiveTemplate,
@@ -4572,7 +4620,10 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       show_terms: true
     };
     const subscription = await getCurrentSubscription(pool, quotation.seller_id).catch(() => null);
-    const effectiveTemplate = applyTemplateAccessPolicy(template, subscription);
+    const randomPlatformFooterBanner = await getRandomActivePlatformFooterBanner(pool);
+    const effectiveTemplate = applyTemplateAccessPolicyWithOptions(template, subscription, {
+      freeFooterBanner: randomPlatformFooterBanner
+    });
     const pdfConfig = await getPublishedQuotationPdfConfiguration(pool, quotation.seller_id);
     const documentContext = resolveQuotationDocumentContext(quotation, {
       template: effectiveTemplate,
@@ -4683,7 +4734,12 @@ router.get("/templates/current", requirePermission(PERMISSIONS.SETTINGS_VIEW), a
       show_notes: result.rows[0].show_notes === undefined || result.rows[0].show_notes === null ? true : Boolean(result.rows[0].show_notes),
       show_terms: result.rows[0].show_terms === undefined || result.rows[0].show_terms === null ? true : Boolean(result.rows[0].show_terms)
     };
-    return res.json(applyTemplateAccessPolicy(templateRow, subscription));
+    const randomPlatformFooterBanner = await getDefaultActivePlatformFooterBanner(pool);
+    return res.json(
+      applyTemplateAccessPolicyWithOptions(templateRow, subscription, {
+        freeFooterBanner: randomPlatformFooterBanner
+      })
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -4732,8 +4788,10 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
 
     const effectiveThemeKey = planTier === "FREE" ? "default" : normalizedThemeKey;
     const effectiveTheme = getQuotationThemeConfig(effectiveThemeKey, accentColor || null);
-    const effectiveFooterImageData = planTier === "FREE" ? FIXED_FREE_FOOTER_BANNER : (footerImageData || null);
-    const effectiveShowFooterImage = planTier === "FREE" ? true : Boolean(showFooterImage);
+    const normalizedIncomingFooterImage = String(footerImageData || "").trim();
+    const shouldTreatAsLegacyFixedFooter = planTier === "FREE" && normalizedIncomingFooterImage === FIXED_FREE_FOOTER_BANNER;
+    const effectiveFooterImageData = shouldTreatAsLegacyFixedFooter ? null : (footerImageData || null);
+    const effectiveShowFooterImage = Boolean(showFooterImage) && Boolean(effectiveFooterImageData);
     const sellerResult = await pool.query(
       `SELECT business_address
        FROM sellers
@@ -4803,7 +4861,12 @@ router.put("/templates/current", requirePermission(PERMISSIONS.SETTINGS_EDIT), a
       ]
     );
 
-    res.json(applyTemplateAccessPolicy(result.rows[0], subscription));
+    const randomPlatformFooterBanner = await getDefaultActivePlatformFooterBanner(pool);
+    res.json(
+      applyTemplateAccessPolicyWithOptions(result.rows[0], subscription, {
+        freeFooterBanner: randomPlatformFooterBanner
+      })
+    );
   } catch (error) {
     res.status(400).json({ message: error.message });
   }
@@ -5012,7 +5075,11 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
         getPublishedQuotationPdfConfiguration(client, tenantId)
       ]);
       documentSnapshot = buildFrozenQuotationDocumentSnapshot({
-        template: applyTemplateAccessPolicy(templateResult.rows[0] || getDefaultDocumentTemplate(), subscription),
+        template: applyTemplateAccessPolicyWithOptions(
+          templateResult.rows[0] || getDefaultDocumentTemplate(),
+          subscription,
+          { freeFooterBanner: await getRandomActivePlatformFooterBanner(pool) }
+        ),
         seller: sellerResult.rows[0] || null,
         customer: customerResult.rows[0] || null,
         pdfConfig

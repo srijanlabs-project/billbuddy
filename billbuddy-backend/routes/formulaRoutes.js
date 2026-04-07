@@ -68,6 +68,24 @@ function normalizeToMeterFactor(value) {
   return Number(numeric.toFixed(8));
 }
 
+function normalizeFooterBannerLabel(value) {
+  return String(value || "").trim().slice(0, 160) || null;
+}
+
+function normalizeFooterBannerImageData(value) {
+  const imageData = String(value || "").trim();
+  if (!imageData) {
+    throw new Error("imageData is required");
+  }
+  if (!/^data:image\//i.test(imageData)) {
+    throw new Error("imageData must be a valid image data URL");
+  }
+  if (imageData.length > 2_500_000) {
+    throw new Error("imageData is too large");
+  }
+  return imageData;
+}
+
 async function assertAdvancedSeller(client, sellerId) {
   const result = await client.query(
     `SELECT id, name, seller_type
@@ -389,6 +407,108 @@ router.delete("/unit-conversions/:id", requirePermission(PERMISSIONS.SETTINGS_ED
     );
     if (!deleted.rowCount) {
       return res.status(404).json({ message: "Unit conversion not found" });
+    }
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/footer-banners", requirePermission(PERMISSIONS.SETTINGS_VIEW), requirePlatformAdmin, async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id,
+              label,
+              image_data,
+              is_active,
+              display_order,
+              created_at,
+              updated_at
+       FROM platform_footer_banners
+       ORDER BY display_order ASC, id DESC`
+    );
+    return res.json({ footerBanners: result.rows });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/footer-banners", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const label = normalizeFooterBannerLabel(req.body?.label);
+    const imageData = normalizeFooterBannerImageData(req.body?.imageData);
+    const displayOrder = normalizeDisplayOrder(req.body?.displayOrder);
+    const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : true;
+
+    const result = await pool.query(
+      `INSERT INTO platform_footer_banners
+       (label, image_data, is_active, display_order, created_by, updated_by)
+       VALUES ($1, $2, $3, $4, $5, $5)
+       RETURNING *`,
+      [label, imageData, isActive, displayOrder, req.user.id]
+    );
+    return res.status(201).json({ footerBanner: result.rows[0] });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+});
+
+router.patch("/footer-banners/:id", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid footer banner id" });
+    }
+
+    const existing = await pool.query(
+      `SELECT *
+       FROM platform_footer_banners
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    if (!existing.rowCount) {
+      return res.status(404).json({ message: "Footer banner not found" });
+    }
+
+    const current = existing.rows[0];
+    const label = req.body?.label !== undefined ? normalizeFooterBannerLabel(req.body.label) : current.label;
+    const imageData = req.body?.imageData !== undefined ? normalizeFooterBannerImageData(req.body.imageData) : current.image_data;
+    const displayOrder = req.body?.displayOrder !== undefined ? normalizeDisplayOrder(req.body.displayOrder) : Number(current.display_order || 0);
+    const isActive = req.body?.isActive !== undefined ? Boolean(req.body.isActive) : Boolean(current.is_active);
+
+    const updated = await pool.query(
+      `UPDATE platform_footer_banners
+       SET label = $1,
+           image_data = $2,
+           is_active = $3,
+           display_order = $4,
+           updated_by = $5,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $6
+       RETURNING *`,
+      [label, imageData, isActive, displayOrder, req.user.id, id]
+    );
+    return res.json({ footerBanner: updated.rows[0] });
+  } catch (error) {
+    return res.status(400).json({ message: error.message });
+  }
+});
+
+router.delete("/footer-banners/:id", requirePermission(PERMISSIONS.SETTINGS_EDIT), requirePlatformAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return res.status(400).json({ message: "Invalid footer banner id" });
+    }
+    const deleted = await pool.query(
+      `DELETE FROM platform_footer_banners
+       WHERE id = $1
+       RETURNING id`,
+      [id]
+    );
+    if (!deleted.rowCount) {
+      return res.status(404).json({ message: "Footer banner not found" });
     }
     return res.json({ success: true });
   } catch (error) {

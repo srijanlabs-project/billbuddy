@@ -3471,6 +3471,7 @@ function App() {
   const [sellers, setSellers] = useState([]);
   const [platformFormulaRules, setPlatformFormulaRules] = useState([]);
   const [platformUnitConversions, setPlatformUnitConversions] = useState([]);
+  const [platformFooterBanners, setPlatformFooterBanners] = useState([]);
   const [platformFormulaLoading, setPlatformFormulaLoading] = useState(false);
   const [plans, setPlans] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
@@ -4017,7 +4018,7 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse, footerBannerResponse] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
@@ -4026,7 +4027,8 @@ function App() {
         apiFetch("/api/notifications"),
         apiFetch("/api/security-gates").catch(() => []),
         apiFetch("/api/formulas").catch(() => ({ formulas: [] })),
-        apiFetch("/api/formulas/unit-conversions").catch(() => ({ unitConversions: [] }))
+        apiFetch("/api/formulas/unit-conversions").catch(() => ({ unitConversions: [] })),
+        apiFetch("/api/formulas/footer-banners").catch(() => ({ footerBanners: [] }))
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -4037,6 +4039,7 @@ function App() {
       setGoLiveGates(Array.isArray(gateRows) ? gateRows : []);
       setPlatformFormulaRules(Array.isArray(formulaResponse?.formulas) ? formulaResponse.formulas : []);
       setPlatformUnitConversions(Array.isArray(unitConversionResponse?.unitConversions) ? unitConversionResponse.unitConversions : []);
+      setPlatformFooterBanners(Array.isArray(footerBannerResponse?.footerBanners) ? footerBannerResponse.footerBanners : []);
     } catch (err) {
       handleApiError(err);
     }
@@ -4061,6 +4064,19 @@ function App() {
       setPlatformFormulaLoading(true);
       const response = await apiFetch("/api/formulas/unit-conversions");
       setPlatformUnitConversions(Array.isArray(response?.unitConversions) ? response.unitConversions : []);
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function refreshPlatformFooterBanners() {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      const response = await apiFetch("/api/formulas/footer-banners");
+      setPlatformFooterBanners(Array.isArray(response?.footerBanners) ? response.footerBanners : []);
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -4159,6 +4175,54 @@ function App() {
       });
       await refreshPlatformUnitConversions();
       setError("Unit conversion deleted successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleCreatePlatformFooterBanner({ label, imageData, displayOrder = 0, isActive = true }) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch("/api/formulas/footer-banners", {
+        method: "POST",
+        body: JSON.stringify({ label, imageData, displayOrder, isActive })
+      });
+      await refreshPlatformFooterBanners();
+      setError("Footer banner added successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleUpdatePlatformFooterBanner(id, payload) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/footer-banners/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload)
+      });
+      await refreshPlatformFooterBanners();
+      setError("Footer banner updated successfully.");
+    } catch (err) {
+      handleApiError(err);
+    } finally {
+      setPlatformFormulaLoading(false);
+    }
+  }
+
+  async function handleDeletePlatformFooterBanner(id) {
+    if (!auth?.user?.isPlatformAdmin) return;
+    try {
+      setPlatformFormulaLoading(true);
+      await apiFetch(`/api/formulas/footer-banners/${id}`, { method: "DELETE" });
+      await refreshPlatformFooterBanners();
+      setError("Footer banner deleted successfully.");
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -7369,6 +7433,7 @@ function App() {
             sellers={sellers}
             platformFormulaRules={platformFormulaRules}
             platformUnitConversions={platformUnitConversions}
+            platformFooterBanners={platformFooterBanners}
             platformFormulaLoading={platformFormulaLoading}
             handleCreatePlatformFormula={handleCreatePlatformFormula}
             handleUpdatePlatformFormula={handleUpdatePlatformFormula}
@@ -7376,6 +7441,9 @@ function App() {
             handleCreatePlatformUnitConversion={handleCreatePlatformUnitConversion}
             handleUpdatePlatformUnitConversion={handleUpdatePlatformUnitConversion}
             handleDeletePlatformUnitConversion={handleDeletePlatformUnitConversion}
+            handleCreatePlatformFooterBanner={handleCreatePlatformFooterBanner}
+            handleUpdatePlatformFooterBanner={handleUpdatePlatformFooterBanner}
+            handleDeletePlatformFooterBanner={handleDeletePlatformFooterBanner}
             THEME_OPTIONS={THEME_OPTIONS}
             theme={theme}
             setTheme={setTheme}

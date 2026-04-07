@@ -42,6 +42,15 @@ function formatTierLabel(value) {
   return "Free";
 }
 
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to read image"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function SettingsPage({
   currentModuleMeta,
   isPlatformAdmin,
@@ -49,6 +58,7 @@ export default function SettingsPage({
   sellers,
   platformFormulaRules,
   platformUnitConversions,
+  platformFooterBanners,
   platformFormulaLoading,
   handleCreatePlatformFormula,
   handleUpdatePlatformFormula,
@@ -56,6 +66,9 @@ export default function SettingsPage({
   handleCreatePlatformUnitConversion,
   handleUpdatePlatformUnitConversion,
   handleDeletePlatformUnitConversion,
+  handleCreatePlatformFooterBanner,
+  handleUpdatePlatformFooterBanner,
+  handleDeletePlatformFooterBanner,
   THEME_OPTIONS,
   theme,
   setTheme,
@@ -113,6 +126,12 @@ export default function SettingsPage({
     isActive: true
   });
   const [editingUnitId, setEditingUnitId] = useState(null);
+  const [footerBannerDraft, setFooterBannerDraft] = useState({
+    label: "",
+    displayOrder: "0",
+    isActive: true
+  });
+  const [footerBannerUploadFile, setFooterBannerUploadFile] = useState(null);
   const [themeLibraryTier, setThemeLibraryTier] = useState(
     () => QUOTATION_THEME_OPTIONS[quotationTemplate.template_theme_key || "default"]?.accessTier || "FREE"
   );
@@ -439,6 +458,34 @@ export default function SettingsPage({
       });
     }
 
+    async function submitFooterBannerForm(event) {
+      event.preventDefault();
+      if (!footerBannerUploadFile) return;
+      try {
+        const imageData = await fileToDataUrl(footerBannerUploadFile);
+        await handleCreatePlatformFooterBanner({
+          label: footerBannerDraft.label,
+          imageData,
+          displayOrder: Number(footerBannerDraft.displayOrder || 0),
+          isActive: Boolean(footerBannerDraft.isActive)
+        });
+        setFooterBannerDraft({
+          label: "",
+          displayOrder: "0",
+          isActive: true
+        });
+        setFooterBannerUploadFile(null);
+      } catch (_error) {
+        // Error message is surfaced by shared API error handler.
+      }
+    }
+
+    async function toggleFooterBannerStatus(banner) {
+      await handleUpdatePlatformFooterBanner(banner.id, {
+        isActive: !Boolean(banner.is_active)
+      });
+    }
+
     return (
       <section className="workspace settings-workspace">
         <header className="section-head settings-page-head">
@@ -482,6 +529,119 @@ export default function SettingsPage({
               <button className="secondary-button" type="button" onClick={() => setActiveModule("Notifications")}>Open Notification Center</button>
               <button className="secondary-button" type="button" onClick={() => setActiveModule("Configuration Studio")}>Open Configuration Studio</button>
             </div>
+          </section>
+
+          <section className="settings-card compact-settings-card">
+            <div className="settings-card-head">
+              <div>
+                <span>Global Footer Banner</span>
+                <h3>Basic Seller Footer Pool</h3>
+                <p>Active banners are randomly used on basic/free quotations only when seller-specific footer is not uploaded.</p>
+              </div>
+            </div>
+
+            <form className="settings-form-grid settings-form-grid-wide" onSubmit={submitFooterBannerForm}>
+              <section className="settings-panel">
+                <div className="settings-panel-head">
+                  <h4>Add Footer Banner</h4>
+                  <p>Upload one or more banners. Randomization happens per quotation.</p>
+                </div>
+                <div className="settings-two-column">
+                  <label className="settings-field">
+                    <span>Label</span>
+                    <input
+                      value={footerBannerDraft.label}
+                      onChange={(event) => setFooterBannerDraft((prev) => ({ ...prev, label: event.target.value }))}
+                      placeholder="Upgrade Campaign April"
+                      disabled={platformFormulaLoading}
+                    />
+                  </label>
+                  <label className="settings-field">
+                    <span>Display Order</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={footerBannerDraft.displayOrder}
+                      onChange={(event) => setFooterBannerDraft((prev) => ({ ...prev, displayOrder: event.target.value }))}
+                      disabled={platformFormulaLoading}
+                    />
+                  </label>
+                  <label className="settings-field settings-field-wide">
+                    <span>Banner Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => setFooterBannerUploadFile(event.target.files?.[0] || null)}
+                      disabled={platformFormulaLoading}
+                      required
+                    />
+                  </label>
+                  <label className="settings-inline-toggle">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(footerBannerDraft.isActive)}
+                      onChange={(event) => setFooterBannerDraft((prev) => ({ ...prev, isActive: event.target.checked }))}
+                      disabled={platformFormulaLoading}
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+                <div className="settings-form-actions">
+                  <button type="submit" className="primary-button" disabled={platformFormulaLoading || !footerBannerUploadFile}>
+                    {platformFormulaLoading ? "Saving..." : "Add Banner"}
+                  </button>
+                </div>
+              </section>
+            </form>
+
+            <section className="settings-panel">
+              <div className="settings-panel-head">
+                <h4>Configured Footer Banners</h4>
+                <p>{platformFormulaLoading ? "Refreshing..." : `${(platformFooterBanners || []).length} banners configured.`}</p>
+              </div>
+              {!platformFooterBanners?.length ? (
+                <p className="muted">No footer banners uploaded yet.</p>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Preview</th>
+                      <th>Label</th>
+                      <th>Order</th>
+                      <th>Status</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(platformFooterBanners || []).map((banner) => (
+                      <tr key={banner.id}>
+                        <td>
+                          {banner.image_data ? (
+                            <img src={banner.image_data} alt={banner.label || `Footer banner ${banner.id}`} style={{ width: "200px", borderRadius: "8px", border: "1px solid #d0d7e2" }} />
+                          ) : "-"}
+                        </td>
+                        <td>{banner.label || "-"}</td>
+                        <td>{banner.display_order ?? 0}</td>
+                        <td>{banner.is_active ? "Active" : "Inactive"}</td>
+                        <td>
+                          <button type="button" className="ghost-btn compact-btn" onClick={() => toggleFooterBannerStatus(banner)} disabled={platformFormulaLoading}>
+                            {banner.is_active ? "Deactivate" : "Activate"}
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost-btn compact-btn"
+                            onClick={() => handleDeletePlatformFooterBanner(banner.id)}
+                            disabled={platformFormulaLoading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
           </section>
 
           <section className="settings-card compact-settings-card">

@@ -182,6 +182,23 @@ function createFixedFreeFooterBannerDataUrl() {
 
 const FIXED_FREE_FOOTER_BANNER = createFixedFreeFooterBannerDataUrl();
 
+async function getRandomActivePlatformFooterBanner(clientOrPool) {
+  if (!clientOrPool || typeof clientOrPool.query !== "function") return null;
+  try {
+    const result = await clientOrPool.query(
+      `SELECT image_data
+       FROM platform_footer_banners
+       WHERE is_active = TRUE
+         AND NULLIF(TRIM(image_data), '') IS NOT NULL
+       ORDER BY RANDOM()
+       LIMIT 1`
+    );
+    return String(result.rows?.[0]?.image_data || "").trim() || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function normalizeTemplateThemeKey(value) {
   const normalized = String(value || "").trim().toLowerCase();
   return QUOTATION_THEME_OPTIONS[normalized] ? normalized : "default";
@@ -209,11 +226,18 @@ function isThemeAccessibleForTier(themeTier, planTier) {
   return order[normalizedPlanTier] >= order[normalizedThemeTier];
 }
 
-function applyTemplateAccessPolicy(template, subscription) {
+function applyTemplateAccessPolicy(template, subscription, options = {}) {
   const currentPlanTier = getSubscriptionTemplateAccessTier(subscription);
   const requestedThemeKey = normalizeTemplateThemeKey(template?.template_theme_key);
   const themeConfig = getQuotationThemeConfig(requestedThemeKey, template?.accent_color || null);
   const accessible = isThemeAccessibleForTier(themeConfig.accessTier, currentPlanTier);
+  const configuredFooterBanner = String(options?.freeFooterBanner || "").trim() || FIXED_FREE_FOOTER_BANNER;
+  const normalizedTemplateFooterImage = String(template?.footer_image_data || "").trim();
+  const hasSellerFooter = Boolean(
+    template?.show_footer_image
+    && normalizedTemplateFooterImage
+    && normalizedTemplateFooterImage !== FIXED_FREE_FOOTER_BANNER
+  );
 
   if (!accessible || currentPlanTier === "FREE") {
     const freeTheme = getQuotationThemeConfig("default");
@@ -222,8 +246,8 @@ function applyTemplateAccessPolicy(template, subscription) {
       template_preset: "default",
       template_theme_key: "default",
       accent_color: freeTheme.accent,
-      footer_image_data: FIXED_FREE_FOOTER_BANNER,
-      show_footer_image: true
+      footer_image_data: hasSellerFooter ? template.footer_image_data : configuredFooterBanner,
+      show_footer_image: hasSellerFooter ? true : Boolean(configuredFooterBanner)
     };
   }
 
@@ -239,6 +263,7 @@ module.exports = {
   FIXED_FREE_FOOTER_BANNER,
   QUOTATION_THEME_OPTIONS,
   applyTemplateAccessPolicy,
+  getRandomActivePlatformFooterBanner,
   getQuotationThemeConfig,
   getSubscriptionTemplateAccessTier,
   isThemeAccessibleForTier,

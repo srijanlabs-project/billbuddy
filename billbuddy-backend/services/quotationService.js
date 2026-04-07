@@ -1,7 +1,7 @@
 const pool = require("../db/db");
 const { assertQuotationCreationAllowed, getQuotationWatermark } = require("./subscriptionService");
 const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("./quotationViewService");
-const { applyTemplateAccessPolicy } = require("./quotationTemplatePolicy");
+const { applyTemplateAccessPolicy, getRandomActivePlatformFooterBanner } = require("./quotationTemplatePolicy");
 const {
   applyFrozenPresentationToQuotation,
   buildFrozenQuotationCalculationSnapshot,
@@ -1477,9 +1477,11 @@ async function createQuotationWithItems(payload) {
       ),
       getPublishedQuotationPdfConfiguration(client, sellerId)
     ]);
+    const randomPlatformFooterBanner = await getRandomActivePlatformFooterBanner(client);
     const resolvedTemplate = applyTemplateAccessPolicy(
       templateResult.rows[0] || getDefaultDocumentTemplate(),
-      currentSubscription
+      currentSubscription,
+      { freeFooterBanner: randomPlatformFooterBanner }
     );
     const documentSnapshot = buildFrozenQuotationDocumentSnapshot({
       template: {

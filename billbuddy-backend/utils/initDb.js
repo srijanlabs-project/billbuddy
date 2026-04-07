@@ -739,6 +739,28 @@ async function initializeDatabase() {
       ('m', 1, 5, TRUE)
     ON CONFLICT (unit_code) DO NOTHING
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS platform_footer_banners (
+      id SERIAL PRIMARY KEY,
+      label VARCHAR(160),
+      image_data TEXT NOT NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      display_order INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS label VARCHAR(160)`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS image_data TEXT`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE platform_footer_banners ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_footer_banners_active_order ON platform_footer_banners(is_active, display_order, id)`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS leads (
