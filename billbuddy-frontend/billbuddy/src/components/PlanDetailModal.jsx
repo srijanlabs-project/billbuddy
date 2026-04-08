@@ -11,6 +11,23 @@ export default function PlanDetailModal(props) {
 
   if (!showPlanDetailModal || !selectedPlanDetail) return null;
 
+  const draft = getPlanDraft(selectedPlanDetail);
+  const featureToggles = [
+    { key: "isActive", label: "Active" },
+    { key: "isDemoPlan", label: "Demo Plan" },
+    { key: "trialEnabled", label: "Trial Enabled" },
+    { key: "inventoryEnabled", label: "Inventory" },
+    { key: "reportsEnabled", label: "Reports" },
+    { key: "gstEnabled", label: "GST" },
+    { key: "exportsEnabled", label: "Exports" },
+    { key: "quotationWatermarkEnabled", label: "Watermark" },
+    { key: "quotationCreationLockedAfterExpiry", label: "Lock After Expiry" }
+  ];
+  const websiteToggles = [
+    { key: "landingFeatured", label: "Landing Featured Plan" },
+    { key: "websiteVisible", label: "Show on Website" }
+  ];
+
   return (
     <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
       <div className="modal-card modal-wide glass-panel seller-detail-modal" onClick={(event) => event.stopPropagation()}>
@@ -34,38 +51,39 @@ export default function PlanDetailModal(props) {
           </div>
         </section>
 
-        <div className="seller-detail-grid">
-          <article className="seller-detail-card">
+        <div className="seller-detail-grid plan-detail-layout">
+          <div className="plan-detail-main">
+            <article className="seller-detail-card plan-detail-card">
             <h4>Commercials</h4>
-            <div className="seller-lifecycle-grid">
+            <div className="seller-lifecycle-grid plan-form-grid">
               <label>
                 <span>Plan Code</span>
-                <input value={getPlanDraft(selectedPlanDetail).planCode} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planCode", e.target.value.toUpperCase())} />
+                <input value={draft.planCode} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planCode", e.target.value.toUpperCase())} />
               </label>
               <label>
                 <span>Plan Name</span>
-                <input value={getPlanDraft(selectedPlanDetail).planName} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planName", e.target.value)} />
+                <input value={draft.planName} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planName", e.target.value)} />
               </label>
               <label>
                 <span>Price</span>
-                <input type="number" min="0" step="0.01" value={getPlanDraft(selectedPlanDetail).price} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "price", e.target.value)} />
+                <input type="number" min="0" step="0.01" value={draft.price} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "price", e.target.value)} />
               </label>
               <label>
                 <span>Billing Cycle</span>
-                <select value={getPlanDraft(selectedPlanDetail).billingCycle} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "billingCycle", e.target.value)}>
+                <select value={draft.billingCycle} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "billingCycle", e.target.value)}>
                   {BILLING_CYCLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
               <label>
                 <span>Plan Access</span>
-                <select value={getPlanDraft(selectedPlanDetail).planAccessType} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planAccessType", e.target.value)}>
+                <select value={draft.planAccessType} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "planAccessType", e.target.value)}>
                   <option value="FREE">Free</option>
                   <option value="PAID">Paid</option>
                 </select>
               </label>
               <label>
                 <span>Template Tier</span>
-                <select value={getPlanDraft(selectedPlanDetail).templateAccessTier} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "templateAccessTier", e.target.value)}>
+                <select value={draft.templateAccessTier} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "templateAccessTier", e.target.value)}>
                   <option value="FREE">Free</option>
                   <option value="PAID">Paid</option>
                   <option value="PREMIUM">Premium</option>
@@ -74,59 +92,79 @@ export default function PlanDetailModal(props) {
               </label>
               <label>
                 <span>Trial Days</span>
-                <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).trialDurationDays} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "trialDurationDays", e.target.value)} />
+                <input type="number" min="0" value={draft.trialDurationDays} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "trialDurationDays", e.target.value)} />
               </label>
               <label>
                 <span>Watermark Text</span>
-                <input value={getPlanDraft(selectedPlanDetail).watermarkText} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "watermarkText", e.target.value)} />
+                <input value={draft.watermarkText} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "watermarkText", e.target.value)} />
               </label>
               <label>
                 <span>Landing CTA Label</span>
-                <input value={getPlanDraft(selectedPlanDetail).landingCtaLabel} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLabel", e.target.value)} />
+                <input value={draft.landingCtaLabel} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLabel", e.target.value)} />
               </label>
               <label>
                 <span>Landing CTA Link</span>
-                <input value={getPlanDraft(selectedPlanDetail).landingCtaLink} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLink", e.target.value)} />
+                <input value={draft.landingCtaLink} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLink", e.target.value)} />
               </label>
-              <label style={{ gridColumn: "1 / -1" }}>
+              <label className="plan-field-full">
                 <span>Website Pointers (one per line)</span>
-                <textarea rows={5} value={getPlanDraft(selectedPlanDetail).websitePointers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "websitePointers", e.target.value)} />
+                <textarea rows={6} value={draft.websitePointers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "websitePointers", e.target.value)} />
               </label>
             </div>
-          </article>
+            </article>
 
-          <article className="seller-detail-card">
+            <article className="seller-detail-card plan-detail-card">
             <h4>Limits</h4>
-            <div className="seller-lifecycle-grid">
+            <div className="seller-lifecycle-grid plan-limits-grid">
               <label>
                 <span>Max Users</span>
-                <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxUsers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxUsers", e.target.value)} />
+                <input type="number" min="0" value={draft.maxUsers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxUsers", e.target.value)} />
               </label>
               <label>
                 <span>Max Quotations</span>
-                <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxQuotations} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxQuotations", e.target.value)} />
+                <input type="number" min="0" value={draft.maxQuotations} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxQuotations", e.target.value)} />
               </label>
               <label>
                 <span>Max Customers</span>
-                <input type="number" min="0" value={getPlanDraft(selectedPlanDetail).maxCustomers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxCustomers", e.target.value)} />
+                <input type="number" min="0" value={draft.maxCustomers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "maxCustomers", e.target.value)} />
               </label>
             </div>
-          </article>
+            </article>
+          </div>
 
-          <article className="seller-detail-card">
+          <article className="seller-detail-card plan-detail-card plan-feature-access-card">
             <h4>Feature Access</h4>
-            <div className="seller-lifecycle-grid">
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).isActive} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "isActive", e.target.checked)} style={{ width: "auto" }} />Active</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).isDemoPlan} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "isDemoPlan", e.target.checked)} style={{ width: "auto" }} />Demo Plan</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).trialEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "trialEnabled", e.target.checked)} style={{ width: "auto" }} />Trial Enabled</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).inventoryEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "inventoryEnabled", e.target.checked)} style={{ width: "auto" }} />Inventory</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).reportsEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "reportsEnabled", e.target.checked)} style={{ width: "auto" }} />Reports</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).gstEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "gstEnabled", e.target.checked)} style={{ width: "auto" }} />GST</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).exportsEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "exportsEnabled", e.target.checked)} style={{ width: "auto" }} />Exports</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationWatermarkEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationWatermarkEnabled", e.target.checked)} style={{ width: "auto" }} />Watermark</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationCreationLockedAfterExpiry} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationCreationLockedAfterExpiry", e.target.checked)} style={{ width: "auto" }} />Lock After Expiry</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).landingFeatured} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingFeatured", e.target.checked)} style={{ width: "auto" }} />Landing Featured Plan</label>
-              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).websiteVisible} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "websiteVisible", e.target.checked)} style={{ width: "auto" }} />Show on Website</label>
+            <div className="plan-feature-group">
+              <p className="plan-feature-group-title">Access and behavior</p>
+              <div className="plan-toggle-grid">
+                {featureToggles.map((toggle) => (
+                  <label key={toggle.key} className="seller-toggle plan-toggle-row">
+                    <span>{toggle.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(draft[toggle.key])}
+                      onChange={(e) => updatePlanDraft(selectedPlanDetail.id, toggle.key, e.target.checked)}
+                      style={{ width: "auto" }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="plan-feature-group">
+              <p className="plan-feature-group-title">Landing visibility</p>
+              <div className="plan-toggle-grid">
+                {websiteToggles.map((toggle) => (
+                  <label key={toggle.key} className="seller-toggle plan-toggle-row">
+                    <span>{toggle.label}</span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(draft[toggle.key])}
+                      onChange={(e) => updatePlanDraft(selectedPlanDetail.id, toggle.key, e.target.checked)}
+                      style={{ width: "auto" }}
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
           </article>
         </div>

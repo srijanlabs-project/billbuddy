@@ -2415,16 +2415,14 @@ function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
             ))}
           </div>
 
-          <div id="comparison" className="public-comparison-block">
-            <div className="auth-visitor-faq-head">
-              <p className="eyebrow">Plan Comparison</p>
-              <h3>Compare published Quotsy plans</h3>
-              <p>This table shows all website pointers configured in Platform Plans for plans marked as visible on website.</p>
-            </div>
-            <div className="public-comparison-table-wrap">
-              {websitePlans.length === 0 ? (
-                <p className="muted">No website-visible plans configured yet.</p>
-              ) : (
+          {websitePlans.length > 0 ? (
+            <div id="comparison" className="public-comparison-block">
+              <div className="auth-visitor-faq-head">
+                <p className="eyebrow">Plan Comparison</p>
+                <h3>Compare published Quotsy plans</h3>
+                <p>This table shows all website pointers configured in Platform Plans for plans marked as visible on website.</p>
+              </div>
+              <div className="public-comparison-table-wrap">
                 <table className="public-comparison-table">
                   <thead>
                     <tr>
@@ -2457,9 +2455,9 @@ function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
                     ))}
                   </tbody>
                 </table>
-              )}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <div className="public-feature-footer-note">
             <strong>Where Quotsy stands out</strong>

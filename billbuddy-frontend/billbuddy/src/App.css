@@ -5360,6 +5360,96 @@ button:disabled {
   font-size: 14px;
 }
 
+.plan-detail-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.8fr);
+  align-items: start;
+}
+
+.plan-detail-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.plan-detail-card {
+  border-color: color-mix(in srgb, var(--border) 86%, #d6e3fb);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.92));
+}
+
+.plan-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-field-full {
+  grid-column: 1 / -1;
+}
+
+.plan-field-full textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 120px;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.9);
+  resize: vertical;
+}
+
+.plan-limits-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.plan-feature-access-card {
+  position: sticky;
+  top: 10px;
+  gap: 14px;
+}
+
+.plan-feature-group {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, #d8e4f8);
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.plan-feature-group-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #5f7596;
+}
+
+.plan-toggle-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.plan-toggle-row {
+  justify-content: space-between;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, #d8e4f8);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #455a77;
+  background: rgba(245, 250, 255, 0.82);
+}
+
+.plan-toggle-row span {
+  font-weight: 600;
+}
+
+.plan-toggle-row input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: #3f79d9;
+}
+
 .seller-subscription-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6811,6 +6901,19 @@ button:disabled {
   .seller-detail-hero {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .plan-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-form-grid,
+  .plan-limits-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-feature-access-card {
+    position: static;
   }
 }
 

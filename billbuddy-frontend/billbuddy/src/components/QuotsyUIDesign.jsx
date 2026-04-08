@@ -49,31 +49,6 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
     { label: "Stale Products", value: "16" }
   ];
 
-  const fallbackPlans = [
-    {
-      name: "Basic",
-      price: "INR 999",
-      ctaLabel: "Start Demo",
-      ctaLink: "/try-demo",
-      features: ["Dynamic quotations", "Customer and GST", "Basic branding", "Standard PDF"]
-    },
-    {
-      name: "Pro",
-      price: "INR 2,499",
-      ctaLabel: "Start Demo",
-      ctaLink: "/try-demo",
-      features: ["Configuration Studio", "Pricing formulas", "Versioning", "Theme controls"],
-      featured: true
-    },
-    {
-      name: "Enterprise",
-      price: "Custom",
-      ctaLabel: "Talk to Sales",
-      ctaLink: "/try-demo",
-      features: ["Multi-tenant control", "Role matrix", "Platform rules", "Custom onboarding"]
-    }
-  ];
-
   const normalizedPlatformPlans = (Array.isArray(platformPlans) ? platformPlans : [])
     .filter((plan) => plan && plan.is_active !== false && (plan.website_visible === undefined || plan.website_visible === true))
     .map((plan) => {
@@ -101,7 +76,7 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
       };
     });
 
-  const plans = normalizedPlatformPlans.length ? normalizedPlatformPlans : fallbackPlans;
+  const plans = normalizedPlatformPlans;
 
   const [contactForm, setContactForm] = useState({
     name: "",
@@ -243,41 +218,43 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
           </div>
         </section>
 
-        <section id="pricing" className="quotsy-panel quotsy-pricing-panel">
-          <div className="quotsy-pricing-head">
-            <div>
-              <h2 className="quotsy-pricing-title">Plans designed for growing teams.</h2>
-              <p className="quotsy-pricing-text">
-                Start fast with ready onboarding and scale with advanced controls as your quoting process grows.
-              </p>
-            </div>
-            <a className="quotsy-btn quotsy-btn-dark quotsy-btn-link" href="/features#comparison">Compare Plans</a>
-          </div>
-
-          <div className="quotsy-pricing-grid">
-            {plans.map((plan) => (
-              <div key={plan.name} className={`quotsy-plan-card ${plan.featured ? "quotsy-plan-featured" : ""}`}>
-                <div className="quotsy-plan-head">
-                  <div className="quotsy-plan-name">{plan.name}</div>
-                  {plan.featured ? <div className="quotsy-plan-badge">Most Popular</div> : null}
-                </div>
-                <div className="quotsy-plan-price">{plan.price}</div>
-                <div className="quotsy-plan-sub">per workspace / month</div>
-                <div className="quotsy-plan-features">
-                  {plan.features.map((feature) => (
-                    <div key={feature} className="quotsy-plan-feature-row">
-                      <div className="quotsy-dot" />
-                      {feature}
-                    </div>
-                  ))}
-                </div>
-                <a href={plan.ctaLink || "/try-demo"} className={`quotsy-btn quotsy-plan-btn quotsy-btn-link ${plan.featured ? "quotsy-btn-light" : "quotsy-btn-dark"}`}>
-                  {plan.ctaLabel || (plan.featured ? "Start Pro Trial" : "Get Started")}
-                </a>
+        {plans.length > 0 ? (
+          <section id="pricing" className="quotsy-panel quotsy-pricing-panel">
+            <div className="quotsy-pricing-head">
+              <div>
+                <h2 className="quotsy-pricing-title">Plans designed for growing teams.</h2>
+                <p className="quotsy-pricing-text">
+                  Start fast with ready onboarding and scale with advanced controls as your quoting process grows.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
+              <a className="quotsy-btn quotsy-btn-dark quotsy-btn-link" href="/features#comparison">Compare Plans</a>
+            </div>
+
+            <div className="quotsy-pricing-grid">
+              {plans.map((plan) => (
+                <div key={plan.name} className={`quotsy-plan-card ${plan.featured ? "quotsy-plan-featured" : ""}`}>
+                  <div className="quotsy-plan-head">
+                    <div className="quotsy-plan-name">{plan.name}</div>
+                    {plan.featured ? <div className="quotsy-plan-badge">Most Popular</div> : null}
+                  </div>
+                  <div className="quotsy-plan-price">{plan.price}</div>
+                  <div className="quotsy-plan-sub">per workspace / month</div>
+                  <div className="quotsy-plan-features">
+                    {plan.features.map((feature) => (
+                      <div key={feature} className="quotsy-plan-feature-row">
+                        <div className="quotsy-dot" />
+                        {feature}
+                      </div>
+                    ))}
+                  </div>
+                  <a href={plan.ctaLink || "/try-demo"} className={`quotsy-btn quotsy-plan-btn quotsy-btn-link ${plan.featured ? "quotsy-btn-light" : "quotsy-btn-dark"}`}>
+                    {plan.ctaLabel || (plan.featured ? "Start Pro Trial" : "Get Started")}
+                  </a>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="contact-section" id="contact">
           <div className="contact-inner">
