@@ -230,7 +230,7 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
               <a className="quotsy-btn quotsy-btn-dark quotsy-btn-link" href="/features#comparison">Compare Plans</a>
             </div>
 
-            <div className="quotsy-pricing-grid">
+            <div className={`quotsy-pricing-grid ${plans.length >= 4 ? "quotsy-pricing-grid-four" : ""}`}>
               {plans.map((plan) => (
                 <div key={plan.name} className={`quotsy-plan-card ${plan.featured ? "quotsy-plan-featured" : ""}`}>
                   <div className="quotsy-plan-head">
