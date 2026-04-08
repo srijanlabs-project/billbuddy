@@ -379,7 +379,7 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
               </div>
             </div>
             <div className="footer-bottom">
-              <span className="footer-copy">(c) 2026 Srijan Labs. All rights reserved.</span>
+              <span className="footer-copy">(c) 2026 Srijan Labs. All rights reserved. | UAT Release Test</span>
             </div>
           </div>
         </footer>
