@@ -403,7 +403,8 @@ router.delete("/:id", requirePermission(PERMISSIONS.CUSTOMER_EDIT), async (req, 
        FROM quotations
        WHERE seller_id = $1
          AND customer_id = $2
-         AND archived_at IS NULL`,
+         AND archived_at IS NULL
+         AND COALESCE(record_status, 'submitted') <> 'archived'`,
       [tenantId, customerId]
     );
     if (Number(activeQuotationResult.rows[0]?.count || 0) > 0) {

@@ -1015,7 +1015,7 @@ async function createQuotationApprovalRequest(client, { sellerId, quotationId, q
 async function getCustomerOutstanding(customerId, sellerId) {
   const result = await pool.query(
     `SELECT
-      COALESCE((SELECT SUM(COALESCE(balance_amount, total_amount)) FROM quotations WHERE customer_id = $1 AND seller_id = $2 AND archived_at IS NULL), 0) AS invoiced,
+      COALESCE((SELECT SUM(COALESCE(balance_amount, total_amount)) FROM quotations WHERE customer_id = $1 AND seller_id = $2 AND archived_at IS NULL AND COALESCE(record_status, 'submitted') <> 'archived'), 0) AS invoiced,
       COALESCE((SELECT SUM(amount) FROM payments WHERE customer_id = $1 AND seller_id = $2), 0) AS paid`,
     [customerId, sellerId]
   );

@@ -671,7 +671,7 @@ function requireApprovalAccess(req, res, next) {
 async function getCustomerOutstandingInTransaction(client, customerId, sellerId) {
   const result = await client.query(
     `SELECT
-      COALESCE((SELECT SUM(COALESCE(q.balance_amount, q.total_amount)) FROM quotations q WHERE q.customer_id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL), 0) AS invoiced,
+      COALESCE((SELECT SUM(COALESCE(q.balance_amount, q.total_amount)) FROM quotations q WHERE q.customer_id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL AND COALESCE(q.record_status, 'submitted') <> 'archived'), 0) AS invoiced,
       COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = $1 AND p.seller_id = $2), 0) AS paid`,
     [customerId, sellerId]
   );
@@ -3935,7 +3935,7 @@ router.get("/", requirePermission(PERMISSIONS.QUOTATION_SEARCH), async (req, res
   try {
     const tenantId = getTenantId(req);
     const values = [];
-    const whereParts = ["q.archived_at IS NULL"];
+    const whereParts = ["q.archived_at IS NULL", "COALESCE(q.record_status, 'submitted') <> 'archived'"];
     if (tenantId) {
       values.push(tenantId);
       whereParts.push(`q.seller_id = $${values.length}`);
@@ -4031,6 +4031,7 @@ router.get("/approvals", requireApprovalAccess, async (req, res) => {
        LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
        WHERE ${where}
          AND q.archived_at IS NULL
+         AND COALESCE(q.record_status, 'submitted') <> 'archived'
        ORDER BY
          CASE qar.status
            WHEN 'pending' THEN 1
@@ -4103,6 +4104,7 @@ router.get("/approvals/:approvalId", requireApprovalAccess, async (req, res) => 
        LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
        WHERE ${where}
          AND q.archived_at IS NULL
+         AND COALESCE(q.record_status, 'submitted') <> 'archived'
        LIMIT 1`,
       values
     );
@@ -4162,6 +4164,7 @@ router.patch("/approvals/:approvalId/decision", requirePermission(PERMISSIONS.AP
        WHERE qar.id = $1
          AND qar.seller_id = $2
          AND q.archived_at IS NULL
+         AND COALESCE(q.record_status, 'submitted') <> 'archived'
        LIMIT 1
        FOR UPDATE`,
       [approvalId, tenantId]
@@ -4286,7 +4289,7 @@ router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, re
       where += " AND q.seller_id = $2";
       values.push(tenantId);
     }
-    where += " AND q.archived_at IS NULL";
+    where += " AND q.archived_at IS NULL AND COALESCE(q.record_status, 'submitted') <> 'archived'";
 
     const quotationResult = await pool.query(
       `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
@@ -4384,7 +4387,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       values.push(tenantId);
       where += " AND q.seller_id = $2";
     }
-    where += " AND q.archived_at IS NULL";
+    where += " AND q.archived_at IS NULL AND COALESCE(q.record_status, 'submitted') <> 'archived'";
 
     const quotationResult = await pool.query(
       `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
@@ -4588,6 +4591,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
        WHERE q.id = $1
          AND q.seller_id = $2
          AND q.archived_at IS NULL
+         AND COALESCE(q.record_status, 'submitted') <> 'archived'
        LIMIT 1`,
       [id, tenantId]
     );
@@ -4938,7 +4942,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const quotationResult = await client.query(
       `SELECT *
        FROM quotations
-       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL
+       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL AND COALESCE(record_status, 'submitted') <> 'archived'
        LIMIT 1
        FOR UPDATE`,
       [id, tenantId]
@@ -5303,7 +5307,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
-       WHERE q.id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL
+       WHERE q.id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL AND COALESCE(q.record_status, 'submitted') <> 'archived'
        LIMIT 1`,
       [id, tenantId]
     );
@@ -5355,7 +5359,7 @@ router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), asyn
       values.push(tenantId);
       where += " AND quotations.seller_id = $2";
     }
-    where += " AND quotations.archived_at IS NULL";
+    where += " AND quotations.archived_at IS NULL AND COALESCE(quotations.record_status, 'submitted') <> 'archived'";
 
     const currentResult = await client.query(
       `SELECT *
@@ -5384,7 +5388,7 @@ router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), asyn
     const updateResult = await client.query(
       `UPDATE quotations
        SET record_status = 'confirmed'
-       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL
+       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL AND COALESCE(record_status, 'submitted') <> 'archived'
        RETURNING *`,
       [id, quotation.seller_id]
     );
@@ -5421,7 +5425,7 @@ router.patch("/:id/order-status", requirePermission(PERMISSIONS.QUOTATION_EDIT),
       values.push(tenantId);
       where += " AND quotations.seller_id = $3";
     }
-    where += " AND quotations.archived_at IS NULL";
+    where += " AND quotations.archived_at IS NULL AND COALESCE(quotations.record_status, 'submitted') <> 'archived'";
 
     await client.query("BEGIN");
 
@@ -5475,7 +5479,7 @@ router.patch("/:id/logistics", requirePermission(PERMISSIONS.QUOTATION_EDIT), as
       values.push(tenantId);
       where += " AND quotations.seller_id = $6";
     }
-    where += " AND quotations.archived_at IS NULL";
+    where += " AND quotations.archived_at IS NULL AND COALESCE(quotations.record_status, 'submitted') <> 'archived'";
 
     await client.query("BEGIN");
 
@@ -5527,7 +5531,7 @@ router.patch("/:id/mark-sent", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       values.push(tenantId);
       where += " AND quotations.seller_id = $2";
     }
-    where += " AND quotations.archived_at IS NULL";
+    where += " AND quotations.archived_at IS NULL AND COALESCE(quotations.record_status, 'submitted') <> 'archived'";
 
     await client.query("BEGIN");
 
@@ -5582,7 +5586,7 @@ router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK
       values.push(tenantId);
       where += " AND quotations.seller_id = $3";
     }
-    where += " AND quotations.archived_at IS NULL";
+    where += " AND quotations.archived_at IS NULL AND COALESCE(quotations.record_status, 'submitted') <> 'archived'";
 
     await client.query("BEGIN");
 
@@ -5638,6 +5642,7 @@ router.delete("/:id", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req,
        WHERE id = $1
          AND seller_id = $2
          AND archived_at IS NULL
+         AND COALESCE(record_status, 'submitted') <> 'archived'
        LIMIT 1
        FOR UPDATE`,
       [quotationId, tenantId]
@@ -5666,6 +5671,7 @@ router.delete("/:id", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req,
       `UPDATE quotations
        SET archived_at = CURRENT_TIMESTAMP,
            archived_by_user_id = $1,
+           record_status = 'archived',
            active_approval_request_id = NULL,
            approval_required = FALSE,
            approval_status = 'not_required'
