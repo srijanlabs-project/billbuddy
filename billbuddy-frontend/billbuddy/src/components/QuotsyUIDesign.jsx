@@ -251,7 +251,7 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
                 Start fast with ready onboarding and scale with advanced controls as your quoting process grows.
               </p>
             </div>
-            <button className="quotsy-btn quotsy-btn-dark">Compare Plans</button>
+            <a className="quotsy-btn quotsy-btn-dark quotsy-btn-link" href="/features#comparison">Compare Plans</a>
           </div>
 
           <div className="quotsy-pricing-grid">
