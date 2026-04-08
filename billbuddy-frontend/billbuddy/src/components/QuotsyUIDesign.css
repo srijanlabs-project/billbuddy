@@ -1,0 +1,1095 @@
+.quotsy-ui-root {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(45, 212, 191, 0.12), transparent 26%),
+    linear-gradient(180deg, #f7f8ff 0%, #f5f7fb 100%);
+  color: #0f172a;
+}
+
+.quotsy-ui-container {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.quotsy1-header {
+  margin-bottom: 18px;
+}
+
+.quotsy-ui-header {
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px 18px;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(8px);
+}
+
+.quotsy-brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quotsy-brand-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.28);
+}
+
+.quotsy-brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-brand-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.quotsy-nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.quotsy-nav a {
+  color: #475569;
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.quotsy-nav a:hover {
+  color: #0f172a;
+}
+
+.quotsy-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.quotsy-btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.quotsy-btn-link {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quotsy-btn:hover {
+  transform: translateY(-1px);
+}
+
+.quotsy-btn-primary {
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(79, 70, 229, 0.25);
+}
+
+.quotsy-btn-outline {
+  border: 1px solid #d6deea;
+  background: #fff;
+  color: #334155;
+}
+
+.quotsy-btn-dark {
+  background: #0f172a;
+  color: #fff;
+}
+
+.quotsy-btn-light {
+  background: #fff;
+  color: #0f172a;
+}
+
+.quotsy-panel {
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+}
+
+.quotsy-hero-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.quotsy-hero-panel {
+  padding: 30px;
+}
+
+.quotsy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+
+.quotsy-hero-title {
+  margin: 12px 0 0;
+  font-size: 44px;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+}
+
+.quotsy-hero-text {
+  margin: 12px 0 0;
+  font-size: 18px;
+  line-height: 1.7;
+  color: #475569;
+  max-width: 840px;
+}
+
+.quotsy-actions {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.quotsy-metrics-grid {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quotsy-metric-card {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 12px;
+}
+
+.quotsy-metric-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.quotsy-metric-value {
+  margin-top: 6px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-metric-delta {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #059669;
+  font-weight: 600;
+}
+
+.quotsy-dark-panel {
+  background: #0f172a;
+  color: #fff;
+  padding: 16px;
+}
+
+.quotsy-dark-inner {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 16px;
+}
+
+.quotsy-dark-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.quotsy-dark-kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.quotsy-dark-title {
+  margin-top: 2px;
+  font-size: 21px;
+  font-weight: 600;
+}
+
+.quotsy-dark-badge {
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #86efac;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.quotsy-dark-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quotsy-dark-card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
+}
+
+.quotsy-dark-card-title {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.quotsy-dark-card-value {
+  margin-top: 8px;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.quotsy-dark-card-sub {
+  margin-top: 3px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.quotsy-features-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quotsy-feature-card {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.64);
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
+}
+
+.quotsy-feature-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quotsy-feature-icon {
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  background: #eef2ff;
+  border-radius: 8px;
+  padding: 4px 7px;
+}
+
+.quotsy-feature-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  border-radius: 999px;
+  background: #f1f5f9;
+  padding: 5px 9px;
+}
+
+.quotsy-feature-title {
+  margin: 10px 0 0;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-feature-desc {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #475569;
+}
+
+.quotsy-pricing-panel {
+  margin-top: 20px;
+  padding: 24px;
+}
+
+.quotsy-section-head h2 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-section-head p {
+  margin: 8px 0 0;
+  font-size: 16px;
+  color: #475569;
+  line-height: 1.55;
+}
+
+.quotsy-industry-panel {
+  margin-top: 20px;
+  padding: 24px;
+}
+
+.quotsy-industry-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quotsy-industry-card {
+  border: 1px solid #dce6f3;
+  border-radius: 18px;
+  background: #fff;
+  padding: 16px;
+}
+
+.quotsy-industry-card h3 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-industry-card p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.quotsy-pricing-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.quotsy-pricing-title {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-pricing-text {
+  margin: 8px 0 0;
+  font-size: 16px;
+  line-height: 1.65;
+  color: #475569;
+  max-width: 760px;
+}
+
+.quotsy-pricing-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quotsy-ready-strip {
+  margin-top: 20px;
+  border: 1px solid #cfdcf0;
+  border-radius: 24px;
+  background: linear-gradient(100deg, #f8fbff 0%, #eef4ff 100%);
+  padding: 20px 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.quotsy-ready-content h2 {
+  margin: 0;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-ready-content p {
+  margin: 8px 0 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #475569;
+}
+
+.quotsy-ready-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quotsy-lead-panel {
+  margin-top: 20px;
+  padding: 24px;
+}
+
+.quotsy-lead-form {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.quotsy-lead-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.quotsy-lead-form input,
+.quotsy-lead-form textarea {
+  width: 100%;
+  border: 1px solid #cfd9e8;
+  border-radius: 10px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 14px;
+  padding: 10px 11px;
+  outline: none;
+}
+
+.quotsy-lead-form input:focus,
+.quotsy-lead-form textarea:focus {
+  border-color: #7aa0e8;
+  box-shadow: 0 0 0 3px rgba(122, 160, 232, 0.15);
+}
+
+.quotsy-lead-full {
+  grid-column: 1 / -1;
+}
+
+.quotsy-lead-actions {
+  grid-column: 1 / -1;
+}
+
+.quotsy-footer {
+  margin: 22px 0 6px;
+  border: 1px solid #d7e1ef;
+  border-radius: 18px;
+  background: #ffffffd9;
+  padding: 16px 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.quotsy-footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quotsy-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.quotsy-footer-links a {
+  font-size: 13px;
+  text-decoration: none;
+  color: #334155;
+}
+
+.quotsy-footer-links a:hover {
+  color: #0f172a;
+}
+
+.quotsy-footer-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.quotsy-footer-copy {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.quotsy-plan-card {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 24px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.quotsy-plan-featured {
+  border-color: rgba(79, 70, 229, 0.4);
+  background: #4f46e5;
+  color: #fff;
+}
+
+.quotsy-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.quotsy-plan-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.quotsy-plan-badge {
+  font-size: 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+.quotsy-plan-price {
+  margin-top: 10px;
+  font-size: 35px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.quotsy-plan-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.quotsy-plan-featured .quotsy-plan-sub {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.quotsy-plan-features {
+  margin-top: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.quotsy-plan-feature-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.quotsy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4f46e5;
+  flex-shrink: 0;
+}
+
+.quotsy-plan-featured .quotsy-dot {
+  background: #67e8f9;
+}
+
+.quotsy-plan-btn {
+  margin-top: 16px;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .quotsy-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quotsy-features-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .quotsy-industry-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .quotsy-ui-header {
+    flex-wrap: wrap;
+  }
+
+  .quotsy-nav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .quotsy-pricing-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quotsy-pricing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-ready-strip {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .quotsy-lead-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .quotsy-ui-container {
+    padding: 14px;
+  }
+
+  .quotsy-hero-panel {
+    padding: 18px;
+  }
+
+  .quotsy-hero-title {
+    font-size: 30px;
+  }
+
+  .quotsy-hero-text {
+    font-size: 15px;
+  }
+
+  .quotsy-metrics-grid,
+  .quotsy-features-grid,
+  .quotsy-dark-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-pricing-panel {
+    padding: 16px;
+  }
+
+  .quotsy-industry-panel,
+  .quotsy-lead-panel {
+    padding: 16px;
+  }
+
+  .quotsy-section-head h2,
+  .quotsy-pricing-title,
+  .quotsy-ready-content h2 {
+    font-size: 24px;
+  }
+
+  .quotsy-industry-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Srijan Labs replicated sections (Industries, Contact, CTA, Footer) */
+.quotsy-ui-root .sec-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #e8601a;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quotsy-ui-root .sec-label::before {
+  content: "";
+  width: 18px;
+  height: 2px;
+  background: #e8601a;
+}
+
+.quotsy-ui-root .segments-section {
+  width: 100%;
+  margin: 20px 0 0;
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #ece7e0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(20, 18, 16, 0.06);
+}
+
+.quotsy-ui-root .seg-header h2 {
+  margin: 0 0 10px;
+  font-size: 36px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.quotsy-ui-root .seg-header p {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: #7a7068;
+}
+
+.quotsy-ui-root .seg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.quotsy-ui-root .seg-item {
+  padding: 16px 18px;
+  background: #faf8f5;
+  border: 1px solid #ece7e0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3d3530;
+}
+
+.quotsy-ui-root .seg-item:hover {
+  background: #fff5ee;
+  border-color: #f8d0b4;
+  color: #e8601a;
+}
+
+.quotsy-ui-root .seg-item-icon {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #7a7068;
+}
+
+.quotsy-ui-root .contact-section {
+  width: 100%;
+  margin: 20px 0 0;
+  padding: 28px;
+  background: #fff;
+  border: 1px solid #ece7e0;
+  border-radius: 16px;
+}
+
+.quotsy-ui-root .contact-inner {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 48px;
+  align-items: start;
+}
+
+.quotsy-ui-root .contact-left h2 {
+  margin: 0 0 12px;
+  font-size: 36px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.quotsy-ui-root .contact-left p {
+  margin: 0 0 24px;
+  font-size: 16px;
+  line-height: 1.74;
+  color: #7a7068;
+}
+
+.quotsy-ui-root .contact-details {
+  display: grid;
+  gap: 14px;
+}
+
+.quotsy-ui-root .contact-row {
+  display: grid;
+  gap: 2px;
+}
+
+.quotsy-ui-root .contact-info-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #b0a898;
+}
+
+.quotsy-ui-root .contact-info-val {
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #141210;
+}
+
+.quotsy-ui-root .contact-form-card {
+  background: #faf8f5;
+  border: 1px solid #ece7e0;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 24px rgba(20, 18, 16, 0.08);
+}
+
+.quotsy-ui-root .cfc-title {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.quotsy-ui-root .cfc-sub {
+  font-size: 14px;
+  color: #7a7068;
+  margin-bottom: 16px;
+}
+
+.quotsy-ui-root .form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.quotsy-ui-root .form-field {
+  margin-bottom: 12px;
+}
+
+.quotsy-ui-root .form-label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: #3d3530;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.quotsy-ui-root .form-input {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1.5px solid #e0d8ce;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 14px;
+  color: #141210;
+}
+
+.quotsy-ui-root .form-input:focus {
+  outline: none;
+  border-color: #e8601a;
+  box-shadow: 0 0 0 3px rgba(232, 96, 26, 0.1);
+}
+
+.quotsy-ui-root .btn-form {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.62);
+  color: #141210;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(20, 18, 16, 0.1);
+}
+
+.quotsy-ui-root .btn-form:hover {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.quotsy-ui-root .btn-form:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.quotsy-ui-root .form-success {
+  margin: 0 0 10px;
+  color: #0a7a47;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quotsy-ui-root .form-error {
+  margin: 0 0 10px;
+  color: #b42318;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.quotsy-ui-root .cta-section {
+  padding: 0;
+  margin-top: 20px;
+}
+
+.quotsy-ui-root .cta-inner {
+  width: 100%;
+  margin: 0;
+}
+
+.quotsy-ui-root .cta-banner {
+  background: #141210;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 28px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.quotsy-ui-root .cta-title {
+  font-size: 32px;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-weight: 700;
+}
+
+.quotsy-ui-root .cta-title em {
+  color: #f5824a;
+  font-style: italic;
+}
+
+.quotsy-ui-root .cta-desc {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  line-height: 1.68;
+}
+
+.quotsy-ui-root .btn-cta-ghost {
+  display: inline-block;
+  text-decoration: none;
+  padding: 11px 18px;
+  border-radius: 10px;
+  border: 1px solid #e0d8ce;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.quotsy-ui-root .btn-cta-ghost:hover {
+  border-color: #fff;
+}
+
+.quotsy-ui-root .sl-footer {
+  margin-top: 20px;
+  background: #141210;
+  border-radius: 16px;
+  padding: 26px 28px;
+}
+
+.quotsy-ui-root .footer-inner {
+  width: 100%;
+  margin: 0;
+}
+
+.quotsy-ui-root .footer-top {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 20px;
+}
+
+.quotsy-ui-root .footer-brand-name {
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.quotsy-ui-root .footer-brand-desc {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.quotsy-ui-root .footer-col-title {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.quotsy-ui-root .footer-links {
+  display: grid;
+  gap: 7px;
+}
+
+.quotsy-ui-root .footer-links a {
+  color: rgba(255, 255, 255, 0.78);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.quotsy-ui-root .footer-links a:hover {
+  color: #fff;
+}
+
+.quotsy-ui-root .footer-bottom {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.quotsy-ui-root .footer-copy {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+@media (max-width: 1100px) {
+  .quotsy-ui-root .contact-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-ui-root .cta-banner {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-ui-root .footer-top {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .quotsy-ui-root .seg-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-ui-root .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .quotsy-ui-root .segments-section,
+  .quotsy-ui-root .contact-section,
+  .quotsy-ui-root .sl-footer {
+    padding: 18px;
+  }
+
+  .quotsy-ui-root .seg-header h2,
+  .quotsy-ui-root .contact-left h2,
+  .quotsy-ui-root .cta-title {
+    font-size: 28px;
+  }
+}

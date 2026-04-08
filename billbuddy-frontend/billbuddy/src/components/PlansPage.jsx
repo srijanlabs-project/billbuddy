@@ -105,9 +105,18 @@ export default function PlansPage(props) {
                 </select>
                 <input placeholder="Trial Days" type="number" min="0" value={planForm.trialDurationDays} onChange={(e) => setPlanForm((prev) => ({ ...prev, trialDurationDays: e.target.value }))} />
                 <input placeholder="Watermark Text" value={planForm.watermarkText} onChange={(e) => setPlanForm((prev) => ({ ...prev, watermarkText: e.target.value }))} />
+                <input placeholder="Landing CTA Label" value={planForm.landingCtaLabel} onChange={(e) => setPlanForm((prev) => ({ ...prev, landingCtaLabel: e.target.value }))} />
+                <input placeholder="Landing CTA Link" value={planForm.landingCtaLink} onChange={(e) => setPlanForm((prev) => ({ ...prev, landingCtaLink: e.target.value }))} />
                 <input placeholder="Max Users" type="number" min="0" value={planForm.maxUsers} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxUsers: e.target.value }))} />
                 <input placeholder="Max Quotations" type="number" min="0" value={planForm.maxQuotations} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxQuotations: e.target.value }))} />
                 <input placeholder="Max Customers" type="number" min="0" value={planForm.maxCustomers} onChange={(e) => setPlanForm((prev) => ({ ...prev, maxCustomers: e.target.value }))} />
+                <textarea
+                  className="customer-form-wide"
+                  rows={4}
+                  placeholder="Website Pointers (one per line)"
+                  value={planForm.websitePointers}
+                  onChange={(e) => setPlanForm((prev) => ({ ...prev, websitePointers: e.target.value }))}
+                />
               </div>
               <div className="seller-lifecycle-grid">
                 <label className="seller-toggle"><input type="checkbox" checked={planForm.isActive} onChange={(e) => setPlanForm((prev) => ({ ...prev, isActive: e.target.checked }))} style={{ width: "auto" }} />Active</label>
@@ -119,6 +128,8 @@ export default function PlansPage(props) {
                 <label className="seller-toggle"><input type="checkbox" checked={planForm.exportsEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, exportsEnabled: e.target.checked }))} style={{ width: "auto" }} />Exports</label>
                 <label className="seller-toggle"><input type="checkbox" checked={planForm.quotationWatermarkEnabled} onChange={(e) => setPlanForm((prev) => ({ ...prev, quotationWatermarkEnabled: e.target.checked }))} style={{ width: "auto" }} />Watermark</label>
                 <label className="seller-toggle"><input type="checkbox" checked={planForm.quotationCreationLockedAfterExpiry} onChange={(e) => setPlanForm((prev) => ({ ...prev, quotationCreationLockedAfterExpiry: e.target.checked }))} style={{ width: "auto" }} />Lock After Expiry</label>
+                <label className="seller-toggle"><input type="checkbox" checked={planForm.landingFeatured} onChange={(e) => setPlanForm((prev) => ({ ...prev, landingFeatured: e.target.checked }))} style={{ width: "auto" }} />Landing Featured Plan</label>
+                <label className="seller-toggle"><input type="checkbox" checked={planForm.websiteVisible} onChange={(e) => setPlanForm((prev) => ({ ...prev, websiteVisible: e.target.checked }))} style={{ width: "auto" }} />Show on Website</label>
               </div>
               <button type="submit">Create Plan</button>
             </form>

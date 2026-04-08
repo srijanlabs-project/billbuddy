@@ -1,0 +1,161 @@
+<svg width="1600" height="1460" viewBox="0 0 1600 1460" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="1460" fill="#F3F4F6"/>
+  <text x="72" y="68" fill="#111827" font-family="Arial, sans-serif" font-size="34" font-weight="700">Palette-Based Quotation Theme Mockups</text>
+  <text x="72" y="102" fill="#6B7280" font-family="Arial, sans-serif" font-size="18">These keep the same default quotation structure and only apply colors inspired by your references.</text>
+
+  <g transform="translate(72,150)">
+    <rect width="456" height="560" rx="5" fill="#FEFEFE" stroke="#CCCCCC"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#B7C396"/>
+    <text x="42" y="58" fill="#1F2937" font-family="Arial, sans-serif" font-size="28" font-weight="700">Sorbet</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#EDECEC" stroke="#CCCCCC"/>
+    <text x="38" y="118" fill="#4B5563" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#FEFEFE" stroke="#CCCCCC"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#E0E7D7" stroke="#CCCCCC"/>
+    <text x="38" y="176" fill="#6B7280" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#6B7280" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#8B8B8B" font-family="Arial, sans-serif" font-size="12">Soft neutral with sage accent</text>
+    <text x="254" y="202" fill="#7A6E68" font-family="Arial, sans-serif" font-size="12">Gentle, modern, premium</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#BA9A91"/>
+    <text x="38" y="302" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFFFF" stroke="#CCCCCC"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#CCCCCC"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#CCCCCC"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#CCCCCC"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#CCCCCC"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#CCCCCC"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#EDECEC" stroke="#CCCCCC"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#E0E7D7" stroke="#CCCCCC"/>
+    <text x="38" y="504" fill="#6B7280" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#6B7280" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+
+  <g transform="translate(560,150)">
+    <rect width="456" height="560" rx="5" fill="#FFFDF8" stroke="#CBB8A0"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#4F3D35"/>
+    <text x="42" y="58" fill="#F6D579" font-family="Arial, sans-serif" font-size="28" font-weight="700">Honey Opal Sunset</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#F6D579" stroke="#CBB8A0"/>
+    <text x="38" y="118" fill="#4F3D35" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#FFFDF8" stroke="#CBB8A0"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#CBB8A0" stroke="#9D8108"/>
+    <text x="38" y="176" fill="#4F3D35" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#4F3D35" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#7C5D26" font-family="Arial, sans-serif" font-size="12">Warm commercial palette</text>
+    <text x="254" y="202" fill="#7C5D26" font-family="Arial, sans-serif" font-size="12">Bold but still document-friendly</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#ECB914"/>
+    <text x="38" y="302" fill="#4F3D35" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFDF8" stroke="#CBB8A0"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#CBB8A0"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#CBB8A0"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#CBB8A0"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#CBB8A0"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#CBB8A0"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#F6D579" stroke="#CBB8A0"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#CBB8A0" stroke="#9D8108"/>
+    <text x="38" y="504" fill="#4F3D35" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#4F3D35" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+
+  <g transform="translate(1048,150)">
+    <rect width="456" height="560" rx="5" fill="#FFF8F8" stroke="#D396A6"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#30525C"/>
+    <text x="42" y="58" fill="#F6C992" font-family="Arial, sans-serif" font-size="28" font-weight="700">Seashell Garnet Afternoon</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#ACC0D3" stroke="#5484A4"/>
+    <text x="38" y="118" fill="#30525C" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#F6C992" stroke="#D396A6"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#ACC0D3" stroke="#5484A4"/>
+    <text x="38" y="176" fill="#30525C" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#30525C" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#7F4E60" font-family="Arial, sans-serif" font-size="12">Creative but still structured</text>
+    <text x="254" y="202" fill="#547085" font-family="Arial, sans-serif" font-size="12">Good premium differentiator</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#09A1A1"/>
+    <text x="38" y="302" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFFFF" stroke="#ACC0D3"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#ACC0D3"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#ACC0D3"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#ACC0D3"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#ACC0D3"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#ACC0D3"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#D396A6" stroke="#ACC0D3"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#5484A4" stroke="#30525C"/>
+    <text x="38" y="504" fill="#30525C" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+
+  <g transform="translate(72,770)">
+    <rect width="456" height="560" rx="5" fill="#FFFFFF" stroke="#DDDCDC"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#3C4044"/>
+    <text x="42" y="58" fill="#FD7B41" font-family="Arial, sans-serif" font-size="28" font-weight="700">Calcite</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#EDBF9B" stroke="#DDDCDC"/>
+    <text x="38" y="118" fill="#3C4044" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#FFFFFF" stroke="#DDDCDC"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#EDBF9B" stroke="#FD7B41"/>
+    <text x="38" y="176" fill="#3C4044" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#3C4044" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#7C5E4E" font-family="Arial, sans-serif" font-size="12">Strong industrial-commercial feel</text>
+    <text x="254" y="202" fill="#7C5E4E" font-family="Arial, sans-serif" font-size="12">Orange used as a controlled accent</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#FD7B41"/>
+    <text x="38" y="302" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFFFF" stroke="#DDDCDC"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#DDDCDC"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#DDDCDC"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#DDDCDC"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#DDDCDC"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#DDDCDC"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#EDBF9B" stroke="#DDDCDC"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#3C4044" stroke="#3C4044"/>
+    <text x="38" y="504" fill="#3C4044" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+
+  <g transform="translate(560,770)">
+    <rect width="456" height="560" rx="5" fill="#F8F6F2" stroke="#CCCACC"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#213885"/>
+    <text x="42" y="58" fill="#ECDFD2" font-family="Arial, sans-serif" font-size="28" font-weight="700">Lapis Velvet Evening</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#ECDFD2" stroke="#CCCACC"/>
+    <text x="38" y="118" fill="#213885" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#FFFFFF" stroke="#CCCACC"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#5F3475" stroke="#893172"/>
+    <text x="38" y="176" fill="#213885" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#ECDFD2" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#5B6475" font-family="Arial, sans-serif" font-size="12">Luxurious, distinct, premium</text>
+    <text x="254" y="202" fill="#E5D5E9" font-family="Arial, sans-serif" font-size="12">Feels like a premium plan feature</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#081849"/>
+    <text x="38" y="302" fill="#ECDFD2" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFFFF" stroke="#CCCACC"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#CCCACC"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#CCCACC"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#CCCACC"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#CCCACC"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#CCCACC"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#ECDFD2" stroke="#CCCACC"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#893172" stroke="#5F3475"/>
+    <text x="38" y="504" fill="#213885" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+
+  <g transform="translate(1048,770)">
+    <rect width="456" height="560" rx="5" fill="#FFFFFF" stroke="#D4DDE2"/>
+    <rect x="22" y="22" width="412" height="58" rx="5" fill="#5C7E8F"/>
+    <text x="42" y="58" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="28" font-weight="700">Frosted Aura</text>
+    <rect x="22" y="96" width="412" height="34" rx="5" fill="#D4DDE2" stroke="#A2A2A2"/>
+    <text x="38" y="118" fill="#4B5563" font-family="Arial, sans-serif" font-size="14" font-weight="700">GST / Quotation No / Date</text>
+    <rect x="22" y="148" width="196" height="110" rx="5" fill="#FFFFFF" stroke="#D4DDE2"/>
+    <rect x="238" y="148" width="196" height="110" rx="5" fill="#D4DDE2" stroke="#A2A2A2"/>
+    <text x="38" y="176" fill="#4B5563" font-family="Arial, sans-serif" font-size="16" font-weight="700">Customer Detail</text>
+    <text x="254" y="176" fill="#4B5563" font-family="Arial, sans-serif" font-size="16" font-weight="700">Quotation Detail</text>
+    <text x="38" y="202" fill="#6B7280" font-family="Arial, sans-serif" font-size="12">Very calm and neutral</text>
+    <text x="254" y="202" fill="#6B7280" font-family="Arial, sans-serif" font-size="12">Safe for broad B2B usage</text>
+    <rect x="22" y="280" width="412" height="34" rx="5" fill="#A2A2A2"/>
+    <text x="38" y="302" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="14" font-weight="700">Items Table</text>
+    <rect x="22" y="314" width="412" height="138" fill="#FFFFFF" stroke="#D4DDE2"/>
+    <line x1="70" y1="314" x2="70" y2="452" stroke="#D4DDE2"/>
+    <line x1="238" y1="314" x2="238" y2="452" stroke="#D4DDE2"/>
+    <line x1="322" y1="314" x2="322" y2="452" stroke="#D4DDE2"/>
+    <line x1="22" y1="360" x2="434" y2="360" stroke="#D4DDE2"/>
+    <line x1="22" y1="406" x2="434" y2="406" stroke="#D4DDE2"/>
+    <rect x="22" y="474" width="248" height="66" rx="5" fill="#D4DDE2" stroke="#A2A2A2"/>
+    <rect x="286" y="474" width="148" height="66" rx="5" fill="#5C7E8F" stroke="#5C7E8F"/>
+    <text x="38" y="504" fill="#4B5563" font-family="Arial, sans-serif" font-size="16" font-weight="700">Amount in Words</text>
+    <text x="302" y="504" fill="#FFFFFF" font-family="Arial, sans-serif" font-size="16" font-weight="700">Totals</text>
+  </g>
+</svg>

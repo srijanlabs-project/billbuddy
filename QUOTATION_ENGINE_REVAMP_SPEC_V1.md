@@ -247,7 +247,7 @@ Display rule:
 
 ### 17.2 Pending
 - GST conditional engine (customer GST trigger, item GST input, summary switch logic).
-- Global server error persistence (single app-level error surface across pages).
+- Remove Global server error persistence (single app-level error surface across pages), Error should be visible only on relevant form or page not across the site.
 - Final cleanup of hardcoded quotation rendering/calculation conditions.
 - Role dropdown cleanup in seller user creation (remove duplicate/irrelevant roles).
 - Advanced Studio deep capabilities:

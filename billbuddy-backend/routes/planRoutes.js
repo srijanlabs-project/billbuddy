@@ -5,6 +5,21 @@ const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 
 const router = express.Router();
 
+function normalizeWebsitePointers(rawValue) {
+  const source = Array.isArray(rawValue) ? rawValue : String(rawValue || "").split(/\r?\n|,/);
+  const unique = new Set();
+  const rows = [];
+  for (const value of source) {
+    const text = String(value || "").trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (unique.has(key)) continue;
+    unique.add(key);
+    rows.push(text.slice(0, 220));
+  }
+  return rows.slice(0, 40);
+}
+
 function normalizePlanPayload(body = {}) {
   const rawTemplateTier = String(body.templateAccessTier || body.template_access_tier || "").trim().toUpperCase();
   const normalizedTemplateTier = ["FREE", "PAID", "PREMIUM", "NICHE"].includes(rawTemplateTier) ? rawTemplateTier : "";
@@ -26,6 +41,11 @@ function normalizePlanPayload(body = {}) {
       : (normalizedTemplateTier && normalizedTemplateTier !== "FREE" ? "PAID" : "FREE"),
     templateAccessTier: normalizedTemplateTier || (rawAccessType === "PAID" ? "PAID" : "FREE"),
     watermarkText: String(body.watermarkText || body.watermark_text || "").trim() || null,
+    landingCtaLabel: String(body.landingCtaLabel || body.landing_cta_label || "").trim() || null,
+    landingCtaLink: String(body.landingCtaLink || body.landing_cta_link || "").trim() || null,
+    landingFeatured: body.landingFeatured !== undefined ? Boolean(body.landingFeatured) : Boolean(body.landing_featured),
+    websiteVisible: body.websiteVisible !== undefined ? Boolean(body.websiteVisible) : Boolean(body.website_visible),
+    websitePointers: normalizeWebsitePointers(body.websitePointers !== undefined ? body.websitePointers : body.website_pointers),
     maxUsers: body.maxUsers !== undefined && body.maxUsers !== null && body.maxUsers !== "" ? Number(body.maxUsers) : null,
     maxQuotations: body.maxQuotations !== undefined && body.maxQuotations !== null && body.maxQuotations !== "" ? Number(body.maxQuotations) : null,
     maxCustomers: body.maxCustomers !== undefined && body.maxCustomers !== null && body.maxCustomers !== "" ? Number(body.maxCustomers) : null,
@@ -80,9 +100,9 @@ router.post("/", requirePermission(PERMISSIONS.PLAN_CREATE), async (req, res) =>
 
     const planResult = await client.query(
       `INSERT INTO plans (
-         plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, plan_access_type, template_access_tier, watermark_text
+         plan_code, plan_name, price, billing_cycle, is_active, is_demo_plan, trial_enabled, trial_duration_days, plan_access_type, template_access_tier, watermark_text, landing_cta_label, landing_cta_link, landing_featured, website_visible, website_pointers
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
        RETURNING *`,
       [
         payload.planCode,
@@ -95,9 +115,23 @@ router.post("/", requirePermission(PERMISSIONS.PLAN_CREATE), async (req, res) =>
         payload.trialDurationDays,
         payload.planAccessType,
         payload.templateAccessTier,
-        payload.watermarkText
+        payload.watermarkText,
+        payload.landingCtaLabel,
+        payload.landingCtaLink,
+        payload.landingFeatured,
+        payload.websiteVisible,
+        JSON.stringify(payload.websitePointers || [])
       ]
     );
+
+    if (payload.landingFeatured) {
+      await client.query(
+        `UPDATE plans
+         SET landing_featured = FALSE
+         WHERE id <> $1`,
+        [planResult.rows[0].id]
+      );
+    }
 
     await client.query(
       `INSERT INTO plan_features (
@@ -179,8 +213,13 @@ router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) 
            plan_access_type = COALESCE($9, plan_access_type),
            template_access_tier = COALESCE($10, template_access_tier),
            watermark_text = $11,
+           landing_cta_label = $12,
+           landing_cta_link = $13,
+           landing_featured = $14,
+           website_visible = $15,
+           website_pointers = $16::jsonb,
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $12
+       WHERE id = $17
        RETURNING *`,
       [
         payload.planCode || null,
@@ -194,6 +233,11 @@ router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) 
         payload.planAccessType || null,
         payload.templateAccessTier || null,
         payload.watermarkText,
+        payload.landingCtaLabel,
+        payload.landingCtaLink,
+        payload.landingFeatured,
+        payload.websiteVisible,
+        JSON.stringify(payload.websitePointers || []),
         Number(id)
       ]
     );
@@ -201,6 +245,15 @@ router.patch("/:id", requirePermission(PERMISSIONS.PLAN_EDIT), async (req, res) 
     if (planResult.rowCount === 0) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Plan not found" });
+    }
+
+    if (payload.landingFeatured) {
+      await client.query(
+        `UPDATE plans
+         SET landing_featured = FALSE
+         WHERE id <> $1`,
+        [Number(id)]
+      );
     }
 
     await client.query(

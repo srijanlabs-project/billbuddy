@@ -53,6 +53,7 @@ export default function ConfigurationStudio(props) {
   const categoryPatternInputRefs = useRef({});
   const [activePatternTarget, setActivePatternTarget] = useState({ type: "default", index: null });
   const [quotationSeqDrafts, setQuotationSeqDrafts] = useState({});
+  const [quotationConfigSubTab, setQuotationConfigSubTab] = useState("fields");
 
   if (activeModule !== "Configuration Studio") return null;
 
@@ -507,17 +508,36 @@ export default function ConfigurationStudio(props) {
 
           {sellerConfigTab === "quotation" && (
             <div className="seller-config-body">
-              <div className="section-head compact">
-                <h3>Quotation Columns Configuration</h3>
-                {canEditConfiguration && <button type="button" onClick={addQuotationColumn}>Add Column</button>}
-              </div>
               <div className="seller-config-help-card" style={{ marginBottom: "18px" }}>
                 <h4>Studio Mode</h4>
                 <p className="muted">
                   Seller type: <strong>{normalizedSellerType}</strong>. Category-based item display rules are available only for Advanced sellers.
                 </p>
               </div>
-              <div className="seller-config-help-card">
+
+              <div className="seller-config-tabs seller-config-subtabs" style={{ marginBottom: "6px" }}>
+                {[
+                  { key: "fields", label: "Fields" },
+                  { key: "name-number", label: "Name & Number Formatting" }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={`ghost-btn ${quotationConfigSubTab === tab.key ? "active-chip" : ""}`}
+                    onClick={() => setQuotationConfigSubTab(tab.key)}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {quotationConfigSubTab === "fields" && (
+                <>
+                  <div className="section-head compact">
+                    <h3>Quotation Columns Configuration</h3>
+                    {canEditConfiguration && <button type="button" onClick={addQuotationColumn}>Add Column</button>}
+                  </div>
+                  <div className="seller-config-help-card">
                 <h4>Formula Help</h4>
                 <p className="muted">Use `formula` type when the seller should not enter the value manually. The system will calculate it at quotation save time and store it with the item.</p>
                 <div className="seller-config-help-grid">
@@ -540,6 +560,11 @@ export default function ConfigurationStudio(props) {
                 </div>
                 <p className="muted">Dropdown columns use the `Options` field. Enter values separated by commas, for example `Matte, Glossy, Frosted`.</p>
               </div>
+                </>
+              )}
+
+              {quotationConfigSubTab === "name-number" && (
+                <>
               <div className="seller-config-help-card" style={{ marginTop: "18px" }}>
                 <div className="section-head compact">
                   <h4>Item Display Builder</h4>
@@ -724,6 +749,10 @@ export default function ConfigurationStudio(props) {
                   </tbody>
                 </table>
               </div>
+                </>
+              )}
+
+              {quotationConfigSubTab === "fields" && (
               <table className="data-table seller-config-quotation-table">
                 <thead>
                   <tr><th>Seq</th><th>Label</th><th>Key</th><th>Type</th><th>Options</th><th>Category</th><th>{renderInlineHelp("Formula", "Formula columns are calculated automatically at quotation save time. Use supported variables like width, height, quantity, rate, amount, total_price, and category flags like is_services.")}</th><th>Required</th><th>Form</th><th>PDF</th><th>{renderInlineHelp("Helping", "Helping text appears below the item name in the PDF instead of behaving like a main table column. Use it for supporting details like colour, thickness, or notes.")}</th><th>Calc</th><th /></tr>
@@ -822,6 +851,7 @@ export default function ConfigurationStudio(props) {
                   ))}
                 </tbody>
               </table>
+              )}
             </div>
           )}
 

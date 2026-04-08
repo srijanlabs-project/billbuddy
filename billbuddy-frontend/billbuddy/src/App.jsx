@@ -18,6 +18,7 @@ import DashboardPage from "./components/DashboardPage";
 import HelpCenterPage from "./components/HelpCenterPage";
 import RbacMatrixPage from "./components/RbacMatrixPage";
 import GoLiveGatePage from "./components/GoLiveGatePage";
+import QuotsyUIDesign from "./components/QuotsyUIDesign";
 import SellerDetailModal from "./components/SellerDetailModal";
 import NotificationDetailModal from "./components/NotificationDetailModal";
 import SubscriptionDetailModal from "./components/SubscriptionDetailModal";
@@ -2032,104 +2033,102 @@ function PublicLeadCapturePage({
 const PUBLIC_VISITOR_FAQS = [
   {
     question: "What is Quotsy?",
-    answer: "Quotsy is a quotation-first business workspace that helps teams manage customers, products, quotations, branding, PDFs, and follow-up workflows from one system."
+    answer: "Quotsy is a quotation-first platform for MSMEs to create, approve, version, and share professional quotations with full commercial control."
   },
   {
     question: "Who is Quotsy built for?",
-    answer: "Quotsy is designed for MSMEs, distributors, manufacturers, fabricators, contractors, and service providers who need faster quotation and customer operations."
+    answer: "Quotsy is built for MSMEs, distributors, manufacturers, fabricators, contractors, and service businesses that handle frequent or complex quotations."
   },
   {
-    question: "Can I try Quotsy before buying a plan?",
-    answer: "Yes. You can register for a demo account and explore the workflow in a ready-to-use workspace before moving to a paid plan."
+    question: "Can I create and download branded quotation PDFs?",
+    answer: "Yes. You can generate branded PDFs with theme, header, footer, notes, terms, bank details, and signature sections."
   },
   {
-    question: "How long is the demo access?",
-    answer: "The demo signup flow creates a seller workspace with a 14-day trial so your team can evaluate the product in real working conditions."
+    question: "Are quotation values and content frozen at submit time?",
+    answer: "Yes. Quotsy saves a frozen snapshot of the quotation so PDF generation and re-download use saved data, not live settings."
   },
   {
-    question: "Do I need technical knowledge to use Quotsy?",
-    answer: "No. Quotsy is designed for operational teams, sales teams, and business owners, not just technical users."
+    question: "How does quotation versioning work?",
+    answer: "Each edit creates a new version. The new version is saved as its own snapshot while previous versions remain unchanged for history and audit."
   },
   {
-    question: "Can I create quotations in PDF format?",
-    answer: "Yes. Quotations can be previewed and downloaded as branded PDFs using seller-specific templates."
+    question: "Can I edit Terms and Notes per quotation?",
+    answer: "Yes. Terms and Notes are prefilled from settings, then can be edited for that quotation only before submission."
   },
   {
-    question: "Can I use my company logo or header image in quotation PDFs?",
-    answer: "Yes. You can upload either a full quotation header image or a company logo and configure the PDF branding from Business Settings."
+    question: "Does Quotsy support rich editing in Terms and Notes?",
+    answer: "Yes. Rich editing supports bold text, bullet list, and numbered list for quotation Terms and Notes."
   },
   {
-    question: "Can my team use the same seller account together?",
-    answer: "Yes. Seller accounts support multiple users with different roles such as admin, master user, and sub-user."
+    question: "Can I configure item display and number formatting in PDF?",
+    answer: "Yes. Configuration Studio includes Item Display Builder and Number Formatting controls (normal or round-off by field)."
   },
   {
-    question: "What can a sub-user do?",
-    answer: "A sub-user gets a focused workspace to create quotations, search quotations, create customers during quotation entry, and download PDFs."
+    question: "Can formula logic be configured by business type or category?",
+    answer: "Yes. You can configure formula expressions using category keys and fields such as quantity, rate, area, and service/product logic."
   },
   {
-    question: "Can I manage my product catalogue in Quotsy?",
-    answer: "Yes. You can maintain a structured product catalogue and also create secondary catalogue items directly during quotation creation."
+    question: "Do quotation form fields change by selected item/category?",
+    answer: "Yes. Field behavior and display can be controlled by configuration rules and category-specific setup."
   },
   {
-    question: "What is secondary catalogue?",
-    answer: "Secondary catalogue stores new seller-specific items created during quotation entry, so your team can reuse them later without polluting the main structured catalogue."
+    question: "Can I manage catalogue, categories, and units centrally?",
+    answer: "Yes. Quotsy uses catalogue-driven setup with category mapping and unit conversion configuration to reduce manual work."
   },
   {
-    question: "Can I add a customer while creating a quotation?",
-    answer: "Yes. The quotation wizard lets you create a new customer without leaving the quotation flow."
+    question: "Can I add customers and shipping addresses during quotation?",
+    answer: "Yes. You can create customers inline and manage multiple shipping addresses with GST details."
   },
   {
-    question: "Can a customer have multiple shipping addresses?",
-    answer: "Yes. Customers can have multiple shipping addresses, and each shipping location can also store warehouse GST details."
-  },
-  {
-    question: "Does Quotsy support GST details?",
-    answer: "Yes. Seller GST, customer GST, and warehouse GST can be captured and used where relevant in quotations and PDFs."
-  },
-  {
-    question: "Can I control who edits price while preparing quotations?",
-    answer: "Yes. Products can be configured with rate-edit protection using a Max Discount Limit. You can define it as a percentage like 10% or as a fixed amount like 100, and the system blocks rates that go below the allowed minimum."
-  },
-  {
-    question: "Can Quotsy support different business types?",
-    answer: "Yes. During onboarding, users can choose business category and segment so the system can seed relevant fields, quotation settings, and optional sample data."
-  },
-  {
-    question: "What business categories are supported in demo onboarding?",
-    answer: "Demo onboarding currently supports Traders and Distributors, Manufacturers and Fabricators, Contractors and Project-Based Businesses, and Service Providers."
-  },
-  {
-    question: "Will I get sample data in the demo account?",
-    answer: "Yes, if you choose sample data during demo signup. Quotsy can seed category-specific products, customers, and configuration to help you explore faster."
-  },
-  {
-    question: "Can I use my own data instead of sample data?",
-    answer: "Yes. You can choose to start with your own data and still get the category-based system structure without inserting sample products or customers."
-  },
-  {
-    question: "Can I upload products in bulk?",
-    answer: "Yes. Sellers can use the product import flow and upload catalogue data using the system template."
-  },
-  {
-    question: "Can I search quotations by customer name or mobile number?",
-    answer: "Yes. Quotation search supports customer name, firm name, quotation number, and mobile number to make retrieval faster for daily operations."
-  },
-  {
-    question: "Does Quotsy support OTP login?",
-    answer: "Yes. In addition to password login, Quotsy also supports OTP-based login for supported users."
+    question: "Are approvals supported?",
+    answer: "Yes. Quotsy supports requester/approver workflows with decision tracking and revised quotation approval flow."
   },
   {
     question: "Can platform admins manage multiple sellers?",
-    answer: "Yes. Quotsy includes a platform control plane for leads, sellers, subscriptions, plans, onboarding, and notifications across tenants."
+    answer: "Yes. Platform users can manage sellers, subscriptions, plans, notifications, and seller-level setup from one control panel."
   },
   {
-    question: "Is Quotsy only for quotations?",
-    answer: "Quotsy is quotation-first, but it also supports customer management, product master setup, branding, subscription workflows, configuration control, and operational coordination."
+    question: "Can I try Quotsy before buying a plan?",
+    answer: "Yes. You can sign up at Start Demo and use a trial workspace to test real quotation workflows."
   },
   {
     question: "How quickly can I get started?",
-    answer: "Most teams can get started by setting up branding, catalogue, and customers first, then creating their first quotation the same day."
+    answer: "Most teams can configure branding, fields, and catalogue, then start creating quotations on the same day."
   }
+];
+
+const PUBLIC_QUOTSY_PILLARS = [
+  {
+    title: "Structured, Not Rigid",
+    text: "Get a disciplined quotation workflow your team can follow, while keeping enough flexibility to fit your real business process."
+  },
+  {
+    title: "Handles Complexity Easily",
+    text: "Manage complex quotation structures with configurable fields, dynamic item logic, and rich notes/terms without operational chaos."
+  },
+  {
+    title: "Branding Built In",
+    text: "Deliver consistent, professional quotation output with branding controls for themes, header, footer, and signature sections."
+  },
+  {
+    title: "No Manual Unit Conversion",
+    text: "Use platform-level unit conversion configuration so teams don’t do manual conversion math while quoting."
+  }
+];
+
+const PUBLIC_QUOTSY_MARKETING_FEATURES = [
+  "Fast quotation creation with seller-specific dynamic forms",
+  "Complex quotation structures handled with configurable fields, rules, and layouts",
+  "Structured but not rigid workflow design for growing teams",
+  "Branded quotation output with themes, header, footer, and signature blocks",
+  "Quotation freeze and versioning with immutable snapshots per revision",
+  "Rich Notes and Terms editing with bold, bullets, and numbered lists",
+  "Configurable formula engine for category-based and logic-based pricing",
+  "Catalogue-driven setup for products/services/categories to reduce manual errors",
+  "No manual unit conversion required through centralized unit conversion mapping",
+  "Customer profile support with GST and multiple shipping addresses",
+  "Dashboard visibility into daily quotation trends and top quoted articles",
+  "Multi-tenant setup with role-based access for platform and seller teams"
 ];
 
 const PUBLIC_QUOTSY_FEATURE_SECTIONS = [
@@ -2216,8 +2215,9 @@ const PUBLIC_QUOTSY_COMPARISON_ROWS = [
 
 function PublicPageHeader({ activePath }) {
   const links = [
-    { href: "/quotsy-features", label: "Features" },
-    { href: "/quotsy-features#comparison", label: "Comparison" },
+    { href: "/", label: "Quotsy Home" },
+    { href: "/features", label: "Features" },
+    { href: "/features#comparison", label: "Comparison" },
     { href: "/user-guide", label: "User Guide" },
     { href: "/try-demo", label: "Start Demo" },
     { href: "/login", label: "Login" }
@@ -2247,6 +2247,54 @@ function PublicPageHeader({ activePath }) {
   );
 }
 
+function PublicQuotsyLandingPage() {
+  return (
+    <div className="auth-wrap lead-capture-shell public-page-shell">
+      <div className="app-ambience" aria-hidden="true">
+        <span className="shape shape-cube" />
+        <span className="shape shape-ring" />
+        <span className="shape shape-panel" />
+      </div>
+      <div className="auth-bg-glow" />
+      <div className="public-page-stage">
+        <PublicPageHeader activePath="/quotsy" />
+      <div className="auth-grid auth-grid-public-features-single">
+        <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card public-features-page-card public-features-page-wide">
+          <div className="auth-visitor-faq-head">
+            <p className="eyebrow">Quotsy</p>
+            <h3>Quotation operations platform for modern MSME teams</h3>
+            <p>Built to keep quoting structured, flexible, and brand-ready while handling real-world complexity.</p>
+          </div>
+
+          <div className="auth-value-stack public-feature-hero-stack">
+            {PUBLIC_QUOTSY_PILLARS.map((pillar, index) => (
+              <div key={pillar.title} className={`auth-value-card ${index % 3 === 1 ? "auth-value-card-indigo" : index % 3 === 2 ? "auth-value-card-mustard" : "auth-value-card-blue"}`}>
+                <span className="auth-value-icon" aria-hidden="true" />
+                <div>
+                  <strong>{pillar.title}</strong>
+                  <span>{pillar.text}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="public-feature-grid">
+            <article className="public-feature-card" style={{ gridColumn: "1 / -1" }}>
+              <h4>Marketing Features</h4>
+              <ul>
+                {PUBLIC_QUOTSY_MARKETING_FEATURES.map((point) => (
+                  <li key={point}>{point}</li>
+                ))}
+              </ul>
+            </article>
+          </div>
+        </section>
+      </div>
+      </div>
+    </div>
+  );
+}
+
 function PublicVisitorFaqPage() {
   const [openQuestion, setOpenQuestion] = useState(PUBLIC_VISITOR_FAQS[0]?.question || "");
 
@@ -2264,17 +2312,17 @@ function PublicVisitorFaqPage() {
         <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card auth-visitor-faq-page-wide">
           <div className="auth-visitor-faq-head">
             <p className="eyebrow">User Guide</p>
-            <h3>Before You Sign Up</h3>
-            <p>Everything a first-time visitor usually wants to understand before starting a demo, creating an account, or sharing Quotsy internally with a team.</p>
+            <h3>Quotsy Capability Guide</h3>
+            <p>A quick feature guide for teams evaluating Quotsy for structured quotation operations, commercial control, and branded PDF output.</p>
           </div>
           <div className="lead-capture-points auth-visitor-info-grid">
             <div>
               <strong>What You Will Learn</strong>
-              <span>What Quotsy does, who it is built for, how demo setup works, and how quotations, GST, catalogue, and team access fit together.</span>
+              <span>How snapshot freeze, versioning, approvals, configuration studio, rich notes/terms, and PDF controls work in daily quotation flow.</span>
             </div>
             <div>
               <strong>Who This Helps</strong>
-              <span>Business owners, operations managers, sales teams, fabricators, distributors, contractors, and service providers evaluating the platform.</span>
+              <span>Business owners, sales teams, operations managers, and platform admins choosing a scalable quotation system.</span>
             </div>
           </div>
           <div className="auth-visitor-faq-list">
@@ -2303,7 +2351,17 @@ function PublicVisitorFaqPage() {
   );
 }
 
-function PublicQuotsyFeaturesPage() {
+function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
+  const websitePlans = (Array.isArray(publicPlans) ? publicPlans : []).filter((plan) => Boolean(plan?.website_visible));
+  const comparisonPointers = Array.from(
+    new Set(
+      websitePlans
+        .flatMap((plan) => (Array.isArray(plan.website_pointers) ? plan.website_pointers : []))
+        .map((pointer) => String(pointer || "").trim())
+        .filter(Boolean)
+    )
+  );
+
   return (
     <div className="auth-wrap lead-capture-shell public-page-shell">
       <div className="app-ambience" aria-hidden="true">
@@ -2313,7 +2371,7 @@ function PublicQuotsyFeaturesPage() {
       </div>
       <div className="auth-bg-glow" />
       <div className="public-page-stage">
-        <PublicPageHeader activePath="/quotsy-features" />
+        <PublicPageHeader activePath="/features" />
       <div className="auth-grid auth-grid-public-features-single">
         <section className="glass-card auth-card auth-visitor-faq-card auth-visitor-faq-page-card public-features-page-card public-features-page-wide">
           <div className="auth-visitor-faq-head">
@@ -2359,35 +2417,47 @@ function PublicQuotsyFeaturesPage() {
 
           <div id="comparison" className="public-comparison-block">
             <div className="auth-visitor-faq-head">
-              <p className="eyebrow">Quotation Comparison</p>
-              <h3>How Quotsy compares on quotation workflow focus</h3>
-              <p>Comparison is limited to quotation workflow depth and based on publicly described product capabilities. It does not try to compare the full ERP or accounting scope of each platform.</p>
+              <p className="eyebrow">Plan Comparison</p>
+              <h3>Compare published Quotsy plans</h3>
+              <p>This table shows all website pointers configured in Platform Plans for plans marked as visible on website.</p>
             </div>
             <div className="public-comparison-table-wrap">
-              <table className="public-comparison-table">
-                <thead>
-                  <tr>
-                    <th>Area</th>
-                    <th>Quotsy</th>
-                    <th>Zoho</th>
-                    <th>Odoo</th>
-                    <th>Vyapar</th>
-                    <th>GoGST</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PUBLIC_QUOTSY_COMPARISON_ROWS.map((row) => (
-                  <tr key={row.feature}>
-                      <td><strong>{row.feature}</strong></td>
-                      <td className="comparison-fit-strong">{row.quotsy}</td>
-                      <td className="comparison-fit-medium">{row.zoho}</td>
-                      <td className="comparison-fit-medium">{row.odoo}</td>
-                      <td className="comparison-fit-strong-soft">{row.vyapar}</td>
-                      <td className="comparison-fit-strong-soft">{row.gogst}</td>
+              {websitePlans.length === 0 ? (
+                <p className="muted">No website-visible plans configured yet.</p>
+              ) : (
+                <table className="public-comparison-table">
+                  <thead>
+                    <tr>
+                      <th>Pointer</th>
+                      {websitePlans.map((plan) => <th key={plan.id}>{plan.plan_name}</th>)}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Price</strong></td>
+                      {websitePlans.map((plan) => (
+                        <td key={`${plan.id}-price`} className="comparison-fit-strong">
+                          {Number(plan.price || 0) > 0 ? formatCurrency(plan.price) : "Custom"}
+                        </td>
+                      ))}
+                    </tr>
+                    {comparisonPointers.map((pointer) => (
+                      <tr key={pointer}>
+                        <td><strong>{pointer}</strong></td>
+                        {websitePlans.map((plan) => {
+                          const planPointers = Array.isArray(plan.website_pointers) ? plan.website_pointers.map((row) => String(row || "").trim()) : [];
+                          const hasPointer = planPointers.includes(pointer);
+                          return (
+                            <td key={`${plan.id}-${pointer}`} className={hasPointer ? "comparison-fit-strong" : "comparison-fit-medium"}>
+                              {hasPointer ? "Yes" : "-"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 
@@ -2411,17 +2481,178 @@ function PublicAcquisitionSignupPage({
   onChange,
   onSubmit,
   businessCategoryOptions,
-  getBusinessSegments
+  getBusinessSegments,
+  forceLeadFlow = false,
+  announcement = ""
 }) {
   const isDemoMode = mode === "demo";
+  const isLeadFlow = !isDemoMode || forceLeadFlow;
   const [showPassword, setShowPassword] = useState(false);
-  const categoryKey = isDemoMode ? "businessCategory" : "businessType";
+  const categoryKey = isLeadFlow ? "businessType" : "businessCategory";
   const categoryValue = form[categoryKey] || "";
   const segmentOptions = getBusinessSegments(categoryValue);
-  const shouldShowSampleDataChoices = isDemoMode || Boolean(form.interestedInDemo);
+  const shouldShowSampleDataChoices = isDemoMode && !isLeadFlow;
+  const demoShowcaseCards = [
+    {
+      title: "Seller Workspace",
+      text: "Manage quotations, customers, products, and follow-ups from one connected workspace.",
+      tone: "blue"
+    },
+    {
+      title: "Platform Management",
+      text: "Control sellers, subscriptions, onboarding, and governance from a single admin console.",
+      tone: "indigo"
+    },
+    {
+      title: "Faster Business",
+      text: "Move MSME workflows out of scattered chats and sheets into a clean operating system.",
+      tone: "mustard"
+    }
+  ];
+
+  const formPanel = (
+    <div className={`glass-card auth-card auth-panel-card auth-demo-panel ${isDemoMode ? "" : "lead-form-panel-v2"}`}>
+      <div className="auth-panel-tabs" role="tablist" aria-label="Public onboarding navigation">
+        {isDemoMode ? (
+          <>
+            <a className="auth-panel-tab auth-panel-tab-link" href="/login">Login</a>
+            <a className="auth-panel-tab active" href="/try-demo">Demo Signup</a>
+          </>
+        ) : (
+          <span className="auth-panel-tab active">Leads</span>
+        )}
+      </div>
+      <div className="auth-panel-divider" />
+      {isDemoMode ? (
+        <div className="auth-panel-copy">
+          <h2>Register for Demo</h2>
+          <p>Create your demo workspace instantly.</p>
+        </div>
+      ) : null}
+      {announcement ? <div className="notice info">{announcement}</div> : null}
+      {successMessage && <div className="notice">{successMessage}</div>}
+      {errorMessage && <div className="notice error">{errorMessage}</div>}
+      <form className={`auth-form-shell auth-demo-form ${isLeadFlow ? "lead-form-v2" : ""}`} onSubmit={onSubmit}>
+        <div className={isLeadFlow ? "lead-form-row-v2" : ""}>
+          <label className="auth-field auth-field-caps">
+            <span>Your Name</span>
+            <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+              {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+              <input placeholder={isLeadFlow ? "Full name" : "Enter your name"} value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
+            </div>
+          </label>
+          <label className="auth-field auth-field-caps">
+            <span>Mobile Number</span>
+            <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+              {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+              <input placeholder={isLeadFlow ? "+91 98XXX XX" : "Enter mobile number"} value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
+            </div>
+          </label>
+        </div>
+        {!isLeadFlow ? (
+          <label className="auth-field auth-field-caps">
+            <span>Password</span>
+            <div className="auth-input-shell">
+              <span className="auth-input-icon"><LockFieldIcon /></span>
+              <input
+                placeholder="Create password"
+                type={showPassword ? "text" : "password"}
+                value={form.password}
+                onChange={(e) => onChange("password", e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="auth-input-toggle"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((current) => !current)}
+              >
+                <EyeFieldIcon open={showPassword} />
+              </button>
+            </div>
+          </label>
+        ) : null}
+        <label className="auth-field auth-field-caps">
+          <span>Email</span>
+          <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+            {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+            <input placeholder={isLeadFlow ? "you@company.com" : "Enter email address"} type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
+          </div>
+        </label>
+        <label className="auth-field auth-field-caps">
+          <span>Business Name</span>
+          <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+            {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+            <input placeholder={isLeadFlow ? "Your business" : "Enter business name"} value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
+          </div>
+        </label>
+        <div className={isLeadFlow ? "lead-form-row-v2" : ""}>
+          <label className="auth-field auth-field-caps">
+            <span>Business Category</span>
+            <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+              {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+              <select value={categoryValue} onChange={(e) => onChange(categoryKey, e.target.value)}>
+                <option value="">{isLeadFlow ? "Select category" : "Select business category"}</option>
+                {businessCategoryOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          </label>
+          <label className="auth-field auth-field-caps">
+            <span>Business Segment</span>
+            <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2" : ""}`}>
+              {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+              <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!categoryValue}>
+                <option value="">{categoryValue ? "Select segment" : (isLeadFlow ? "Select category" : "Select category first")}</option>
+                {segmentOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          </label>
+        </div>
+        {isLeadFlow ? (
+          <label className="seller-toggle">
+            <input type="checkbox" checked={Boolean(form.interestedInDemo)} onChange={(e) => onChange("interestedInDemo", e.target.checked)} style={{ width: "auto" }} />
+            I'm interested in a demo
+          </label>
+        ) : null}
+        {shouldShowSampleDataChoices ? (
+          <label className="auth-field auth-field-caps">
+            <span>Demo Data Preference</span>
+            <div className="auth-choice-group">
+              <label className="auth-choice-pill">
+                <input type="radio" name={`sampleData-${mode}`} checked={Boolean(form.wantsSampleData)} onChange={() => onChange("wantsSampleData", true)} />
+                <span>Use sample data</span>
+              </label>
+              <label className="auth-choice-pill">
+                <input type="radio" name={`sampleData-${mode}`} checked={!form.wantsSampleData} onChange={() => onChange("wantsSampleData", false)} />
+                <span>I will use my own data</span>
+              </label>
+            </div>
+          </label>
+        ) : null}
+        {isLeadFlow ? (
+          <label className="auth-field auth-field-caps">
+            <span>Requirement</span>
+            <div className={`auth-input-shell ${isLeadFlow ? "lead-input-shell-v2 lead-textarea-shell-v2" : ""}`}>
+              {isLeadFlow ? null : <span className="auth-input-icon"><PhoneFieldIcon /></span>}
+              <textarea rows={3} placeholder={isLeadFlow ? "Describe what you're looking for..." : "Share your requirement"} value={form.requirement} onChange={(e) => onChange("requirement", e.target.value)} />
+            </div>
+          </label>
+        ) : null}
+        <button type="submit" className="auth-submit-btn" disabled={submitting}>
+          {submitting
+            ? (isLeadFlow ? "Submitting lead..." : "Creating demo...")
+            : (isLeadFlow ? "Contact Me" : "Create Demo Account ->")}
+        </button>
+      </form>
+    </div>
+  );
 
   return (
-    <div className="auth-wrap lead-capture-shell public-page-shell">
+    <div className={`auth-wrap lead-capture-shell public-page-shell ${isDemoMode ? "" : "public-lead-page-v2"}`}>
       <div className="app-ambience" aria-hidden="true">
         <span className="shape shape-cube" />
         <span className="shape shape-ring" />
@@ -2430,169 +2661,67 @@ function PublicAcquisitionSignupPage({
       <div className="auth-bg-glow" />
       <div className="public-page-stage">
         <PublicPageHeader activePath={isDemoMode ? "/try-demo" : "/lead"} />
-        <div className="auth-grid lead-capture-grid">
-          <div className="glass-card hero-card auth-showcase-card">
-            <p className="eyebrow">{isDemoMode ? "Quotsy Demo" : "Quotsy Lead Capture"}</p>
-            <h1>{isDemoMode ? "Register for Demo" : "Share Your Requirement"}</h1>
-            <p>
-              {isDemoMode
-                ? "Create your seller workspace in minutes and start a 14-day trial with category-aware setup."
-                : "Use this same guided form to share your requirement, and convert to demo whenever you are ready."}
-            </p>
-            <div className="auth-value-stack">
-              <div className="auth-value-card auth-value-card-blue">
-                <span className="auth-value-icon" aria-hidden="true" />
-                <div>
-                  <strong>One Unified Form</strong>
-                  <span>Lead and demo onboarding now follow one consistent form experience.</span>
+        {!isDemoMode ? (
+          <div className="auth-grid lead-capture-grid lead-capture-grid-v2">
+            <div className="glass-card hero-card auth-showcase-card lead-copy-panel-v2">
+              <p className="lead-v2-eyebrow">Lead Capture</p>
+              <h1>Share your <em>requirement,</em><br />start faster.</h1>
+              <p>One form to capture leads and onboard demos - no re-entry, no friction.</p>
+              <div className="auth-value-stack">
+                <div className="auth-value-card auth-value-card-blue">
+                  <span className="auth-value-icon" aria-hidden="true" />
+                  <div>
+                    <strong>One unified form</strong>
+                    <span>Lead and demo onboarding share a single consistent experience.</span>
+                  </div>
                 </div>
-              </div>
-              <div className="auth-value-card auth-value-card-indigo">
-                <span className="auth-value-icon" aria-hidden="true" />
-                <div>
-                  <strong>Category-Aware Setup</strong>
-                  <span>Business category and segment selections drive setup and sample data options.</span>
+                <div className="auth-value-card auth-value-card-indigo">
+                  <span className="auth-value-icon" aria-hidden="true" />
+                  <div>
+                    <strong>Category-aware setup</strong>
+                    <span>Business segment and category drive relevant sample data.</span>
+                  </div>
                 </div>
-              </div>
-              <div className="auth-value-card auth-value-card-mustard">
-                <span className="auth-value-icon" aria-hidden="true" />
-                <div>
-                  <strong>Fast Start</strong>
-                  <span>Complete the form once and move to login or demo flow without re-entering data.</span>
+                <div className="auth-value-card auth-value-card-mustard">
+                  <span className="auth-value-icon" aria-hidden="true" />
+                  <div>
+                    <strong>Fast start</strong>
+                    <span>Complete once, then move straight to login or demo - no repeating yourself.</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="auth-public-side">
-            <div className="glass-card auth-card auth-panel-card auth-demo-panel">
-              <div className="auth-panel-tabs" role="tablist" aria-label="Public onboarding navigation">
-                <a className="auth-panel-tab auth-panel-tab-link" href="/login">Login</a>
-                <a className={`auth-panel-tab ${!isDemoMode ? "active" : "auth-panel-tab-link"}`} href="/lead">Lead Form</a>
-                <a className={`auth-panel-tab ${isDemoMode ? "active" : "auth-panel-tab-link"}`} href="/try-demo">Demo Signup</a>
-              </div>
-              <div className="auth-panel-divider" />
-              <div className="auth-panel-copy">
-                <h2>{isDemoMode ? "Register for Demo" : "Submit Lead"}</h2>
-                <p>{isDemoMode ? "Create your demo workspace instantly." : "Share your details and we will continue your onboarding."}</p>
-              </div>
-              {successMessage && <div className="notice">{successMessage}</div>}
-              {errorMessage && <div className="notice error">{errorMessage}</div>}
-              <form className="auth-form-shell auth-demo-form" onSubmit={onSubmit}>
-                <label className="auth-field auth-field-caps">
-                  <span>Your Name</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <input placeholder="Enter your name" value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
-                  </div>
-                </label>
-                <label className="auth-field auth-field-caps">
-                  <span>Mobile Number</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <input placeholder="Enter mobile number" value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
-                  </div>
-                </label>
-                {isDemoMode ? (
-                  <label className="auth-field auth-field-caps">
-                    <span>Password</span>
-                    <div className="auth-input-shell">
-                      <span className="auth-input-icon"><LockFieldIcon /></span>
-                      <input
-                        placeholder="Create password"
-                        type={showPassword ? "text" : "password"}
-                        value={form.password}
-                        onChange={(e) => onChange("password", e.target.value)}
-                        required
-                      />
-                      <button
-                        type="button"
-                        className="auth-input-toggle"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        onClick={() => setShowPassword((current) => !current)}
-                      >
-                        <EyeFieldIcon open={showPassword} />
-                      </button>
-                    </div>
-                  </label>
-                ) : null}
-                <label className="auth-field auth-field-caps">
-                  <span>Email</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <input placeholder="Enter email address" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
-                  </div>
-                </label>
-                <label className="auth-field auth-field-caps">
-                  <span>Business Name</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <input placeholder="Enter business name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
-                  </div>
-                </label>
-                <label className="auth-field auth-field-caps">
-                  <span>Business Category</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <select value={categoryValue} onChange={(e) => onChange(categoryKey, e.target.value)}>
-                      <option value="">Select business category</option>
-                      {businessCategoryOptions.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-                <label className="auth-field auth-field-caps">
-                  <span>Business Segment</span>
-                  <div className="auth-input-shell">
-                    <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                    <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!categoryValue}>
-                      <option value="">{categoryValue ? "Select segment" : "Select category first"}</option>
-                      {segmentOptions.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
-                  </div>
-                </label>
-                {!isDemoMode ? (
-                  <label className="seller-toggle">
-                    <input type="checkbox" checked={Boolean(form.interestedInDemo)} onChange={(e) => onChange("interestedInDemo", e.target.checked)} style={{ width: "auto" }} />
-                    Interested in Demo
-                  </label>
-                ) : null}
-                {shouldShowSampleDataChoices ? (
-                  <label className="auth-field auth-field-caps">
-                    <span>Demo Data Preference</span>
-                    <div className="auth-choice-group">
-                      <label className="auth-choice-pill">
-                        <input type="radio" name={`sampleData-${mode}`} checked={Boolean(form.wantsSampleData)} onChange={() => onChange("wantsSampleData", true)} />
-                        <span>Use sample data</span>
-                      </label>
-                      <label className="auth-choice-pill">
-                        <input type="radio" name={`sampleData-${mode}`} checked={!form.wantsSampleData} onChange={() => onChange("wantsSampleData", false)} />
-                        <span>I will use my own data</span>
-                      </label>
-                    </div>
-                  </label>
-                ) : null}
-                {!isDemoMode ? (
-                  <label className="auth-field auth-field-caps">
-                    <span>Requirement</span>
-                    <div className="auth-input-shell">
-                      <span className="auth-input-icon"><PhoneFieldIcon /></span>
-                      <textarea rows={3} placeholder="Share your requirement" value={form.requirement} onChange={(e) => onChange("requirement", e.target.value)} />
-                    </div>
-                  </label>
-                ) : null}
-                <button type="submit" className="auth-submit-btn" disabled={submitting}>
-                  {submitting
-                    ? (isDemoMode ? "Creating demo..." : "Submitting lead...")
-                    : (isDemoMode ? "Create Demo Account ->" : "Submit Lead ->")}
-                </button>
-              </form>
+            <div className="auth-public-side">
+              {formPanel}
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="auth-grid lead-capture-grid">
+            <div className="glass-card hero-card auth-showcase-card">
+              <p className="eyebrow">Quotsy Multi-Tenant SaaS</p>
+              <h1>Quotsy Platform</h1>
+              <p>Run your sales, quotations, customer operations, and multi-tenant governance from one connected workspace built for growing MSMEs.</p>
+              <div className="auth-value-stack">
+                {demoShowcaseCards.map((card) => (
+                  <div key={card.title} className={`auth-value-card auth-value-card-${card.tone}`}>
+                    <span className="auth-value-icon" aria-hidden="true" />
+                    <div>
+                      <strong>{card.title}</strong>
+                      <span>{card.text}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="glass-card auth-visitor-mini-card">
+                <strong>{PUBLIC_VISITOR_FAQS[0].question}</strong>
+                <p>{PUBLIC_VISITOR_FAQS[0].answer}</p>
+              </div>
+            </div>
+            <div className="auth-public-side">
+              {formPanel}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2619,6 +2748,8 @@ function PublicDemoSignupPage({
       onSubmit={onSubmit}
       businessCategoryOptions={businessCategoryOptions}
       getBusinessSegments={getBusinessSegments}
+      forceLeadFlow
+      announcement="Demo account creation will start from April 15, 2026. Please share your details through this lead form and we will contact you."
     />
   );
   const [showPassword, setShowPassword] = useState(false);
@@ -2970,7 +3101,7 @@ function PublicLoginPage({
   );
 }
 
-function PublicLandingPage() {
+function ParkedSrijanLabsLandingPage() {
   const products = [
     {
       name: "Quicksy",
@@ -3597,6 +3728,11 @@ function App() {
     trialEnabled: false,
     trialDurationDays: "14",
     watermarkText: "Quotsy - Trial Version",
+    landingCtaLabel: "Get Started",
+    landingCtaLink: "/try-demo",
+    landingFeatured: false,
+    websiteVisible: false,
+    websitePointers: "",
     maxUsers: "",
     maxQuotations: "",
     maxCustomers: "",
@@ -3621,6 +3757,7 @@ function App() {
   const [showNotificationDetailModal, setShowNotificationDetailModal] = useState(false);
   const [notificationDetailLoading, setNotificationDetailLoading] = useState(false);
   const [showSellerNotificationsModal, setShowSellerNotificationsModal] = useState(false);
+  const [publicLandingPlans, setPublicLandingPlans] = useState([]);
 
   const [userForm, setUserForm] = useState(createInitialUserForm);
   const [userFormErrors, setUserFormErrors] = useState({});
@@ -3742,9 +3879,14 @@ function App() {
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
   const publicVisitorHelpPaths = new Set(["/user-guide", "/visitor-help", "/visitor-faqs"]);
-  const publicFeaturesPaths = new Set(["/quotsy-features", "/features"]);
+  const publicFeaturesPaths = new Set(["/features"]);
+  const publicQuotsyLandingPaths = new Set(["/", "/quotsy", "/Quotsy"]);
+  const publicQuotsyShowcasePaths = new Set(["/quotsy1"]);
+  const parkedLegacyLandingPaths = new Set(["/srijan-labs", "/srijan-labs-landing"]);
   const bootstrapSetupPaths = new Set(["/platform-setup", "/setup-admin"]);
-  const isPublicLandingPage = window.location.pathname === "/";
+  const isPublicQuotsyLandingPage = publicQuotsyLandingPaths.has(window.location.pathname);
+  const isPublicQuotsyShowcasePage = publicQuotsyShowcasePaths.has(window.location.pathname);
+  const isParkedLegacyLandingPage = parkedLegacyLandingPaths.has(window.location.pathname);
   const isPublicLeadPage = publicLeadPaths.has(window.location.pathname);
   const isPublicDemoPage = publicDemoPaths.has(window.location.pathname);
   const isPublicVisitorHelpPage = publicVisitorHelpPaths.has(window.location.pathname);
@@ -3752,8 +3894,25 @@ function App() {
   const isBootstrapSetupPage = bootstrapSetupPaths.has(window.location.pathname);
 
   useEffect(() => {
-    document.title = isPublicLandingPage ? "Srijan Labs" : "Quotsy";
-  }, [isPublicLandingPage]);
+    document.title = isParkedLegacyLandingPage ? "Srijan Labs" : "Quotsy";
+  }, [isParkedLegacyLandingPage]);
+
+  useEffect(() => {
+    if (!isPublicQuotsyLandingPage && !isPublicQuotsyShowcasePage && !isPublicFeaturesPage) return undefined;
+    let isActive = true;
+    apiFetch("/api/lead-capture/plans")
+      .then((rows) => {
+        if (!isActive) return;
+        setPublicLandingPlans(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!isActive) return;
+        setPublicLandingPlans([]);
+      });
+    return () => {
+      isActive = false;
+    };
+  }, [isPublicQuotsyLandingPage, isPublicQuotsyShowcasePage, isPublicFeaturesPage]);
 
   useEffect(() => {
     if (
@@ -5798,6 +5957,11 @@ function App() {
       trialEnabled: Boolean(plan.trial_enabled),
       trialDurationDays: plan.trial_duration_days ? String(plan.trial_duration_days) : "",
       watermarkText: plan.watermark_text || "",
+      landingCtaLabel: plan.landing_cta_label || "Get Started",
+      landingCtaLink: plan.landing_cta_link || "/try-demo",
+      landingFeatured: Boolean(plan.landing_featured),
+      websiteVisible: Boolean(plan.website_visible),
+      websitePointers: Array.isArray(plan.website_pointers) ? plan.website_pointers.join("\n") : "",
       maxUsers: plan.max_users ?? "",
       maxQuotations: plan.max_quotations ?? "",
       maxCustomers: plan.max_customers ?? "",
@@ -5885,6 +6049,11 @@ function App() {
         trialEnabled: false,
         trialDurationDays: "14",
         watermarkText: "Quotsy - Trial Version",
+        landingCtaLabel: "Get Started",
+        landingCtaLink: "/try-demo",
+        landingFeatured: false,
+        websiteVisible: false,
+        websitePointers: "",
         maxUsers: "",
         maxQuotations: "",
         maxCustomers: "",
@@ -6832,12 +7001,12 @@ function App() {
   if (isPublicDemoPage) {
     return (
       <PublicDemoSignupPage
-        form={publicDemoForm}
-        submitting={publicDemoSubmitting}
-        successMessage={publicDemoSuccess}
-        errorMessage={publicDemoError}
-        onChange={updatePublicDemoField}
-        onSubmit={handleSubmitPublicDemo}
+        form={publicLeadForm}
+        submitting={publicLeadSubmitting}
+        successMessage={publicLeadSuccess}
+        errorMessage={publicLeadError}
+        onChange={updatePublicLeadField}
+        onSubmit={handleSubmitPublicLead}
         businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
         getBusinessSegments={getBusinessSegments}
       />
@@ -6849,13 +7018,48 @@ function App() {
   }
 
   if (isPublicFeaturesPage) {
-    return <PublicQuotsyFeaturesPage />;
+    return <PublicQuotsyFeaturesPage publicPlans={publicLandingPlans} />;
+  }
+
+  if (isPublicQuotsyLandingPage) {
+    return (
+      <div className="auth-wrap lead-capture-shell public-page-shell">
+        <div className="app-ambience" aria-hidden="true">
+          <span className="shape shape-cube" />
+          <span className="shape shape-ring" />
+          <span className="shape shape-panel" />
+        </div>
+        <div className="auth-bg-glow" />
+        <div className="public-page-stage">
+          <PublicPageHeader activePath="/" />
+          <QuotsyUIDesign platformPlans={publicLandingPlans} />
+        </div>
+      </div>
+    );
+  }
+
+  if (isParkedLegacyLandingPage) {
+    return <ParkedSrijanLabsLandingPage />;
+  }
+
+  if (isPublicQuotsyShowcasePage) {
+    return (
+      <div className="auth-wrap lead-capture-shell public-page-shell">
+        <div className="app-ambience" aria-hidden="true">
+          <span className="shape shape-cube" />
+          <span className="shape shape-ring" />
+          <span className="shape shape-panel" />
+        </div>
+        <div className="auth-bg-glow" />
+        <div className="public-page-stage">
+          <PublicPageHeader activePath="/" />
+          <QuotsyUIDesign platformPlans={publicLandingPlans} />
+        </div>
+      </div>
+    );
   }
 
   if (!auth?.token) {
-    if (isPublicLandingPage) {
-      return <PublicLandingPage />;
-    }
     return (
       <>
         <PublicLoginPage

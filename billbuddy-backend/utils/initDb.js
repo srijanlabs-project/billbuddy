@@ -421,6 +421,11 @@ async function initializeDatabase() {
       plan_access_type VARCHAR(20) NOT NULL DEFAULT 'FREE',
       template_access_tier VARCHAR(20) NOT NULL DEFAULT 'FREE',
       watermark_text TEXT,
+      landing_cta_label VARCHAR(80),
+      landing_cta_link TEXT,
+      landing_featured BOOLEAN DEFAULT FALSE,
+      website_visible BOOLEAN DEFAULT FALSE,
+      website_pointers JSONB DEFAULT '[]'::jsonb,
       created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )
@@ -441,6 +446,11 @@ async function initializeDatabase() {
   `);
   await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS plan_access_type VARCHAR(20) NOT NULL DEFAULT 'FREE'`);
   await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS template_access_tier VARCHAR(20) NOT NULL DEFAULT 'FREE'`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS landing_cta_label VARCHAR(80)`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS landing_cta_link TEXT`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS landing_featured BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS website_visible BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE plans ADD COLUMN IF NOT EXISTS website_pointers JSONB DEFAULT '[]'::jsonb`);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS plan_features (

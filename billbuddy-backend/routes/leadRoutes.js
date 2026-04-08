@@ -108,6 +108,68 @@ publicLeadRoutes.post("/", async (req, res) => {
   }
 });
 
+publicLeadRoutes.get("/plans", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT
+         id,
+         plan_code,
+         plan_name,
+         price,
+         billing_cycle,
+         plan_access_type,
+         template_access_tier,
+         is_demo_plan,
+         is_active,
+         trial_enabled,
+         trial_duration_days,
+         max_users,
+         max_quotations,
+         max_customers,
+         landing_cta_label,
+         landing_cta_link,
+         landing_featured,
+         website_visible,
+         website_pointers
+       FROM (
+         SELECT
+           p.id,
+           p.plan_code,
+           p.plan_name,
+           p.price,
+           p.billing_cycle,
+           p.plan_access_type,
+           p.template_access_tier,
+           p.is_demo_plan,
+           p.is_active,
+           p.trial_enabled,
+           p.trial_duration_days,
+           p.landing_cta_label,
+           p.landing_cta_link,
+           p.landing_featured,
+           p.website_visible,
+           p.website_pointers,
+           pf.max_users,
+           pf.max_quotations,
+           pf.max_customers
+         FROM plans p
+         LEFT JOIN plan_features pf ON pf.plan_id = p.id
+         WHERE p.is_active = TRUE
+           AND p.website_visible = TRUE
+       ) active_plans
+       ORDER BY
+         landing_featured DESC,
+         is_demo_plan ASC,
+         price ASC,
+         id ASC`
+    );
+
+    return res.json(result.rows);
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 leadRoutes.use(requirePlatformAdmin);
 
 leadRoutes.get("/", async (_req, res) => {

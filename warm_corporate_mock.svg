@@ -1,0 +1,42 @@
+<svg width="900" height="1280" viewBox="0 0 900 1280" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="900" height="1280" fill="#F3EDE5"/>
+  <rect x="70" y="40" width="760" height="1200" rx="5" fill="#FFFDF8"/>
+  <rect x="70" y="40" width="760" height="110" rx="5" fill="#0F3D56"/>
+  <rect x="70" y="110" width="760" height="40" fill="#C49A6C"/>
+  <text x="110" y="88" fill="#FFFDF8" font-family="Arial, sans-serif" font-size="30" font-weight="700">Warm Corporate</text>
+  <text x="110" y="128" fill="#FFF5E8" font-family="Arial, sans-serif" font-size="16">Same default content, softer premium tone</text>
+  <rect x="100" y="182" width="700" height="46" rx="5" fill="#F8F3EC" stroke="#E0D4C5"/>
+  <text x="120" y="210" fill="#0F3D56" font-family="Arial, sans-serif" font-size="15" font-weight="700">GST / Quotation Number / Date Strip</text>
+  <rect x="100" y="252" width="336" height="154" rx="5" fill="#FFFDF8" stroke="#E0D4C5"/>
+  <rect x="464" y="252" width="336" height="154" rx="5" fill="#FFFDF8" stroke="#E0D4C5"/>
+  <text x="122" y="287" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Customer Detail</text>
+  <text x="486" y="287" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Quotation Detail</text>
+  <text x="122" y="320" fill="#7A6A58" font-family="Arial, sans-serif" font-size="14">More welcoming cards, same information order</text>
+  <text x="486" y="320" fill="#7A6A58" font-family="Arial, sans-serif" font-size="14">Rounded corners and warmer contrast</text>
+  <rect x="100" y="438" width="700" height="46" rx="5" fill="#0F3D56"/>
+  <text x="122" y="467" fill="#FFFDF8" font-family="Arial, sans-serif" font-size="15" font-weight="700">Items Table</text>
+  <g stroke="#E0D4C5">
+    <rect x="100" y="484" width="700" height="280" rx="0" fill="#FFFDF8"/>
+    <line x1="150" y1="484" x2="150" y2="764"/>
+    <line x1="470" y1="484" x2="470" y2="764"/>
+    <line x1="590" y1="484" x2="590" y2="764"/>
+    <line x1="700" y1="484" x2="700" y2="764"/>
+    <line x1="100" y1="540" x2="800" y2="540"/>
+    <line x1="100" y1="596" x2="800" y2="596"/>
+    <line x1="100" y1="652" x2="800" y2="652"/>
+    <line x1="100" y1="708" x2="800" y2="708"/>
+  </g>
+  <rect x="100" y="796" width="430" height="110" rx="5" fill="#F8F3EC" stroke="#E0D4C5"/>
+  <rect x="550" y="796" width="250" height="110" rx="5" fill="#F8F3EC" stroke="#E0D4C5"/>
+  <text x="122" y="832" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Amount in Words</text>
+  <text x="122" y="860" fill="#7A6A58" font-family="Arial, sans-serif" font-size="14">Soft section treatment, unchanged content</text>
+  <text x="572" y="832" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Totals</text>
+  <text x="572" y="860" fill="#7A6A58" font-family="Arial, sans-serif" font-size="14">More human, less harsh</text>
+  <rect x="100" y="938" width="430" height="152" rx="5" fill="#FFFDF8" stroke="#E0D4C5"/>
+  <rect x="550" y="938" width="250" height="152" rx="5" fill="#FFFDF8" stroke="#E0D4C5"/>
+  <text x="122" y="974" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Bank Details</text>
+  <text x="122" y="1005" fill="#7A6A58" font-family="Arial, sans-serif" font-size="14">Retains all existing fields and content blocks</text>
+  <text x="572" y="974" fill="#0F3D56" font-family="Arial, sans-serif" font-size="18" font-weight="700">Signature</text>
+  <text x="572" y="1042" fill="#A08C76" font-family="Arial, sans-serif" font-size="14">Authorised Signatory</text>
+  <text x="450" y="1180" text-anchor="middle" fill="#7A6A58" font-family="Arial, sans-serif" font-size="16">Footer text / footer image area</text>
+</svg>

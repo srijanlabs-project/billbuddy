@@ -80,6 +80,18 @@ export default function PlanDetailModal(props) {
                 <span>Watermark Text</span>
                 <input value={getPlanDraft(selectedPlanDetail).watermarkText} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "watermarkText", e.target.value)} />
               </label>
+              <label>
+                <span>Landing CTA Label</span>
+                <input value={getPlanDraft(selectedPlanDetail).landingCtaLabel} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLabel", e.target.value)} />
+              </label>
+              <label>
+                <span>Landing CTA Link</span>
+                <input value={getPlanDraft(selectedPlanDetail).landingCtaLink} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingCtaLink", e.target.value)} />
+              </label>
+              <label style={{ gridColumn: "1 / -1" }}>
+                <span>Website Pointers (one per line)</span>
+                <textarea rows={5} value={getPlanDraft(selectedPlanDetail).websitePointers} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "websitePointers", e.target.value)} />
+              </label>
             </div>
           </article>
 
@@ -113,6 +125,8 @@ export default function PlanDetailModal(props) {
               <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).exportsEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "exportsEnabled", e.target.checked)} style={{ width: "auto" }} />Exports</label>
               <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationWatermarkEnabled} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationWatermarkEnabled", e.target.checked)} style={{ width: "auto" }} />Watermark</label>
               <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).quotationCreationLockedAfterExpiry} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "quotationCreationLockedAfterExpiry", e.target.checked)} style={{ width: "auto" }} />Lock After Expiry</label>
+              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).landingFeatured} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "landingFeatured", e.target.checked)} style={{ width: "auto" }} />Landing Featured Plan</label>
+              <label className="seller-toggle"><input type="checkbox" checked={getPlanDraft(selectedPlanDetail).websiteVisible} onChange={(e) => updatePlanDraft(selectedPlanDetail.id, "websiteVisible", e.target.checked)} style={{ width: "auto" }} />Show on Website</label>
             </div>
           </article>
         </div>
