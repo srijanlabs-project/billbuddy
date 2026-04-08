@@ -671,7 +671,7 @@ function requireApprovalAccess(req, res, next) {
 async function getCustomerOutstandingInTransaction(client, customerId, sellerId) {
   const result = await client.query(
     `SELECT
-      COALESCE((SELECT SUM(COALESCE(q.balance_amount, q.total_amount)) FROM quotations q WHERE q.customer_id = $1 AND q.seller_id = $2), 0) AS invoiced,
+      COALESCE((SELECT SUM(COALESCE(q.balance_amount, q.total_amount)) FROM quotations q WHERE q.customer_id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL), 0) AS invoiced,
       COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.customer_id = $1 AND p.seller_id = $2), 0) AS paid`,
     [customerId, sellerId]
   );
@@ -3935,8 +3935,12 @@ router.get("/", requirePermission(PERMISSIONS.QUOTATION_SEARCH), async (req, res
   try {
     const tenantId = getTenantId(req);
     const values = [];
-    const where = tenantId ? "WHERE q.seller_id = $1" : "";
-    if (tenantId) values.push(tenantId);
+    const whereParts = ["q.archived_at IS NULL"];
+    if (tenantId) {
+      values.push(tenantId);
+      whereParts.push(`q.seller_id = $${values.length}`);
+    }
+    const where = `WHERE ${whereParts.join(" AND ")}`;
 
     const result = await pool.query(
       `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile, u.name AS created_by_name
@@ -3959,6 +3963,23 @@ router.get("/:id/versions", requirePermission(PERMISSIONS.QUOTATION_VIEW), async
   try {
     const { id } = req.params;
     const tenantId = getTenantId(req);
+    const values = [id];
+    let where = "id = $1";
+    if (tenantId) {
+      values.push(tenantId);
+      where += " AND seller_id = $2";
+    }
+    where += " AND archived_at IS NULL";
+    const quotationResult = await pool.query(
+      `SELECT id
+       FROM quotations
+       WHERE ${where}
+       LIMIT 1`,
+      values
+    );
+    if (quotationResult.rowCount === 0) {
+      return res.status(404).json({ message: "Quotation not found" });
+    }
     const versions = await getQuotationVersions(pool, id, tenantId);
     res.json(versions);
   } catch (error) {
@@ -4009,6 +4030,7 @@ router.get("/approvals", requireApprovalAccess, async (req, res) => {
        LEFT JOIN users requester ON requester.id = qar.requested_by_user_id
        LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
        WHERE ${where}
+         AND q.archived_at IS NULL
        ORDER BY
          CASE qar.status
            WHEN 'pending' THEN 1
@@ -4080,6 +4102,7 @@ router.get("/approvals/:approvalId", requireApprovalAccess, async (req, res) => 
        LEFT JOIN users requester ON requester.id = qar.requested_by_user_id
        LEFT JOIN users approver ON approver.id = qar.assigned_approver_user_id
        WHERE ${where}
+         AND q.archived_at IS NULL
        LIMIT 1`,
       values
     );
@@ -4138,6 +4161,7 @@ router.patch("/approvals/:approvalId/decision", requirePermission(PERMISSIONS.AP
        INNER JOIN quotations q ON q.id = qar.quotation_id AND q.seller_id = qar.seller_id
        WHERE qar.id = $1
          AND qar.seller_id = $2
+         AND q.archived_at IS NULL
        LIMIT 1
        FOR UPDATE`,
       [approvalId, tenantId]
@@ -4262,6 +4286,7 @@ router.get("/:id", requirePermission(PERMISSIONS.QUOTATION_VIEW), async (req, re
       where += " AND q.seller_id = $2";
       values.push(tenantId);
     }
+    where += " AND q.archived_at IS NULL";
 
     const quotationResult = await pool.query(
       `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
@@ -4359,6 +4384,7 @@ router.get("/:id/download", requirePermission(PERMISSIONS.QUOTATION_DOWNLOAD_PDF
       values.push(tenantId);
       where += " AND q.seller_id = $2";
     }
+    where += " AND q.archived_at IS NULL";
 
     const quotationResult = await pool.query(
       `SELECT q.*, c.name AS customer_name, c.firm_name, c.mobile, c.address AS customer_address, c.gst_number AS customer_gst_number, c.shipping_addresses AS customer_shipping_addresses, s.gst_number AS seller_gst_number, s.mobile AS seller_mobile
@@ -4561,6 +4587,7 @@ router.post("/:id/send-email", requirePermission(PERMISSIONS.QUOTATION_SEND), as
        LEFT JOIN sellers s ON s.id = q.seller_id
        WHERE q.id = $1
          AND q.seller_id = $2
+         AND q.archived_at IS NULL
        LIMIT 1`,
       [id, tenantId]
     );
@@ -4911,7 +4938,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
     const quotationResult = await client.query(
       `SELECT *
        FROM quotations
-       WHERE id = $1 AND seller_id = $2
+       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL
        LIMIT 1
        FOR UPDATE`,
       [id, tenantId]
@@ -4977,6 +5004,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
          INNER JOIN sellers s ON s.id = c.seller_id
          WHERE c.id = $1
            AND c.seller_id = $2
+           AND c.archived_at IS NULL
          LIMIT 1`,
         [quotation.customer_id, tenantId]
       );
@@ -5068,6 +5096,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
            FROM customers
            WHERE id = $1
              AND seller_id = $2
+             AND archived_at IS NULL
            LIMIT 1`,
           [quotation.customer_id, tenantId]
         ),
@@ -5274,7 +5303,7 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
        FROM quotations q
        LEFT JOIN customers c ON c.id = q.customer_id
        LEFT JOIN sellers s ON s.id = q.seller_id
-       WHERE q.id = $1 AND q.seller_id = $2
+       WHERE q.id = $1 AND q.seller_id = $2 AND q.archived_at IS NULL
        LIMIT 1`,
       [id, tenantId]
     );
@@ -5326,6 +5355,7 @@ router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), asyn
       values.push(tenantId);
       where += " AND quotations.seller_id = $2";
     }
+    where += " AND quotations.archived_at IS NULL";
 
     const currentResult = await client.query(
       `SELECT *
@@ -5354,7 +5384,7 @@ router.patch("/:id/confirm", requirePermission(PERMISSIONS.QUOTATION_EDIT), asyn
     const updateResult = await client.query(
       `UPDATE quotations
        SET record_status = 'confirmed'
-       WHERE id = $1 AND seller_id = $2
+       WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL
        RETURNING *`,
       [id, quotation.seller_id]
     );
@@ -5391,6 +5421,7 @@ router.patch("/:id/order-status", requirePermission(PERMISSIONS.QUOTATION_EDIT),
       values.push(tenantId);
       where += " AND quotations.seller_id = $3";
     }
+    where += " AND quotations.archived_at IS NULL";
 
     await client.query("BEGIN");
 
@@ -5444,6 +5475,7 @@ router.patch("/:id/logistics", requirePermission(PERMISSIONS.QUOTATION_EDIT), as
       values.push(tenantId);
       where += " AND quotations.seller_id = $6";
     }
+    where += " AND quotations.archived_at IS NULL";
 
     await client.query("BEGIN");
 
@@ -5495,6 +5527,7 @@ router.patch("/:id/mark-sent", requirePermission(PERMISSIONS.QUOTATION_SEND), as
       values.push(tenantId);
       where += " AND quotations.seller_id = $2";
     }
+    where += " AND quotations.archived_at IS NULL";
 
     await client.query("BEGIN");
 
@@ -5549,6 +5582,7 @@ router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK
       values.push(tenantId);
       where += " AND quotations.seller_id = $3";
     }
+    where += " AND quotations.archived_at IS NULL";
 
     await client.query("BEGIN");
 
@@ -5579,6 +5613,81 @@ router.patch("/:id/payment-status", requirePermission(PERMISSIONS.QUOTATION_MARK
   } catch (error) {
     await client.query("ROLLBACK");
     res.status(400).json({ message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+router.delete("/:id", requirePermission(PERMISSIONS.QUOTATION_EDIT), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const quotationId = Number(req.params.id);
+    if (!Number.isFinite(quotationId) || quotationId <= 0) {
+      return res.status(400).json({ message: "Valid quotation id is required" });
+    }
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ message: "sellerId is required" });
+    }
+
+    await client.query("BEGIN");
+
+    const quotationResult = await client.query(
+      `SELECT id, seller_id
+       FROM quotations
+       WHERE id = $1
+         AND seller_id = $2
+         AND archived_at IS NULL
+       LIMIT 1
+       FOR UPDATE`,
+      [quotationId, tenantId]
+    );
+
+    if (quotationResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Quotation not found" });
+    }
+
+    await client.query(
+      `UPDATE quotation_approval_requests
+       SET status = CASE WHEN status = 'pending' THEN 'superseded' ELSE status END,
+           superseded_at = CASE WHEN status = 'pending' THEN CURRENT_TIMESTAMP ELSE superseded_at END,
+           decision_note = CASE WHEN status = 'pending'
+             THEN COALESCE(NULLIF(decision_note, ''), 'Superseded due to quotation archive')
+             ELSE decision_note
+           END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE quotation_id = $1
+         AND seller_id = $2`,
+      [quotationId, tenantId]
+    );
+
+    await client.query(
+      `UPDATE quotations
+       SET archived_at = CURRENT_TIMESTAMP,
+           archived_by_user_id = $1,
+           active_approval_request_id = NULL,
+           approval_required = FALSE,
+           approval_status = 'not_required'
+       WHERE id = $2
+         AND seller_id = $3
+         AND archived_at IS NULL`,
+      [req.user?.id || null, quotationId, tenantId]
+    );
+
+    await logOrderEvent(client, {
+      sellerId: tenantId,
+      quotationId,
+      eventType: "QUOTATION_ARCHIVED",
+      eventNote: "Quotation archived via soft delete",
+      actorUserId: req.user?.id || null
+    });
+
+    await client.query("COMMIT");
+    return res.json({ message: "Quotation archived successfully." });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    return res.status(400).json({ message: error.message || "Unable to archive quotation" });
   } finally {
     client.release();
   }

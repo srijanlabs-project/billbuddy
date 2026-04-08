@@ -39,8 +39,10 @@ export default function OrdersPage(props) {
     formatQuotationLabel,
     formatCurrency,
     handleDownloadQuotation,
+    handleArchiveQuotation,
     renderPagination,
     canDownloadQuotationPdf,
+    canEditQuotation,
     canCreateQuotation,
     openQuotationWizard,
     loadQuotationExportDraft,
@@ -271,6 +273,16 @@ export default function OrdersPage(props) {
                   {canDownloadQuotationPdf && (
                     <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
                   )}
+                  {canEditQuotation ? (
+                    <button
+                      type="button"
+                      className="ghost-btn order-action-btn"
+                      onClick={() => handleArchiveQuotation(order.id)}
+                      title="Archive quotation"
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </div>
               </td>
             </tr>

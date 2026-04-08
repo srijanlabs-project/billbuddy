@@ -13,6 +13,7 @@ export default function CustomersPage(props) {
     handleOpenOrderDetails,
     canCreateCustomer,
     canEditCustomer,
+    handleArchiveCustomer,
     isSubUser,
     currentUserId,
     pagedCustomers,
@@ -90,6 +91,17 @@ export default function CustomersPage(props) {
                   <button type="button" className="ghost-btn compact-btn" onClick={() => setSelectedCustomer(customer)}>
                     View
                   </button>
+                  {canEditCustomer ? (
+                    <button
+                      type="button"
+                      className="ghost-btn compact-btn"
+                      style={{ marginLeft: "8px" }}
+                      title="Archive customer"
+                      onClick={() => handleArchiveCustomer(customer.id)}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))
@@ -161,6 +173,19 @@ export default function CustomersPage(props) {
                   }}
                 >
                   Edit Customer
+                </button>
+              ) : null}
+              {canEditSelectedCustomer ? (
+                <button
+                  type="button"
+                  className="ghost-btn"
+                  onClick={() => {
+                    const customerId = selectedCustomer?.id;
+                    setSelectedCustomer(null);
+                    if (customerId) handleArchiveCustomer(customerId);
+                  }}
+                >
+                  Delete Customer
                 </button>
               ) : null}
               <button type="button" onClick={() => setShowQuotationListModal(true)}>

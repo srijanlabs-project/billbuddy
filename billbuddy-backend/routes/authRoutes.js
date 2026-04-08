@@ -127,7 +127,7 @@ router.get("/setup-status", async (_req, res) => {
 
 router.post("/bootstrap-admin", async (req, res) => {
   try {
-    const { name, mobile, password, sellerName = "Sai Laser" } = req.body;
+    const { name, mobile, password, sellerName } = req.body;
 
     if (!name || !mobile || !password) {
       return res.status(400).json({ message: "name, mobile, and password are required" });
@@ -145,11 +145,13 @@ router.post("/bootstrap-admin", async (req, res) => {
 
     await seedRolesIfMissing();
 
+    const resolvedSellerName = String(sellerName || `${name} Workspace`).trim();
+
     await pool.query(
       `INSERT INTO sellers (seller_code, name, onboarding_status)
        VALUES ('DEFAULT', $1, 'active')
        ON CONFLICT (seller_code) DO UPDATE SET name = EXCLUDED.name`,
-      [sellerName]
+      [resolvedSellerName]
     );
 
     const roleId = await findRoleId(["Super Admin", "Admin"]);

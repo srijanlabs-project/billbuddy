@@ -6900,6 +6900,44 @@ function App() {
     }
   }
 
+  async function handleArchiveQuotation(orderId) {
+    const confirmed = window.confirm("Archive this quotation? It will be hidden from active lists.");
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/api/quotations/${orderId}`, {
+        method: "DELETE"
+      });
+      const [quotationRows, approvalRows] = await Promise.all([
+        apiFetch("/api/quotations"),
+        canAccessApprovals ? apiFetch("/api/quotations/approvals").catch(() => []) : Promise.resolve([])
+      ]);
+      setQuotations(quotationRows);
+      if (canAccessApprovals) {
+        setApprovals(Array.isArray(approvalRows) ? approvalRows : []);
+      }
+      await loadDashboardData(dashboardRange);
+      setError("Quotation archived successfully.");
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
+  async function handleArchiveCustomer(customerId) {
+    const confirmed = window.confirm("Archive this customer? It will be hidden from active customer lists.");
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/api/customers/${customerId}`, {
+        method: "DELETE"
+      });
+      const customerRows = await apiFetch("/api/customers");
+      setCustomers(customerRows);
+      await loadDashboardData(dashboardRange);
+      setError("Customer archived successfully.");
+    } catch (err) {
+      handleApiError(err);
+    }
+  }
+
   function openRevisionQuotationWizard() {
     if (!selectedOrderDetails?.quotation?.id) return;
     const revisionState = buildQuotationWizardRevisionState(selectedOrderDetails, {
@@ -7546,6 +7584,7 @@ function App() {
               canSendQuotation={canSendQuotation}
               canMarkPaid={canMarkPaid}
               canDownloadQuotationPdf={canDownloadQuotationPdf}
+              handleArchiveQuotation={handleArchiveQuotation}
               canCreateQuotation={canCreateQuotation}
               openQuotationWizard={openQuotationWizardWithSetupGuard}
               loadQuotationExportDraft={loadQuotationExportDraft}
@@ -7565,6 +7604,7 @@ function App() {
             handleOpenOrderDetails={handleOpenOrderDetails}
             canCreateCustomer={canCreateCustomer}
             canEditCustomer={canEditCustomer}
+            handleArchiveCustomer={handleArchiveCustomer}
             isSubUser={isSubUser}
             currentUserId={auth?.user?.id}
             pagedCustomers={pagedCustomers}

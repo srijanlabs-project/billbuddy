@@ -112,6 +112,8 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER REFERENCES users(id)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_by_user_id INTEGER REFERENCES users(id)`);
   await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS archived_by_user_id INTEGER REFERENCES users(id)`);
 
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS seller_id INTEGER REFERENCES sellers(id)`);
   await pool.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS sku VARCHAR(80)`);
@@ -163,6 +165,8 @@ async function initializeDatabase() {
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS approved_for_download_at TIMESTAMP WITHOUT TIME ZONE`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS document_snapshot JSONB DEFAULT '{}'::jsonb`);
   await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS calculation_snapshot JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS archived_at TIMESTAMP WITHOUT TIME ZONE`);
+  await pool.query(`ALTER TABLE quotations ADD COLUMN IF NOT EXISTS archived_by_user_id INTEGER REFERENCES users(id)`);
   await pool.query(`CREATE SEQUENCE IF NOT EXISTS quotation_number_seq START WITH 1 INCREMENT BY 1`);
   await pool.query(`
     SELECT setval(
@@ -842,8 +846,9 @@ async function initializeDatabase() {
 
   const defaultSellerResult = await pool.query(
     `INSERT INTO sellers (seller_code, name, onboarding_status)
-     VALUES ('DEFAULT', 'Sai Laser', 'active')
-     ON CONFLICT (seller_code) DO UPDATE SET name = EXCLUDED.name
+     VALUES ('DEFAULT', 'Default Workspace', 'active')
+     ON CONFLICT (seller_code) DO UPDATE
+     SET seller_code = EXCLUDED.seller_code
      RETURNING id`
   );
 

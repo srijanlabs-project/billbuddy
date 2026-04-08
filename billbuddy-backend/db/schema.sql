@@ -1375,6 +1375,18 @@ CREATE TABLE IF NOT EXISTS public.platform_footer_banners (
 CREATE INDEX IF NOT EXISTS idx_platform_footer_banners_active_order
   ON public.platform_footer_banners(is_active, display_order, id);
 
+ALTER TABLE public.customers
+    ADD COLUMN IF NOT EXISTS archived_at timestamp without time zone;
+
+ALTER TABLE public.customers
+    ADD COLUMN IF NOT EXISTS archived_by_user_id integer REFERENCES public.users(id) ON DELETE SET NULL;
+
+ALTER TABLE public.quotations
+    ADD COLUMN IF NOT EXISTS archived_at timestamp without time zone;
+
+ALTER TABLE public.quotations
+    ADD COLUMN IF NOT EXISTS archived_by_user_id integer REFERENCES public.users(id) ON DELETE SET NULL;
+
 
 --
 -- PostgreSQL database dump complete

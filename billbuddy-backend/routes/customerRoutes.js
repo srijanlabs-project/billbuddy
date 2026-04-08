@@ -127,8 +127,12 @@ router.get("/", requirePermission(PERMISSIONS.CUSTOMER_VIEW), async (req, res) =
   try {
     const tenantId = getTenantId(req);
     const values = [];
-    const where = tenantId ? "WHERE seller_id = $1" : "";
-    if (tenantId) values.push(tenantId);
+    const whereParts = ["archived_at IS NULL"];
+    if (tenantId) {
+      values.push(tenantId);
+      whereParts.push(`seller_id = $${values.length}`);
+    }
+    const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
 
     const result = await pool.query(`SELECT * FROM customers ${where} ORDER BY id DESC`, values);
     res.json(result.rows);
@@ -263,7 +267,7 @@ router.patch("/:id", requirePermission(PERMISSIONS.CUSTOMER_EDIT), async (req, r
     }
 
     const existingResult = await client.query(
-      `SELECT * FROM customers WHERE id = $1 AND seller_id = $2 LIMIT 1`,
+      `SELECT * FROM customers WHERE id = $1 AND seller_id = $2 AND archived_at IS NULL LIMIT 1`,
       [customerId, tenantId]
     );
     if (existingResult.rowCount === 0) {
@@ -380,6 +384,51 @@ router.patch("/:id", requirePermission(PERMISSIONS.CUSTOMER_EDIT), async (req, r
     });
   } finally {
     client.release();
+  }
+});
+
+router.delete("/:id", requirePermission(PERMISSIONS.CUSTOMER_EDIT), async (req, res) => {
+  try {
+    const customerId = Number(req.params.id);
+    if (!Number.isFinite(customerId) || customerId <= 0) {
+      return res.status(400).json({ message: "Valid customer id is required" });
+    }
+    const tenantId = getTenantId(req);
+    if (!tenantId) {
+      return res.status(400).json({ message: "sellerId is required" });
+    }
+
+    const activeQuotationResult = await pool.query(
+      `SELECT COUNT(*)::int AS count
+       FROM quotations
+       WHERE seller_id = $1
+         AND customer_id = $2
+         AND archived_at IS NULL`,
+      [tenantId, customerId]
+    );
+    if (Number(activeQuotationResult.rows[0]?.count || 0) > 0) {
+      return res.status(400).json({ message: "Customer has active quotations. Archive those quotations first." });
+    }
+
+    const result = await pool.query(
+      `UPDATE customers
+       SET archived_at = CURRENT_TIMESTAMP,
+           archived_by_user_id = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+         AND seller_id = $3
+         AND archived_at IS NULL
+       RETURNING id`,
+      [req.user?.id || null, customerId, tenantId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    return res.json({ message: "Customer archived successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Unable to archive customer" });
   }
 });
 

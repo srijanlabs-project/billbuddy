@@ -1,6 +1,6 @@
 # BillBuddy Backend
 
-API server for Sai Laser WhatsApp invoice automation.
+API server for Quotsy quotation and business workflow automation.
 
 ## Setup
 

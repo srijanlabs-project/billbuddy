@@ -26,7 +26,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
 
     const condition = dateFilter[range] || dateFilter.today;
 
-    const whereParts = [condition];
+    const whereParts = [condition, "q.archived_at IS NULL"];
     const whereValues = [];
 
     if (tenantId) {
@@ -49,8 +49,8 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     );
 
     const invoicedResult = tenantId
-      ? await pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total FROM quotations WHERE seller_id = $1`, [tenantId])
-      : await pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total FROM quotations`);
+      ? await pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total FROM quotations WHERE seller_id = $1 AND archived_at IS NULL`, [tenantId])
+      : await pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total FROM quotations WHERE archived_at IS NULL`);
 
     const paidResult = tenantId
       ? await pool.query(`SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE seller_id = $1`, [tenantId])
@@ -75,7 +75,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
        LEFT JOIN (
          SELECT customer_id, SUM(total_amount) AS invoiced
          FROM quotations
-         ${tenantId ? "WHERE seller_id = $1" : ""}
+         ${tenantId ? "WHERE seller_id = $1 AND archived_at IS NULL" : "WHERE archived_at IS NULL"}
          GROUP BY customer_id
        ) q ON q.customer_id = c.id
        LEFT JOIN (
@@ -84,7 +84,8 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
          ${tenantId ? "WHERE seller_id = $1" : ""}
          GROUP BY customer_id
        ) p ON p.customer_id = c.id
-       WHERE ${sellerFilter}COALESCE(q.invoiced, 0) - COALESCE(p.paid, 0) > 0
+       WHERE ${sellerFilter}c.archived_at IS NULL
+         AND COALESCE(q.invoiced, 0) - COALESCE(p.paid, 0) > 0
        ORDER BY outstanding DESC
        LIMIT 20`,
       outstandingValues
@@ -102,6 +103,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
          COALESCE(p.category, 'Uncategorized') AS category,
          COALESCE(SUM(qi.total_price), 0) AS total
        FROM quotation_items qi
+       INNER JOIN quotations q ON q.id = qi.quotation_id AND q.archived_at IS NULL
        LEFT JOIN products p ON p.id = qi.product_id
        ${salesWhere}
        GROUP BY COALESCE(p.category, 'Uncategorized')
@@ -174,13 +176,14 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     }
 
     const customerCount = tenantId
-      ? await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers WHERE seller_id = $1`, [tenantId])
-      : await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers`);
+      ? await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers WHERE seller_id = $1 AND archived_at IS NULL`, [tenantId])
+      : await safeQueryCount(`SELECT COUNT(*)::int AS count FROM customers WHERE archived_at IS NULL`);
 
     const customerCountInRangeRows = await safeQueryRows(
       `SELECT COUNT(DISTINCT q.customer_id)::int AS count
        FROM quotations q
        WHERE ${whereClause}
+         AND q.archived_at IS NULL
          AND q.customer_id IS NOT NULL`,
       whereValues
     );
@@ -191,6 +194,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
         `SELECT id, name, firm_name, mobile, created_at
          FROM customers
          WHERE seller_id = $1
+           AND archived_at IS NULL
          ORDER BY created_at DESC, id DESC
          LIMIT 10`,
         [tenantId]
@@ -198,12 +202,13 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
       : await safeQueryRows(
         `SELECT id, name, firm_name, mobile, created_at
          FROM customers
+         WHERE archived_at IS NULL
          ORDER BY created_at DESC, id DESC
          LIMIT 10`
       );
 
     const deliveryValues = [];
-    const deliveryWhere = ["q.delivery_date IS NOT NULL", "q.delivery_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '2 day'"];
+    const deliveryWhere = ["q.delivery_date IS NOT NULL", "q.delivery_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '2 day'", "q.archived_at IS NULL"];
     if (tenantId) {
       deliveryValues.push(tenantId);
       deliveryWhere.push(`q.seller_id = $${deliveryValues.length}`);
@@ -241,6 +246,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
       salesTrendValues.push(tenantId);
       salesTrendWhere.push(`q.seller_id = $${salesTrendValues.length}`);
     }
+    salesTrendWhere.push("q.archived_at IS NULL");
     const salesTrend = await safeQueryRows(
       `SELECT
          ${IST_CREATED_DATE_SQL} AS day,
@@ -265,7 +271,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
 
     async function fetchTopArticlesByRange(days) {
       const values = [];
-      const whereParts = [`${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '${Number(days)} day'`];
+      const whereParts = [`${IST_CREATED_DATE_SQL} >= ${IST_TODAY_SQL} - INTERVAL '${Number(days)} day'`, "q.archived_at IS NULL"];
       if (tenantId) {
         values.push(tenantId);
         whereParts.push(`q.seller_id = $${values.length}`);
@@ -338,6 +344,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
          INNER JOIN quotations q2 ON q2.id = qi.quotation_id
          WHERE qi.product_id = p.id
            ${tenantId ? "AND q2.seller_id = $1" : ""}
+           AND q2.archived_at IS NULL
          ORDER BY q2.created_at DESC, qi.id DESC
          LIMIT 1
        ) li ON TRUE
@@ -345,7 +352,7 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
          SELECT qi.product_id, MAX(q.created_at) AS last_quoted_at
          FROM quotation_items qi
          INNER JOIN quotations q ON q.id = qi.quotation_id
-         ${tenantId ? "WHERE q.seller_id = $1" : ""}
+         ${tenantId ? "WHERE q.seller_id = $1 AND q.archived_at IS NULL" : "WHERE q.archived_at IS NULL"}
          GROUP BY qi.product_id
        ) qh ON qh.product_id = p.id
        ${staleProductWhere.length ? `WHERE ${staleProductWhere.join(" AND ")} AND ` : "WHERE "}
