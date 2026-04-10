@@ -686,7 +686,9 @@ async function getQuotationApprovalUser(client, sellerId, userId) {
             u.can_approve_quotations, u.can_approve_price_exception, r.role_name
      FROM users u
      LEFT JOIN roles r ON r.id = u.role_id
-     WHERE u.id = $1 AND u.seller_id = $2
+     WHERE u.id = $1
+       AND u.seller_id = $2
+       AND COALESCE(u.is_platform_admin, FALSE) = FALSE
      LIMIT 1`,
     [userId, sellerId]
   );
@@ -714,6 +716,7 @@ async function findFallbackSellerAdmin(client, sellerId, evaluationContext) {
      WHERE u.seller_id = $1
        AND u.status = TRUE
        AND COALESCE(u.locked, FALSE) = FALSE
+       AND COALESCE(u.is_platform_admin, FALSE) = FALSE
        AND LOWER(COALESCE(r.role_name, '')) IN ('seller admin', 'seller_admin', 'admin')
      ORDER BY u.id ASC`,
     [sellerId]

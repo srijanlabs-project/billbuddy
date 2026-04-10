@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+
 export default function UsersPage(props) {
   const {
     activeModule,
@@ -7,7 +9,6 @@ export default function UsersPage(props) {
     setShowUserModal,
     canCreateUser,
     canEditUser,
-    pagedUsers,
     userPage,
     PAGE_SIZE,
     auth,
@@ -28,10 +29,11 @@ export default function UsersPage(props) {
     userFormErrors,
     setUserForm,
     setUserFormErrors,
-    roles
+    roles,
+    sellers
   } = props;
 
-  if (activeModule !== "Users") return null;
+  const isUsersActive = activeModule === "Users";
 
   function normalizeRoleName(value) {
     return String(value || "")
@@ -71,20 +73,71 @@ export default function UsersPage(props) {
       .filter(Boolean);
   }
 
+  function normalizeRoleNameToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+  }
+
+  function isSellerAdminRole(roleName) {
+    return ["seller_admin", "admin", "master_user"].includes(normalizeRoleNameToken(roleName));
+  }
+
   const approvalRoleOptions = [
     { value: "requester", label: "Requester" },
     { value: "approver", label: "Approver" },
     { value: "both", label: "Both" }
   ];
 
+  const [platformUserTab, setPlatformUserTab] = useState("platform");
+
   const visibleRoleOptions = isPlatformAdmin ? roles : getSellerCreateRoleOptions(roles);
+  const sellerNameById = useMemo(() => {
+    const next = new Map();
+    (sellers || []).forEach((sellerRow) => {
+      next.set(
+        Number(sellerRow.id),
+        {
+          name: sellerRow.name || "Seller",
+          code: sellerRow.seller_code || ""
+        }
+      );
+    });
+    return next;
+  }, [sellers]);
   const editingUserId = Number(editingUser?.id || 0);
-  const activeSellerUsers = (users || []).filter((user) => user.status);
+  const activeSellerUsers = (users || []).filter((user) => user.status && !user.is_platform_admin);
   const approverCandidates = activeSellerUsers.filter((user) => ["approver", "both"].includes(String(user.approval_mode || "").toLowerCase()) && Number(user.id) !== editingUserId);
   const requesterCandidates = activeSellerUsers.filter((user) => ["requester", "both"].includes(String(user.approval_mode || "").toLowerCase()) && Number(user.id) !== editingUserId);
   const needsApprover = ["requester", "both"].includes(userForm.approvalMode);
   const managesRequesters = ["approver", "both"].includes(userForm.approvalMode);
   const noApproverAvailable = needsApprover && approverCandidates.length === 0;
+  const platformUsers = useMemo(
+    () => (users || []).filter((user) => Boolean(user.is_platform_admin)),
+    [users]
+  );
+  const sellerAdminUsers = useMemo(
+    () => (users || []).filter((user) => {
+      if (user.is_platform_admin) return false;
+      return ["seller_admin", "admin", "master_user"].includes(normalizeRoleNameToken(user.role_name));
+    }),
+    [users]
+  );
+  const visibleUsers = useMemo(
+    () => (
+      isPlatformAdmin
+        ? (platformUserTab === "platform" ? platformUsers : sellerAdminUsers)
+        : (users || [])
+    ),
+    [isPlatformAdmin, platformUserTab, platformUsers, sellerAdminUsers, users]
+  );
+  const visiblePagedUsers = useMemo(
+    () => visibleUsers.slice((userPage - 1) * PAGE_SIZE, userPage * PAGE_SIZE),
+    [visibleUsers, userPage, PAGE_SIZE]
+  );
+
+  if (!isUsersActive) return null;
 
   function handleRequesterToggle(requesterId) {
     setUserForm((prev) => {
@@ -114,48 +167,123 @@ export default function UsersPage(props) {
           {canCreateUser && <button className="action-btn" type="button" onClick={() => { setUserFormErrors({}); setShowUserModal(true); }}>Create New User</button>}
         </div>
       </div>
+      {isPlatformAdmin ? (
+        <div className="user-management-tabs">
+          <button
+            type="button"
+            className={`ghost-btn compact-btn ${platformUserTab === "platform" ? "active-chip" : ""}`}
+            onClick={() => {
+              setPlatformUserTab("platform");
+              setUserPage(1);
+            }}
+          >
+            Platform User
+          </button>
+          <button
+            type="button"
+            className={`ghost-btn compact-btn ${platformUserTab === "seller_admin" ? "active-chip" : ""}`}
+            onClick={() => {
+              setPlatformUserTab("seller_admin");
+              setUserPage(1);
+            }}
+          >
+            Seller User
+          </button>
+        </div>
+      ) : null}
       <div className="user-grid">
         <div>
           <table className="data-table">
             <thead>
-              <tr><th>Sr.</th><th>Name</th><th>Mobile</th><th>Role</th><th>Approval Role</th><th>Limit</th><th>Approver</th><th>Status</th><th>Lock</th><th>Actions</th></tr>
+              {isPlatformAdmin && platformUserTab === "seller_admin" ? (
+                <tr>
+                  <th>Sr.</th>
+                  <th>Name</th>
+                  <th>Seller</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Lock</th>
+                  <th>Action</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>Sr.</th>
+                  <th>Name</th>
+                  <th>Mobile</th>
+                  <th>Role</th>
+                  <th>Approval Role</th>
+                  <th>Limit</th>
+                  <th>Approver</th>
+                  <th>Status</th>
+                  <th>Lock</th>
+                  <th>Actions</th>
+                </tr>
+              )}
             </thead>
             <tbody>
-              {pagedUsers.map((user, index) => (
+              {visiblePagedUsers.map((user, index) => (
                 <tr key={user.id}>
                   <td>{(userPage - 1) * PAGE_SIZE + index + 1}</td>
                   <td>{user.name}</td>
-                  <td>{user.mobile}</td>
+                  {isPlatformAdmin && platformUserTab === "seller_admin" ? (
+                    <td>
+                      {(() => {
+                        const sellerInfo = sellerNameById.get(Number(user.seller_id || 0));
+                        if (!sellerInfo) return "-";
+                        return `${sellerInfo.name}${sellerInfo.code ? ` (${sellerInfo.code})` : ""}`;
+                      })()}
+                    </td>
+                  ) : (
+                    <td>{user.mobile}</td>
+                  )}
                   <td>{user.role_name || "-"}</td>
-                  <td>
-                    <span className="badge neutral">{String(user.approval_mode || "requester").replace(/^\w/, (letter) => letter.toUpperCase())}</span>
-                  </td>
-                  <td>{Number(user.approval_limit_amount || 0).toLocaleString("en-IN")}</td>
-                  <td>{user.assigned_approver?.name || "-"}</td>
+                  {isPlatformAdmin && platformUserTab === "seller_admin" ? null : (
+                    <>
+                      <td>
+                        <span className="badge neutral">{String(user.approval_mode || "requester").replace(/^\w/, (letter) => letter.toUpperCase())}</span>
+                      </td>
+                      <td>{Number(user.approval_limit_amount || 0).toLocaleString("en-IN")}</td>
+                      <td>{user.assigned_approver?.name || "-"}</td>
+                    </>
+                  )}
                   <td><span className={`badge ${user.status ? "success" : "pending"}`}>{user.status ? "Active" : "Inactive"}</span></td>
                   <td>
                     {auth.user?.isPlatformAdmin ? (
-                      <button className="ghost-btn" type="button" onClick={() => handleLockToggle(user)}>{user.locked ? "Unlock" : "Lock"}</button>
+                      <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleLockToggle(user)}>{user.locked ? "Unlock" : "Lock"}</button>
                     ) : (
                       <span>{user.locked ? "Locked" : "Open"}</span>
                     )}
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div className="user-row-actions">
                       {canEditUser ? (
-                        <button className="ghost-btn compact-btn" type="button" onClick={() => handleOpenEditUser(user)}>Edit</button>
+                        <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleOpenEditUser(user)}>Edit</button>
                       ) : null}
-                      {isPlatformAdmin ? (
-                        <button className="ghost-btn compact-btn" type="button" onClick={() => handleResetUserPassword(user)}>Reset Password</button>
+                      {canEditUser && (!isPlatformAdmin || isSellerAdminRole(user.role_name)) ? (
+                        <button
+                          className="ghost-btn compact-btn user-row-btn"
+                          type="button"
+                          title="Reset Password"
+                          onClick={() => handleResetUserPassword(user)}
+                        >
+                          Reset
+                        </button>
                       ) : null}
                       {!canEditUser && !isPlatformAdmin ? <span>-</span> : null}
                     </div>
                   </td>
                 </tr>
               ))}
+              {visiblePagedUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={isPlatformAdmin && platformUserTab === "seller_admin" ? 7 : 10}>
+                    No users found for selected tab.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
-          {renderPagination(userPage, setUserPage, users.length)}
+          {renderPagination(userPage, setUserPage, visibleUsers.length)}
         </div>
       </div>
 

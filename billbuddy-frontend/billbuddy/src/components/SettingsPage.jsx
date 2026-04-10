@@ -309,19 +309,19 @@ export default function SettingsPage({
 
         <div className="settings-preview-footer-grid">
           <div className="settings-preview-notes-block">
-            {Boolean(quotationTemplate.show_notes ?? true) ? (
+            {(quotationTemplate.show_notes ?? true) ? (
               <>
                 <h6>Notes</h6>
                 <div className="limited-rich-text-preview" dangerouslySetInnerHTML={{ __html: previewNotesRichText }} />
               </>
             ) : null}
-            {Boolean(quotationTemplate.show_terms ?? true) ? (
+            {(quotationTemplate.show_terms ?? true) ? (
               <>
                 <h6>Terms & Conditions</h6>
                 <div className="limited-rich-text-preview" dangerouslySetInnerHTML={{ __html: previewTermsRichText }} />
               </>
             ) : null}
-            {!Boolean(quotationTemplate.show_notes ?? true) && !Boolean(quotationTemplate.show_terms ?? true) ? (
+            {!(quotationTemplate.show_notes ?? true) && !(quotationTemplate.show_terms ?? true) ? (
               <p style={{ marginTop: 6 }}>Notes and Terms are hidden in PDF.</p>
             ) : null}
           </div>
@@ -475,14 +475,14 @@ export default function SettingsPage({
           isActive: true
         });
         setFooterBannerUploadFile(null);
-      } catch (_error) {
+      } catch {
         // Error message is surfaced by shared API error handler.
       }
     }
 
     async function toggleFooterBannerStatus(banner) {
       await handleUpdatePlatformFooterBanner(banner.id, {
-        isActive: !Boolean(banner.is_active)
+        isActive: !banner.is_active
       });
     }
 

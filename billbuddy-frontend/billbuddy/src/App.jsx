@@ -1975,74 +1975,6 @@ function PublicLeadCapturePage({
       getBusinessSegments={getBusinessSegments}
     />
   );
-  const segmentOptions = getBusinessSegments(form.businessType);
-  return (
-    <div className="auth-wrap lead-capture-shell">
-      <div className="app-ambience" aria-hidden="true">
-        <span className="shape shape-cube" />
-        <span className="shape shape-ring" />
-        <span className="shape shape-panel" />
-      </div>
-      <div className="auth-bg-glow" />
-      <div className="auth-grid lead-capture-grid">
-        <div className="glass-card hero-card">
-          <p className="eyebrow">Quotsy Lead Capture</p>
-          <h1>Start with a quick lead form.</h1>
-          <p>Share your business details and requirement. Our team will track your lead, schedule a demo if needed, and move you toward onboarding.</p>
-          <div className="lead-capture-points">
-            <div>
-              <strong>No login needed</strong>
-              <span>This page is open for direct lead capture.</span>
-            </div>
-            <div>
-              <strong>Demo-friendly</strong>
-              <span>Mark demo interest and weâ€™ll route it into the platform lead workflow.</span>
-            </div>
-            <div>
-              <strong>Sales-ready</strong>
-              <span>Your form lands directly inside the platform Leads module.</span>
-            </div>
-          </div>
-        </div>
-
-        <form className="glass-card auth-card lead-capture-form" onSubmit={onSubmit}>
-          <h2>Lead Form</h2>
-          {successMessage && <div className="notice">{successMessage}</div>}
-          {errorMessage && <div className="notice error">{errorMessage}</div>}
-          <input placeholder="Name" value={form.name} onChange={(e) => onChange("name", e.target.value)} required />
-          <input placeholder="Mobile Number" value={form.mobile} onChange={(e) => onChange("mobile", e.target.value)} required />
-          <input placeholder="Email" type="email" value={form.email} onChange={(e) => onChange("email", e.target.value)} />
-          <input placeholder="Business Name" value={form.businessName} onChange={(e) => onChange("businessName", e.target.value)} />
-          <input placeholder="City" value={form.city} onChange={(e) => onChange("city", e.target.value)} />
-          <select value={form.businessType} onChange={(e) => onChange("businessType", e.target.value)}>
-            <option value="">Select Business Category</option>
-            {businessCategoryOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-          <select value={form.businessSegment} onChange={(e) => onChange("businessSegment", e.target.value)} disabled={!form.businessType}>
-            <option value="">{form.businessType ? "Select Segment" : "Select category first"}</option>
-            {segmentOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-          {form.interestedInDemo ? (
-            <label className="seller-toggle">
-              <input type="checkbox" checked={Boolean(form.wantsSampleData)} onChange={(e) => onChange("wantsSampleData", e.target.checked)} style={{ width: "auto" }} />
-              Seed sample data for this business category
-            </label>
-          ) : null}
-          <textarea rows={4} placeholder="Requirement" value={form.requirement} onChange={(e) => onChange("requirement", e.target.value)} />
-          <label className="seller-toggle">
-            <input type="checkbox" checked={form.interestedInDemo} onChange={(e) => onChange("interestedInDemo", e.target.checked)} style={{ width: "auto" }} />
-            Interested in Demo
-          </label>
-          <button type="submit" disabled={submitting}>{submitting ? "Submitting..." : "Submit Lead"}</button>
-          <a className="glass-btn lead-login-link" href="/login">Go to login</a>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 const PUBLIC_VISITOR_FAQS = [
@@ -2765,6 +2697,7 @@ function PublicDemoSignupPage({
       announcement="Demo account creation will start from April 15, 2026. Please share your details through this lead form and we will contact you."
     />
   );
+  // eslint-disable-next-line no-unreachable
   const [showPassword, setShowPassword] = useState(false);
   const segmentOptions = getBusinessSegments(form.businessCategory);
   const demoValueCards = [
@@ -3558,16 +3491,6 @@ function App() {
   const [loginForm, setLoginForm] = useState({ mobile: "", password: "", otp: "" });
   const [setupForm, setSetupForm] = useState({ name: "", mobile: "", password: "" });
   const [rememberMe, setRememberMe] = useState(() => Boolean(getStoredAuth()?.rememberMe));
-  const [publicDemoForm, setPublicDemoForm] = useState({
-    name: "",
-    mobile: "",
-    password: "",
-    email: "",
-    businessName: "",
-    businessCategory: "",
-    businessSegment: "",
-    wantsSampleData: true
-  });
   const [publicLeadForm, setPublicLeadForm] = useState({
     name: "",
     mobile: "",
@@ -3583,9 +3506,6 @@ function App() {
   const [publicLeadSubmitting, setPublicLeadSubmitting] = useState(false);
   const [publicLeadSuccess, setPublicLeadSuccess] = useState("");
   const [publicLeadError, setPublicLeadError] = useState("");
-  const [publicDemoSubmitting, setPublicDemoSubmitting] = useState(false);
-  const [publicDemoSuccess, setPublicDemoSuccess] = useState("");
-  const [publicDemoError, setPublicDemoError] = useState("");
 
   const [dashboardData, setDashboardData] = useState(null);
   const [quotations, setQuotations] = useState([]);
@@ -4038,20 +3958,6 @@ function App() {
     }));
   }
 
-  function updatePublicDemoField(field, value) {
-    setPublicDemoForm((prev) => ({
-      ...prev,
-      ...(field === "businessCategory"
-        ? {
-            businessCategory: value,
-            businessSegment: getBusinessSegments(value)[0] || ""
-          }
-        : {
-            [field]: value
-          })
-    }));
-  }
-
   async function handleLeadConvertBrandingImageChange(targetField, event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -4139,7 +4045,7 @@ function App() {
     try {
       const setupStatusResponse = await apiFetch("/api/sellers/me/setup-status").catch(() => null);
       setSellerSetupStatus(setupStatusResponse);
-    } catch (_error) {
+    } catch {
       // Keep existing setup status if refresh fails.
     }
   }
@@ -4437,36 +4343,6 @@ function App() {
       handleApiError(err);
     } finally {
       setGoLiveGateSavingId(null);
-    }
-  }
-
-  async function handleSubmitPublicDemo(event) {
-    event.preventDefault();
-    try {
-      setPublicDemoSubmitting(true);
-      setPublicDemoError("");
-      setPublicDemoSuccess("");
-      const response = await apiFetch("/api/auth/demo-signup", {
-        method: "POST",
-        body: JSON.stringify(publicDemoForm)
-      });
-      setPublicDemoSuccess(response.message || "Demo account created successfully.");
-      saveAuth({ token: response.token, user: response.user, sessionExpiresAt: response.expiresAt || null });
-      setPublicDemoForm({
-        name: "",
-        mobile: "",
-        password: "",
-        email: "",
-        businessName: "",
-        businessCategory: "",
-        businessSegment: "",
-        wantsSampleData: true
-      });
-      window.history.replaceState({}, "", "/");
-    } catch (err) {
-      setPublicDemoError(err.message || "Failed to create demo account");
-    } finally {
-      setPublicDemoSubmitting(false);
     }
   }
 
@@ -7511,6 +7387,7 @@ function App() {
             setUserForm={setUserForm}
             setUserFormErrors={setUserFormErrors}
             roles={roles}
+            sellers={sellers}
           />
         ) : activeModule === "Approvals" ? (
           <ApprovalsPage
@@ -8223,6 +8100,8 @@ function App() {
 }
 
 export default App;
+
+
 
 
 

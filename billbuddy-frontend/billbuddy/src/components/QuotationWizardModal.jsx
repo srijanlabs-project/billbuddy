@@ -15,7 +15,6 @@ export default function QuotationWizardModal(props) {
     removeQuotationWizardShippingAddress,
     runtimeSellerConfiguration,
     runtimeQuotationColumns,
-    quotationWizardItemRules,
     updateQuotationWizardItemForm,
     unsupportedRuntimeQuotationColumns,
     getProductConfigurationFieldValue,

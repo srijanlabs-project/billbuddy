@@ -50,37 +50,6 @@ function SentStatusIcon({ sent }) {
   );
 }
 
-function getPaymentBadgeClass(status) {
-  const normalized = String(status || "").toLowerCase();
-  if (normalized === "paid") return "payment-paid";
-  if (normalized === "partial") return "payment-partial";
-  return "payment-pending";
-}
-
-function getQuotationBadgeClass(status) {
-  const normalized = String(status || "").toUpperCase();
-  if (normalized === "READY_DISPATCH") return "quotation-ready-dispatch";
-  if (normalized === "READY_PICKUP") return "quotation-ready-pickup";
-  if (normalized === "DELIVERED") return "quotation-delivered";
-  return "quotation-new";
-}
-
-function getApprovalBadgeClass(status) {
-  const normalized = String(status || "not_required").toLowerCase();
-  if (normalized === "approved") return "success";
-  if (normalized === "rejected") return "error";
-  if (normalized === "pending") return "pending";
-  return "neutral";
-}
-
-function getApprovalLabel(status) {
-  const normalized = String(status || "not_required").toLowerCase();
-  if (normalized === "approved") return "Approved";
-  if (normalized === "rejected") return "Rejected";
-  if (normalized === "pending") return "Pending";
-  return "Not Required";
-}
-
 function QuotsyDashboardDesignPreview({
   formatCurrency,
   setActiveModule,
@@ -90,7 +59,6 @@ function QuotsyDashboardDesignPreview({
   setDashboardRange,
   dashboardData,
   quotations,
-  customers,
   notifications,
   canCreateQuotation,
   canCreateCustomer
@@ -157,7 +125,7 @@ function QuotsyDashboardDesignPreview({
       ? (() => {
         try {
           return JSON.parse(entry.custom_fields);
-        } catch (_error) {
+        } catch {
           return {};
         }
       })()
@@ -413,7 +381,6 @@ export default function DashboardPage(props) {
     formatCurrency,
     formatDateIST,
     quotations,
-    customers = [],
     notifications = [],
     dashboardData,
     QUICK_ACTIONS,
@@ -421,18 +388,8 @@ export default function DashboardPage(props) {
     openCreateCustomerModal,
     dashboardRange,
     setDashboardRange,
-    chartSeries,
-    filteredOrders,
-    changeSort,
-    seller,
-    handleOpenOrderDetails,
     handleDownloadQuotation,
     formatQuotationLabel,
-    statusLabel,
-    orderStatusLabel,
-    lowStockItems,
-    topSelling,
-    aiSuggestions,
     subUserAction,
     setSubUserAction,
     subUserSearchInput,
@@ -442,25 +399,23 @@ export default function DashboardPage(props) {
     canCreateQuotation,
     canSearchQuotation,
     canDownloadQuotationPdf,
-    canCreateCustomer,
-    pendingApprovalCount,
-    requesterPendingApprovalCount
+    canCreateCustomer
   } = props;
 
   if (activeModule !== "Dashboard") return null;
 
   if (isPlatformAdmin) {
     return (
-      <main className="dashboard-grid">
-        <section className="main-column">
-          <div className="dashboard-hero-grid">
-            <article className="glass-panel spotlight-card">
-              <div className="spotlight-copy">
-                <p className="eyebrow">Platform billing pulse</p>
-                <h2>{usageOverview?.sellersOnboarded || 0}</h2>
-                <p>Monitor tenant growth, active usage, and billable quotation volume without entering seller workflows.</p>
+      <main className="dashboard-grid platform-dashboard-pro">
+        <section className="main-column platform-dashboard-main">
+          <div className="platform-hero-shell glass-panel">
+            <article className="platform-pulse-card">
+              <div className="platform-pulse-copy">
+                <p className="eyebrow">Platform Billing Pulse</p>
+                <h2>Control Tower</h2>
+                <p>Monitor tenant growth, usage quality, and billing movement without jumping between seller workspaces.</p>
               </div>
-              <div className="spotlight-stack">
+              <div className="platform-pulse-stats">
                 <div>
                   <span>Active users</span>
                   <strong>{usageOverview?.activeUsers || 0}</strong>
@@ -475,26 +430,44 @@ export default function DashboardPage(props) {
                 </div>
               </div>
             </article>
-            <article className="glass-panel quick-actions-panel">
-              <div className="section-head"><h3>Platform Actions</h3><span>Admin control</span></div>
-              <div className="quick-action-grid">
-                <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Sellers")}>Onboard Seller</button>
-                <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Subscriptions")}>Manage Subscriptions</button>
-                <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Plans")}>Manage Plans</button>
-                <button type="button" className="action-btn quick-action-btn" onClick={() => setActiveModule("Users")}>Manage Users</button>
+            <article className="platform-actions-card">
+              <div className="section-head">
+                <h3>Platform Actions</h3>
+                <span>Admin control</span>
+              </div>
+              <div className="platform-actions-grid">
+                <button type="button" className="ghost-btn compact-btn platform-action-btn" onClick={() => setActiveModule("Sellers")}>Onboard Seller</button>
+                <button type="button" className="ghost-btn compact-btn platform-action-btn" onClick={() => setActiveModule("Subscriptions")}>Subscriptions</button>
+                <button type="button" className="ghost-btn compact-btn platform-action-btn" onClick={() => setActiveModule("Plans")}>Plans</button>
+                <button type="button" className="ghost-btn compact-btn platform-action-btn" onClick={() => setActiveModule("Users")}>Users</button>
               </div>
             </article>
           </div>
 
-          <div className="kpi-grid">
-            <article className="kpi-card glass-panel"><p>Sellers</p><h3>{usageOverview?.sellersOnboarded || 0}</h3></article>
-            <article className="kpi-card glass-panel"><p>Active Users</p><h3>{usageOverview?.activeUsers || 0}</h3></article>
-            <article className="kpi-card glass-panel"><p>Total Quotations</p><h3>{usageOverview?.totalOrders || 0}</h3></article>
-            <article className="kpi-card glass-panel"><p>Billing Scope</p><h3>{formatCurrency(quotations.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))}</h3></article>
+          <div className="platform-kpi-strip">
+            <article className="platform-kpi-card">
+              <p>Sellers</p>
+              <h3>{usageOverview?.sellersOnboarded || 0}</h3>
+            </article>
+            <article className="platform-kpi-card">
+              <p>Active Users</p>
+              <h3>{usageOverview?.activeUsers || 0}</h3>
+            </article>
+            <article className="platform-kpi-card">
+              <p>Total Quotations</p>
+              <h3>{usageOverview?.totalOrders || 0}</h3>
+            </article>
+            <article className="platform-kpi-card">
+              <p>Billing Scope</p>
+              <h3>{formatCurrency(quotations.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))}</h3>
+            </article>
           </div>
 
-          <section className="glass-panel table-card">
-            <div className="section-head"><h3>Seller Accounts</h3><span>{sellers.length} sellers</span></div>
+          <section className="glass-panel table-card platform-sellers-table-card">
+            <div className="section-head">
+              <h3>Seller Accounts</h3>
+              <span>{sellers.length} sellers</span>
+            </div>
             <table className="data-table">
               <thead>
                 <tr><th>Seller</th><th>Subscription</th><th>Status</th><th>Users</th><th>Quotations</th><th>Revenue</th><th>Actions</th></tr>
@@ -638,7 +611,6 @@ export default function DashboardPage(props) {
           setDashboardRange={setDashboardRange}
           dashboardData={dashboardData}
           quotations={quotations}
-          customers={customers}
           notifications={notifications}
           canCreateQuotation={canCreateQuotation}
           canCreateCustomer={canCreateCustomer}

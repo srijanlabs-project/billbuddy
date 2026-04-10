@@ -23,8 +23,6 @@ export default function CustomersPage(props) {
     renderPagination
   } = props;
 
-  if (activeModule !== "Customers") return null;
-
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showQuotationListModal, setShowQuotationListModal] = useState(false);
 
@@ -42,6 +40,8 @@ export default function CustomersPage(props) {
     && selectedCustomer
     && (!isSubUser || Number(selectedCustomer.created_by_user_id || 0) === Number(currentUserId || 0))
   );
+
+  if (activeModule !== "Customers") return null;
 
   return (
     <section className="module-placeholder glass-panel">
