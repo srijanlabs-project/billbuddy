@@ -1304,12 +1304,28 @@ function buildQuotationWizardRevisionState(details, {
     items: (details?.items || []).map((item, index) => {
       const product = (products || []).find((entry) => String(entry.id) === String(item.product_id)) || null;
       const baseItem = createQuotationWizardItem(product);
+      const rawCustomFields = item.custom_fields || item.customFields || {};
+      const resolvedMaterialName = String(
+        item.item_display_text
+        || item.itemDisplayText
+        || item.material_name
+        || item.material_type
+        || item.materialType
+        || item.design_name
+        || item.designName
+        || rawCustomFields.material_name
+        || rawCustomFields.materialType
+        || rawCustomFields.item_name
+        || item.sku
+        || baseItem.materialName
+        || "Item"
+      ).trim();
       return {
         ...baseItem,
         id: item.id ? String(item.id) : `existing-${index + 1}`,
         productId: item.product_id ? String(item.product_id) : "",
         catalogueSource: product?.catalogue_source || item.catalogue_source || baseItem.catalogueSource,
-        materialName: item.material_name || item.material_type || item.design_name || item.sku || baseItem.materialName,
+        materialName: resolvedMaterialName,
         category: normalizeQuotationWizardCategory(item.item_category || item.category || product?.category),
         color: item.color_name || product?.color_name || "",
         otherInfo: item.imported_color_note || "",
@@ -1329,7 +1345,7 @@ function buildQuotationWizardRevisionState(details, {
           product,
           customColumns,
           {
-            ...(item.custom_fields || item.customFields || {}),
+            ...rawCustomFields,
             ...(item.size ? { size: item.size } : {})
           }
         )
