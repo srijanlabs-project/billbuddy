@@ -714,61 +714,102 @@ function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previo
     };
   }
 
-  async function handleSaveQuotationWizardSecondaryProduct() {
-    try {
-      setError("");
-      setQuotationWizardNotice("");
+  function isMaterialMissingFromCatalogue(itemForm) {
+    const materialName = normalizeComparableValue(itemForm?.materialName);
+    if (!materialName) return false;
+    return !(products || []).some((product) => normalizeComparableValue(product.material_name) === materialName);
+  }
 
-      if (!String(quotationWizard.itemForm.materialName || "").trim()) {
-        throw new Error("Enter the product / service name before saving to the secondary catalogue.");
-      }
-      if (!String(quotationWizard.itemForm.category || "").trim()) {
-        throw new Error("Select the category before saving to the secondary catalogue.");
-      }
+  async function saveItemToSecondaryCatalogue(itemForm, options = {}) {
+    const { selectInForm = true, showNotice = true } = options;
+    if (!String(itemForm?.materialName || "").trim()) {
+      throw new Error("Enter the product / service name before saving to the secondary catalogue.");
+    }
+    if (!String(itemForm?.category || "").trim()) {
+      throw new Error("Select the category before saving to the secondary catalogue.");
+    }
 
-      const payload = buildSecondaryCataloguePayload(quotationWizard.itemForm);
-      const createdProduct = await apiFetch("/api/products", {
-        method: "POST",
-        body: JSON.stringify(payload)
-      });
+    const payload = buildSecondaryCataloguePayload(itemForm);
+    const createdProduct = await apiFetch("/api/products", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    const productRows = await apiFetch("/api/products");
+    setProducts(productRows);
 
-      const productRows = await apiFetch("/api/products");
-      setProducts(productRows);
+    if (selectInForm) {
       setQuotationWizard((prev) => ({
         ...prev,
         itemForm: applyResolvedProduct(createdProduct, prev.itemForm.customFields, prev.itemForm)
       }));
+    }
+    if (showNotice) {
       setQuotationWizardNotice("Saved to the secondary catalogue and selected for this quotation.");
+    }
+
+    return createdProduct;
+  }
+
+  async function handleSaveQuotationWizardSecondaryProduct() {
+    try {
+      setError("");
+      setQuotationWizardNotice("");
+      await saveItemToSecondaryCatalogue(quotationWizard.itemForm, {
+        selectInForm: true,
+        showNotice: true
+      });
     } catch (err) {
       handleApiError(err);
     }
   }
 
-  function handleAddQuotationWizardItem() {
+  async function handleAddQuotationWizardItem() {
     if (!quotationWizardItemReady) {
       setError("Please complete the selected item before adding it.");
       return;
     }
 
+    let itemFormForAdd = { ...quotationWizard.itemForm };
+    let selectedProductForAdd = quotationWizardSelectedProduct;
+
+    if (isMaterialMissingFromCatalogue(itemFormForAdd)) {
+      const confirmationMessage = "Item is not part of catalogue. Click OK to add this item and save it to secondary catalogue, or Cancel to stay on this form.";
+      const shouldSaveToSecondary = typeof window === "undefined" ? true : window.confirm(confirmationMessage);
+      if (!shouldSaveToSecondary) {
+        return;
+      }
+      try {
+        const createdProduct = await saveItemToSecondaryCatalogue(itemFormForAdd, {
+          selectInForm: false,
+          showNotice: false
+        });
+        selectedProductForAdd = createdProduct;
+        itemFormForAdd = applyResolvedProduct(createdProduct, itemFormForAdd.customFields, itemFormForAdd);
+      } catch (err) {
+        handleApiError(err);
+        return;
+      }
+    }
+
     const effectiveCustomFields = getCatalogueDrivenQuotationCustomFields(
-      quotationWizardSelectedProduct,
+      selectedProductForAdd,
       unsupportedRuntimeQuotationColumns.filter((column) => (
         isColumnVisibleInForm(column)
         && isNonFormulaColumn(column)
-        && isColumnVisibleForItemCategory(column, quotationWizard.itemForm.category)
+        && isColumnVisibleForItemCategory(column, itemFormForAdd.category)
       )),
-      quotationWizard.itemForm.customFields
+      itemFormForAdd.customFields
     );
     const customFieldError = getCustomQuotationValidationError(
       unsupportedRuntimeQuotationColumns.filter((column) => (
         isColumnVisibleInForm(column)
         && isNonFormulaColumn(column)
-        && isColumnVisibleForItemCategory(column, quotationWizard.itemForm.category)
+        && isColumnVisibleForItemCategory(column, itemFormForAdd.category)
       )),
       effectiveCustomFields
     );
     const rateValidationMessage = getQuotationRateValidationMessage({
-      ...quotationWizard.itemForm,
+      ...itemFormForAdd,
       customFields: effectiveCustomFields
     });
 
@@ -783,11 +824,11 @@ function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previo
     }
 
     const itemToAdd = {
-      ...quotationWizard.itemForm,
+      ...itemFormForAdd,
       customFields: effectiveCustomFields,
       itemDisplayText: buildConfiguredQuotationItemTitle({
-        ...quotationWizard.itemForm,
-        item_category: quotationWizard.itemForm.category,
+        ...itemFormForAdd,
+        item_category: itemFormForAdd.category,
         customFields: effectiveCustomFields
       }, itemDisplayConfig),
       id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`

@@ -460,21 +460,21 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
 }
 
 function getPdfColumnAlignment(columnKey) {
-  switch (normalizeQuotationColumnKey(columnKey)) {
-    case "quantity":
-      return "center";
-    case "rate":
-    case "unit_price":
-    case "amount":
-    case "total":
-    case "total_rate":
-    case "total_price":
-    case "width":
-    case "height":
-      return "right";
-    default:
-      return "left";
-  }
+  // Only system keys are aligned explicitly.
+  // Any custom field key always falls back to left alignment.
+  const normalized = normalizeQuotationColumnKey(columnKey);
+  const systemAlignmentMap = {
+    quantity: "center",
+    rate: "right",
+    unit_price: "right",
+    amount: "right",
+    total: "right",
+    total_rate: "right",
+    total_price: "right",
+    width: "right",
+    height: "right"
+  };
+  return systemAlignmentMap[normalized] || "left";
 }
 
 function getDefaultTemplateTableColumns(configuredColumns, tableWidth) {
@@ -495,7 +495,7 @@ function getDefaultTemplateTableColumns(configuredColumns, tableWidth) {
   const materialColumnIndex = normalizedColumns.findIndex((column) => column.key === "material_name");
   const materialColumnCount = normalizedColumns.length;
 
-  let materialWidth = Math.floor(tableWidth * 0.30);
+  let materialWidth = Math.floor(tableWidth * 0.35);
   if (materialColumnCount === 1) {
     materialWidth = remainingAfterSr;
   } else {
@@ -1639,37 +1639,27 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
     { key: "amount", label: "Amount" }
   ];
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
-  const getColumnWeight = (key) => {
-    switch (normalizeQuotationColumnKey(key)) {
-      case "material_name":
-      case "note":
-      case "item_note":
-        return 3.2;
-      case "amount":
-      case "total":
-      case "total_rate":
-      case "total_price":
-        return 1.5;
-      case "rate":
-      case "unit_price":
-      case "dimension":
-        return 1.3;
-      case "quantity":
-        return 0.9;
-      default:
-        return 1.1;
-    }
-  };
-  const weights = configuredColumns.map((column) => getColumnWeight(column.key));
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0) || 1;
   const serialWidth = 34;
   const availableDynamicWidth = pageWidth - serialWidth;
-  const minimumColumnWidth = configuredColumns.length > 6 ? 30 : 60;
+  const minimumColumnWidth = configuredColumns.length > 6 ? 30 : 56;
+  const materialColumnPosition = configuredColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
+  const dynamicCount = configuredColumns.length;
+  const hasMaterialColumn = materialColumnPosition >= 0;
+  const materialTargetWidth = hasMaterialColumn
+    ? Math.max(110, Math.floor(availableDynamicWidth * 0.35))
+    : 0;
+  const remainingDynamicWidth = hasMaterialColumn
+    ? Math.max(0, availableDynamicWidth - materialTargetWidth)
+    : availableDynamicWidth;
+  const otherColumnsCount = hasMaterialColumn ? Math.max(1, dynamicCount - 1) : Math.max(1, dynamicCount);
+  const eachOtherWidth = Math.max(minimumColumnWidth, Math.floor(remainingDynamicWidth / otherColumnsCount));
   const columns = [
     { key: "sr_no", label: "Sr.", width: serialWidth },
     ...configuredColumns.map((column, index) => ({
       ...column,
-      width: Math.max(minimumColumnWidth, Math.floor((availableDynamicWidth * weights[index]) / totalWeight))
+      width: hasMaterialColumn
+        ? (index === materialColumnPosition ? materialTargetWidth : eachOtherWidth)
+        : eachOtherWidth
     }))
   ];
   let allocatedWidth = columns.reduce((sum, column) => sum + column.width, 0);
@@ -2055,39 +2045,28 @@ function buildQuotationPdf({ quotation, items, template, pdfColumns, pdfModules 
 
   const combineHelpingTextInItemColumn = Boolean(pdfModules.combineHelpingTextInItemColumn);
 
-  const getColumnWeight = (key) => {
-    switch (normalizeQuotationColumnKey(key)) {
-      case "material_name":
-      case "note":
-      case "item_note":
-        return 3.2;
-      case "amount":
-      case "total":
-      case "total_rate":
-      case "total_price":
-        return 1.5;
-      case "rate":
-      case "unit_price":
-      case "dimension":
-        return 1.3;
-      case "quantity":
-        return 0.9;
-      default:
-        return 1.1;
-    }
-  };
-
-  const weights = configuredColumns.map((column) => getColumnWeight(column.key));
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0) || 1;
   const serialWidth = 34;
   const availableDynamicWidth = pageWidth - serialWidth;
-  const minimumColumnWidth = configuredColumns.length > 6 ? 30 : 60;
+  const minimumColumnWidth = configuredColumns.length > 6 ? 30 : 56;
+  const materialColumnPosition = configuredColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
+  const dynamicCount = configuredColumns.length;
+  const hasMaterialColumn = materialColumnPosition >= 0;
+  const materialTargetWidth = hasMaterialColumn
+    ? Math.max(110, Math.floor(availableDynamicWidth * 0.35))
+    : 0;
+  const remainingDynamicWidth = hasMaterialColumn
+    ? Math.max(0, availableDynamicWidth - materialTargetWidth)
+    : availableDynamicWidth;
+  const otherColumnsCount = hasMaterialColumn ? Math.max(1, dynamicCount - 1) : Math.max(1, dynamicCount);
+  const eachOtherWidth = Math.max(minimumColumnWidth, Math.floor(remainingDynamicWidth / otherColumnsCount));
 
   const columns = [
     { key: "sr_no", label: "Sr.", width: serialWidth },
     ...configuredColumns.map((column, index) => ({
       ...column,
-      width: Math.max(minimumColumnWidth, Math.floor((availableDynamicWidth * weights[index]) / totalWeight))
+      width: hasMaterialColumn
+        ? (index === materialColumnPosition ? materialTargetWidth : eachOtherWidth)
+        : eachOtherWidth
     }))
   ];
 
@@ -2602,7 +2581,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const rowHeaderHeight = 22;
     const rowPaddingY = 3;
     const materialColumnIndex = tableColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
-    const itemsBlockReserve = 220;
+    // Keep a smaller reserve so item rows can use available space.
+    // Totals/notes already have their own pagination checks below.
+    const itemsBlockReserve = 110;
 
     const drawHeaderRow = () => {
       doc.lineWidth(borderWidth);
@@ -2636,6 +2617,7 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
       ];
       const materialText = materialColumnIndex >= 0 ? String(rowValues[materialColumnIndex] || "-") : "";
       const materialWidth = materialColumnIndex >= 0 ? tableColumns[materialColumnIndex].width - 8 : 220;
+      doc.font("Helvetica-Bold").fontSize(9);
       const materialHeight = doc.heightOfString(materialText, { width: materialWidth });
       const helpingHeight = helpingSummary ? doc.heightOfString(helpingSummary, { width: materialWidth, lineGap: 1 }) : 0;
       const rowHeight = Math.max(16, Math.ceil(materialHeight + (helpingHeight ? helpingHeight + 2 : 0) + (rowPaddingY * 2)));
@@ -2656,7 +2638,8 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
           { width: column.width - 6, align: column.align || "left" }
         );
         if (isMaterial && helpingSummary) {
-          doc.font("Helvetica").fontSize(7.4).fillColor(muted).text(helpingSummary, cx + 3, y + 13, {
+          const helpingY = y + rowPaddingY + materialHeight + 1;
+          doc.font("Helvetica").fontSize(7.4).fillColor(muted).text(helpingSummary, cx + 3, helpingY, {
             width: column.width - 6,
             lineGap: 1
           });
@@ -3780,37 +3763,27 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     y = doc.y + 12;
   }
 
-  const getColumnWeight = (key) => {
-    switch (normalizeQuotationColumnKey(key)) {
-      case "material_name":
-      case "note":
-      case "item_note":
-        return 3.2;
-      case "amount":
-      case "total":
-      case "total_rate":
-      case "total_price":
-        return 1.5;
-      case "rate":
-      case "unit_price":
-      case "dimension":
-        return 1.3;
-      case "quantity":
-        return 0.9;
-      default:
-        return 1.1;
-    }
-  };
-  const weights = configuredColumns.map((column) => getColumnWeight(column.key));
-  const totalWeight = weights.reduce((sum, value) => sum + value, 0) || 1;
   const serialWidth = 34;
   const availableDynamicWidth = pageWidth - serialWidth;
-  const minimumColumnWidth = configuredColumns.length > 6 ? 44 : 60;
+  const minimumColumnWidth = configuredColumns.length > 6 ? 44 : 56;
+  const materialColumnPosition = configuredColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
+  const dynamicCount = configuredColumns.length;
+  const hasMaterialColumn = materialColumnPosition >= 0;
+  const materialTargetWidth = hasMaterialColumn
+    ? Math.max(110, Math.floor(availableDynamicWidth * 0.35))
+    : 0;
+  const remainingDynamicWidth = hasMaterialColumn
+    ? Math.max(0, availableDynamicWidth - materialTargetWidth)
+    : availableDynamicWidth;
+  const otherColumnsCount = hasMaterialColumn ? Math.max(1, dynamicCount - 1) : Math.max(1, dynamicCount);
+  const eachOtherWidth = Math.max(minimumColumnWidth, Math.floor(remainingDynamicWidth / otherColumnsCount));
   const tableColumns = [
     { key: "sr_no", label: "Sr.", width: serialWidth, align: "center" },
     ...configuredColumns.map((column, index) => ({
       ...column,
-      width: Math.max(minimumColumnWidth, Math.floor((availableDynamicWidth * weights[index]) / totalWeight)),
+      width: hasMaterialColumn
+        ? (index === materialColumnPosition ? materialTargetWidth : eachOtherWidth)
+        : eachOtherWidth,
       align: getPdfColumnAlignment(column.key)
     }))
   ];
@@ -5027,7 +5000,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
         delivery_address: deliveryAddress,
         delivery_pincode: deliveryPincode
       });
-      if (String(effectiveCustomerGst || "").trim() && !isValidGstinFormat(effectiveCustomerGst)) {
+      const normalizedEffectiveCustomerGst = normalizeGstin(effectiveCustomerGst);
+      if (normalizedEffectiveCustomerGst && normalizedEffectiveCustomerGst !== "-" && !isValidGstinFormat(normalizedEffectiveCustomerGst)) {
         await client.query("ROLLBACK");
         return res.status(400).json({ message: "Customer GST format is invalid. Enter valid GST or leave GST blank." });
       }
