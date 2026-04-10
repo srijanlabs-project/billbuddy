@@ -2194,6 +2194,44 @@ function PublicPageHeader({ activePath }) {
   );
 }
 
+function PublicGlobalFooter() {
+  return (
+    <footer className="public-global-footer">
+      <div className="public-global-footer-inner">
+        <div className="public-global-footer-top">
+          <div className="public-global-footer-brand-block">
+            <div className="public-global-footer-brand-name">Srijan Labs.</div>
+            <p className="public-global-footer-brand-desc">
+              Building practical SaaS platforms for MSME digital systems, quotation workflows, and operational control.
+            </p>
+          </div>
+          <div className="public-global-footer-col">
+            <div className="public-global-footer-col-title">Products</div>
+            <div className="public-global-footer-links">
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">Quicksy</a>
+              <a href="/quotsy">Quotsy</a>
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">Stocksy</a>
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">QuoteIQ</a>
+            </div>
+          </div>
+          <div className="public-global-footer-col">
+            <div className="public-global-footer-col-title">Connect</div>
+            <div className="public-global-footer-links">
+              <a href="/features">Features</a>
+              <a href="/user-guide">User Guide</a>
+              <a href="/lead">Contact</a>
+              <a href="/try-demo">Get Started</a>
+            </div>
+          </div>
+        </div>
+        <div className="public-global-footer-bottom">
+          <span className="public-global-footer-copy">(c) 2026 Srijan Labs. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 function PublicQuotsyLandingPage() {
   return (
     <div className="auth-wrap lead-capture-shell public-page-shell">
@@ -2238,6 +2276,7 @@ function PublicQuotsyLandingPage() {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -2294,6 +2333,7 @@ function PublicVisitorFaqPage() {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -2413,6 +2453,7 @@ function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -2860,6 +2901,7 @@ function PublicDemoSignupPage({
         </div>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -3042,6 +3084,7 @@ function PublicLoginPage({
         </div>
       </div>
       </div>
+      <PublicGlobalFooter />
       {errorMessage && <div className="error-toast">{errorMessage}</div>}
     </div>
   );
