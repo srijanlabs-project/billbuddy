@@ -42,7 +42,6 @@ import srijanLabsLogo from "./assets/Srijan_Labs.png";
 import srijanHero from "./assets/srijan_hero.png";
 import spanLogo from "./assets/span.jpeg";
 import quotsyLogo from "./assets/quotsy_logo.svg";
-import quotsyLogoDark from "./assets/quotsy_logo_dark.svg";
 
 const REMEMBER_ME_DURATION_MS = 3 * 24 * 60 * 60 * 1000;
 const AUTH_STORAGE_KEY = "billbuddyAuth";
@@ -3889,7 +3888,7 @@ function App() {
   };
   const isModuleSetupLocked = (module) => Boolean(getModuleSetupLockMessage(module));
   const sellerSubscriptionBanner = getSubscriptionBannerData(seller, plans);
-  const sidebarBrandLogo = ["deep-ocean", "cobalt-frost"].includes(theme) ? quotsyLogoDark : quotsyLogo;
+  const sidebarBrandLogo = quotsyLogo;
   const publicLeadPaths = new Set(["/lead", "/lead-capture"]);
   const publicDemoPaths = new Set(["/try-demo", "/demo-signup"]);
   const publicVisitorHelpPaths = new Set(["/user-guide", "/visitor-help", "/visitor-faqs"]);
