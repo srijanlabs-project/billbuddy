@@ -11,7 +11,6 @@ export default function ProductsPage(props) {
     setShowProductUploadModal,
     canCreateProduct,
     canEditProduct,
-    isPlatformAdmin,
     visibleCatalogueTableFields,
     pagedProducts,
     productPage,

@@ -73,6 +73,7 @@ async function getSellerDetailPayload(clientOrPool, sellerId) {
      LEFT JOIN (
        SELECT seller_id, COUNT(*) AS user_count
        FROM users
+       WHERE COALESCE(is_platform_admin, FALSE) = FALSE
        GROUP BY seller_id
      ) u ON u.seller_id = s.id
      LEFT JOIN (
@@ -115,6 +116,7 @@ async function getSellerDetailPayload(clientOrPool, sellerId) {
     `SELECT id, name, mobile, status, locked, created_at
      FROM users
      WHERE seller_id = $1
+       AND COALESCE(is_platform_admin, FALSE) = FALSE
      ORDER BY created_at DESC, id DESC`,
     [sellerId]
   );
@@ -400,6 +402,7 @@ router.get("/", requirePermission(PERMISSIONS.SELLER_VIEW), requirePlatformAdmin
        LEFT JOIN (
          SELECT seller_id, COUNT(*) AS user_count
          FROM users
+         WHERE COALESCE(is_platform_admin, FALSE) = FALSE
          GROUP BY seller_id
        ) u ON u.seller_id = s.id
        LEFT JOIN (

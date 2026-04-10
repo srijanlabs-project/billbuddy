@@ -317,7 +317,7 @@ export default function useQuotationWizard({
           savedAt: Date.now()
         })
       );
-    } catch (_error) {
+    } catch {
       // Draft persistence is best-effort and should not block the form.
     }
   }, [
@@ -347,7 +347,7 @@ export default function useQuotationWizard({
             setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
             setQuotationWizardShippingGstValidation({});
           }
-        } catch (_error) {
+        } catch {
           setQuotationWizardCustomerGstValidation({ status: "idle", gstNumber: "", profile: null, message: "" });
           setQuotationWizardShippingGstValidation({});
         }
@@ -385,7 +385,7 @@ export default function useQuotationWizard({
 
     try {
       localStorage.removeItem(quotationWizardDraftStorageKey);
-    } catch (_error) {
+    } catch {
       // Ignore local storage cleanup failures.
     }
 
@@ -1145,7 +1145,7 @@ function applyResolvedProduct(selectedProduct, existingCustomFields = {}, previo
 
       try {
         localStorage.removeItem(quotationWizardDraftStorageKey);
-      } catch (_error) {
+      } catch {
         // Ignore local draft cleanup failures.
       }
 

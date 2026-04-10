@@ -37,12 +37,26 @@ function normalizeRequesterIds(value) {
   return [...new Set(source.map((entry) => Number(entry)).filter((entry) => Number.isInteger(entry) && entry > 0))];
 }
 
+function normalizeRoleToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_");
+}
+
+function isSellerAdminRoleName(roleName) {
+  const token = normalizeRoleToken(roleName);
+  return ["seller_admin", "admin", "master_user"].includes(token);
+}
+
 router.get("/", requirePermission(PERMISSIONS.USER_VIEW), async (req, res) => {
   try {
     const tenantId = getTenantId(req);
 
     const values = [];
-    const where = tenantId ? "WHERE u.seller_id = $1" : "";
+    const where = tenantId
+      ? "WHERE u.seller_id = $1 AND COALESCE(u.is_platform_admin, FALSE) = FALSE"
+      : "";
     if (tenantId) values.push(tenantId);
 
     const result = await pool.query(
@@ -171,7 +185,9 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
       const approverCheck = await client.query(
         `SELECT id, approval_mode, status
          FROM users
-         WHERE id = $1 AND seller_id = $2
+         WHERE id = $1
+           AND seller_id = $2
+           AND COALESCE(is_platform_admin, FALSE) = FALSE
          LIMIT 1`,
         [normalizedApproverUserId, tenantId]
       );
@@ -191,7 +207,9 @@ router.post("/", requirePermission(PERMISSIONS.USER_CREATE), async (req, res) =>
       const requesterCheck = await client.query(
         `SELECT id, approval_mode
          FROM users
-         WHERE seller_id = $1 AND id = ANY($2::int[])`,
+         WHERE seller_id = $1
+           AND id = ANY($2::int[])
+           AND COALESCE(is_platform_admin, FALSE) = FALSE`,
         [tenantId, normalizedRequesterUserIds]
       );
       if (requesterCheck.rowCount !== normalizedRequesterUserIds.length) {
@@ -355,7 +373,9 @@ router.patch("/:id", requirePermission(PERMISSIONS.USER_EDIT), async (req, res) 
       const approverCheck = await client.query(
         `SELECT id, approval_mode, status
          FROM users
-         WHERE id = $1 AND seller_id = $2
+         WHERE id = $1
+           AND seller_id = $2
+           AND COALESCE(is_platform_admin, FALSE) = FALSE
          LIMIT 1`,
         [normalizedApproverUserId, effectiveSellerId]
       );
@@ -375,7 +395,9 @@ router.patch("/:id", requirePermission(PERMISSIONS.USER_EDIT), async (req, res) 
       const requesterCheck = await client.query(
         `SELECT id, approval_mode
          FROM users
-         WHERE seller_id = $1 AND id = ANY($2::int[])`,
+         WHERE seller_id = $1
+           AND id = ANY($2::int[])
+           AND COALESCE(is_platform_admin, FALSE) = FALSE`,
         [effectiveSellerId, normalizedRequesterUserIds]
       );
       if (requesterCheck.rowCount !== normalizedRequesterUserIds.length) {
@@ -477,7 +499,33 @@ router.patch("/:id/lock", requirePermission(PERMISSIONS.USER_EDIT), async (req, 
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const values = [Boolean(locked), Number(id)];
+    const targetUserId = Number(id);
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({ message: "Valid user id is required" });
+    }
+
+    const scopedTargetUser = await pool.query(
+      req.user.isPlatformAdmin
+        ? `SELECT id, seller_id, is_platform_admin
+           FROM users
+           WHERE id = $1
+           LIMIT 1`
+        : `SELECT id, seller_id, is_platform_admin
+           FROM users
+           WHERE id = $1 AND seller_id = $2
+           LIMIT 1`,
+      req.user.isPlatformAdmin ? [targetUserId] : [targetUserId, tenantId]
+    );
+
+    if (scopedTargetUser.rowCount === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!req.user.isPlatformAdmin && Boolean(scopedTargetUser.rows[0].is_platform_admin)) {
+      return res.status(403).json({ message: "Platform users cannot be locked by seller users" });
+    }
+
+    const values = [Boolean(locked), targetUserId];
     let where = "id = $2";
     if (tenantId) {
       where += " AND seller_id = $3";
@@ -516,14 +564,51 @@ router.patch("/:id/reset-password", requirePermission(PERMISSIONS.USER_EDIT), as
       return res.status(400).json({ message: passwordValidation.message });
     }
 
-    const hashedNewPassword = await hashPassword(newPassword);
-    const values = [hashedNewPassword, Number(id)];
-    let where = "id = $2";
-
-    if (!req.user.isPlatformAdmin && tenantId) {
-      where += " AND seller_id = $3";
-      values.push(tenantId);
+    const targetUserId = Number(id);
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      return res.status(400).json({ message: "Valid user id is required" });
     }
+
+    const targetUserResult = await pool.query(
+      `SELECT
+         u.id,
+         u.name,
+         u.mobile,
+         u.seller_id,
+         u.is_platform_admin,
+         r.role_name
+       FROM users u
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE u.id = $1
+       LIMIT 1`,
+      [targetUserId]
+    );
+
+    if (targetUserResult.rowCount === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const targetUser = targetUserResult.rows[0];
+
+    if (req.user.isPlatformAdmin) {
+      if (Boolean(targetUser.is_platform_admin)) {
+        return res.status(403).json({ message: "Platform admin can reset password only for seller admin users." });
+      }
+      if (!isSellerAdminRoleName(targetUser.role_name)) {
+        return res.status(403).json({ message: "Platform admin can reset password only for seller admin users." });
+      }
+    } else {
+      if (!tenantId || Number(targetUser.seller_id || 0) !== Number(tenantId)) {
+        return res.status(403).json({ message: "You can reset password only for users in your seller account." });
+      }
+      if (Boolean(targetUser.is_platform_admin)) {
+        return res.status(403).json({ message: "Platform users cannot be reset from seller account." });
+      }
+    }
+
+    const hashedNewPassword = await hashPassword(newPassword);
+    const values = [hashedNewPassword, targetUserId];
+    const where = "id = $2";
 
     const result = await pool.query(
       `UPDATE users

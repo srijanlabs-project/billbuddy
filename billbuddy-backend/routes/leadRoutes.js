@@ -251,6 +251,44 @@ leadRoutes.patch("/:id", async (req, res) => {
 
     await client.query("BEGIN");
 
+    const leadCheck = await client.query(
+      `SELECT id, seller_id
+       FROM leads
+       WHERE id = $1
+       LIMIT 1`,
+      [leadId]
+    );
+
+    if (leadCheck.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Lead not found" });
+    }
+
+    const existingLead = leadCheck.rows[0];
+    const effectiveSellerId = sellerId ? Number(sellerId) : Number(existingLead.seller_id || 0) || null;
+
+    if (assignedUserId) {
+      if (!effectiveSellerId) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Assign a seller before assigning a lead user." });
+      }
+
+      const assigneeCheck = await client.query(
+        `SELECT id
+         FROM users
+         WHERE id = $1
+           AND seller_id = $2
+           AND COALESCE(is_platform_admin, FALSE) = FALSE
+         LIMIT 1`,
+        [Number(assignedUserId), effectiveSellerId]
+      );
+
+      if (assigneeCheck.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "Assignee must belong to the same seller workspace." });
+      }
+    }
+
     const result = await client.query(
       `UPDATE leads
        SET status = COALESCE($1, status),

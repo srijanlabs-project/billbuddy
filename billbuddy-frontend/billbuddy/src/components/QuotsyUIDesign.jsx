@@ -62,9 +62,9 @@ export default function QuotsyUIDesign({ platformPlans = [] }) {
         if (Number(plan.max_quotations || 0) > 0) featureRows.push(`${plan.max_quotations} quotations limit`);
         if (Number(plan.max_customers || 0) > 0) featureRows.push(`${plan.max_customers} customers limit`);
         if (String(plan.template_access_tier || "").trim()) featureRows.push(`${plan.template_access_tier} template tier`);
-        if (Boolean(plan.gst_enabled)) featureRows.push("GST support");
-        if (Boolean(plan.exports_enabled)) featureRows.push("Export support");
-        if (Boolean(plan.reports_enabled)) featureRows.push("Reports enabled");
+        if (plan.gst_enabled) featureRows.push("GST support");
+        if (plan.exports_enabled) featureRows.push("Export support");
+        if (plan.reports_enabled) featureRows.push("Reports enabled");
       }
       return {
         name: plan.plan_name || plan.plan_code || "Plan",
