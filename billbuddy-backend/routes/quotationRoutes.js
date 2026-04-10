@@ -5027,7 +5027,8 @@ router.patch("/:id/revise", requirePermission(PERMISSIONS.QUOTATION_REVISE), asy
         delivery_address: deliveryAddress,
         delivery_pincode: deliveryPincode
       });
-      if (String(effectiveCustomerGst || "").trim() && !isValidGstinFormat(effectiveCustomerGst)) {
+      const normalizedEffectiveCustomerGst = normalizeGstin(effectiveCustomerGst);
+      if (normalizedEffectiveCustomerGst && normalizedEffectiveCustomerGst !== "-" && !isValidGstinFormat(normalizedEffectiveCustomerGst)) {
         await client.query("ROLLBACK");
         return res.status(400).json({ message: "Customer GST format is invalid. Enter valid GST or leave GST blank." });
       }
