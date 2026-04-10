@@ -460,21 +460,21 @@ function getQuotationPdfColumnValue(item, columnKey, options = {}) {
 }
 
 function getPdfColumnAlignment(columnKey) {
-  switch (normalizeQuotationColumnKey(columnKey)) {
-    case "quantity":
-      return "center";
-    case "rate":
-    case "unit_price":
-    case "amount":
-    case "total":
-    case "total_rate":
-    case "total_price":
-    case "width":
-    case "height":
-      return "right";
-    default:
-      return "left";
-  }
+  // Only system keys are aligned explicitly.
+  // Any custom field key always falls back to left alignment.
+  const normalized = normalizeQuotationColumnKey(columnKey);
+  const systemAlignmentMap = {
+    quantity: "center",
+    rate: "right",
+    unit_price: "right",
+    amount: "right",
+    total: "right",
+    total_rate: "right",
+    total_price: "right",
+    width: "right",
+    height: "right"
+  };
+  return systemAlignmentMap[normalized] || "left";
 }
 
 function getDefaultTemplateTableColumns(configuredColumns, tableWidth) {
