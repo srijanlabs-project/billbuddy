@@ -2581,7 +2581,9 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const rowHeaderHeight = 22;
     const rowPaddingY = 3;
     const materialColumnIndex = tableColumns.findIndex((column) => normalizeQuotationColumnKey(column.key) === "material_name");
-    const itemsBlockReserve = 220;
+    // Keep a smaller reserve so item rows can use available space.
+    // Totals/notes already have their own pagination checks below.
+    const itemsBlockReserve = 110;
 
     const drawHeaderRow = () => {
       doc.lineWidth(borderWidth);
