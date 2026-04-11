@@ -2161,6 +2161,7 @@ const PUBLIC_QUOTSY_COMPARISON_ROWS = [
 ];
 
 function PublicPageHeader({ activePath }) {
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const links = [
     { href: "/", label: "Quotsy Home" },
     { href: "/features", label: "Features" },
@@ -2177,12 +2178,22 @@ function PublicPageHeader({ activePath }) {
             <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogo} alt="Quotsy" />
           </div>
         </a>
-        <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
+        <button
+          type="button"
+          className="public-nav-toggle"
+          aria-label="Toggle navigation"
+          aria-expanded={isMobileNavOpen}
+          onClick={() => setIsMobileNavOpen((current) => !current)}
+        >
+          Menu
+        </button>
+        <nav className={`labs-nav public-page-nav${isMobileNavOpen ? " is-open" : ""}`} aria-label="Public page navigation">
           {links.map((link) => (
           <a
             key={link.href}
             className={`public-page-nav-link${activePath === link.href ? " is-active" : ""}`}
             href={link.href}
+            onClick={() => setIsMobileNavOpen(false)}
           >
             {link.label}
           </a>
