@@ -3093,6 +3093,11 @@ button:disabled {
   overflow: hidden;
 }
 
+.mobile-dashboard-topbar,
+.mobile-dashboard-drawer-backdrop {
+  display: none;
+}
+
 .sidebar {
   display: grid;
   grid-template-rows: auto auto auto;
@@ -3454,6 +3459,89 @@ button:disabled {
 
 .profile-chip small {
   color: var(--muted);
+}
+
+.mobile-dashboard-brand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.mobile-dashboard-brand .quotsy-brand-logo {
+  width: min(170px, 100%);
+}
+
+.mobile-dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-menu-toggle {
+  min-width: 72px;
+  justify-content: center;
+}
+
+.mobile-dashboard-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 90;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.mobile-dashboard-drawer {
+  width: min(82vw, 320px);
+  height: 100%;
+  border-radius: 0;
+  border-left: 0;
+  border-top: 0;
+  border-bottom: 0;
+  padding: 16px 12px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 14px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.94), rgba(247, 241, 236, 0.98));
+}
+
+.mobile-drawer-user {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, white);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.8);
+}
+
+.mobile-drawer-user strong {
+  font-size: 0.96rem;
+  line-height: 1.15;
+}
+
+.mobile-drawer-user span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.mobile-drawer-nav {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.mobile-drawer-nav .nav-item {
+  height: 42px;
+  font-size: 13px;
+}
+
+.mobile-drawer-logout {
+  width: 100%;
+  justify-content: center;
+  min-height: 40px;
+  font-weight: 700;
 }
 
 .theme-select {
@@ -4825,6 +4913,15 @@ button:disabled {
   flex-wrap: nowrap;
 }
 
+.order-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.order-mobile-list {
+  display: none;
+}
+
 .order-action-btn {
   min-width: 0;
   padding: 6px 10px;
@@ -4841,6 +4938,90 @@ button:disabled {
   width: 42px;
   justify-content: center;
   padding: 6px 0;
+}
+
+.order-mobile-card {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, #dbe3f4);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 255, 0.94));
+  padding: 10px 10px 9px;
+  display: grid;
+  gap: 6px;
+}
+
+.order-mobile-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.order-mobile-qtn {
+  font-size: 13px;
+  text-align: left;
+  max-width: 78%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.order-mobile-date {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.order-mobile-customer {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--text) 90%, #374151);
+  line-height: 1.25;
+}
+
+.order-mobile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.order-mobile-meta strong {
+  font-size: 13px;
+}
+
+.order-mobile-meta span {
+  color: var(--muted);
+}
+
+.order-mobile-meta-muted {
+  font-size: 11px;
+}
+
+.order-mobile-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.order-mobile-actions .order-action-btn {
+  min-height: 30px;
+  font-size: 11px;
+  padding: 4px 6px;
+  justify-content: center;
+}
+
+@media (max-width: 960px) {
+  .order-table-wrap {
+    display: none;
+  }
+
+  .order-mobile-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 6px;
+  }
 }
 
 .pagination-bar {
@@ -6993,10 +7174,59 @@ button:disabled {
   .dashboard-shell {
     width: calc(100% - 20px);
     margin: 10px auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: calc(100vh - 20px);
   }
 
   .sidebar {
-    max-height: 320px;
+    display: none;
+  }
+
+  .mobile-dashboard-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 90%, white);
+    background: rgba(255, 252, 249, 0.96);
+  }
+
+  .mobile-dashboard-topbar .notifications-btn {
+    min-width: 0;
+    padding: 6px 10px;
+    box-shadow: none;
+  }
+
+  .mobile-dashboard-drawer-backdrop {
+    display: flex;
+  }
+
+  .workspace {
+    padding: 10px 12px 14px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    padding-bottom: 8px;
+  }
+
+  .topbar .top-actions {
+    display: none;
+  }
+
+  .topbar-main-seller {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .topbar-intro h1 {
+    font-size: 1.24rem;
+  }
+
+  .search-wrap input {
+    width: 100%;
   }
 
   .spotlight-card,

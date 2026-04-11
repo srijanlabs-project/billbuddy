@@ -243,52 +243,91 @@ export default function OrdersPage(props) {
           <button type="button" className="ghost-btn order-export-trigger-btn" onClick={openExportModal}>Download Excel</button>
         </div>
       </div>
-      <table className="data-table order-table">
-        <thead>
-          <tr>
-            <th>Sr</th>
-            <th>Quotation #</th>
-            <th>Customer</th>
-            <th>Amount</th>
-            <th>Date</th>
-            <th>Created by</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pagedOrders.map((order, index) => (
-            <tr key={order.id}>
-              <td>{(orderPage - 1) * PAGE_SIZE + index + 1}</td>
-              <td><button type="button" className="link-btn" onClick={() => handleOpenOrderDetails(order.id)}>{formatQuotationLabel(order)}</button></td>
-              <td>{order.firm_name || order.customer_name}</td>
-              <td>{formatCurrency(order.total_amount)}</td>
-              <td>
-                <div>{formatDisplayDate(order.created_at)}</div>
-                <small style={{ color: "#64748b" }}>Delivery: {formatDisplayDate(order.delivery_date)}</small>
-              </td>
-              <td>{getCreatedByLabel(order)}</td>
-              <td>
-                <div className="order-actions">
-                  <button type="button" className="ghost-btn order-action-btn" onClick={() => handleOpenOrderDetails(order.id)}>View</button>
-                  {canDownloadQuotationPdf && (
-                    <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
-                  )}
-                  {canEditQuotation ? (
-                    <button
-                      type="button"
-                      className="ghost-btn order-action-btn"
-                      onClick={() => handleArchiveQuotation(order.id)}
-                      title="Archive quotation"
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              </td>
+      <div className="order-table-wrap">
+        <table className="data-table order-table">
+          <thead>
+            <tr>
+              <th>Sr</th>
+              <th>Quotation #</th>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Date</th>
+              <th>Created by</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {pagedOrders.map((order, index) => (
+              <tr key={order.id}>
+                <td>{(orderPage - 1) * PAGE_SIZE + index + 1}</td>
+                <td><button type="button" className="link-btn" onClick={() => handleOpenOrderDetails(order.id)}>{formatQuotationLabel(order)}</button></td>
+                <td>{order.firm_name || order.customer_name}</td>
+                <td>{formatCurrency(order.total_amount)}</td>
+                <td>
+                  <div>{formatDisplayDate(order.created_at)}</div>
+                  <small style={{ color: "#64748b" }}>Delivery: {formatDisplayDate(order.delivery_date)}</small>
+                </td>
+                <td>{getCreatedByLabel(order)}</td>
+                <td>
+                  <div className="order-actions">
+                    <button type="button" className="ghost-btn order-action-btn" onClick={() => handleOpenOrderDetails(order.id)}>View</button>
+                    {canDownloadQuotationPdf && (
+                      <button type="button" className="ghost-btn order-action-btn icon-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
+                    )}
+                    {canEditQuotation ? (
+                      <button
+                        type="button"
+                        className="ghost-btn order-action-btn"
+                        onClick={() => handleArchiveQuotation(order.id)}
+                        title="Archive quotation"
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="order-mobile-list">
+        {pagedOrders.map((order, index) => (
+          <article key={`mobile-${order.id}`} className="order-mobile-card">
+            <div className="order-mobile-head">
+              <button type="button" className="link-btn order-mobile-qtn" onClick={() => handleOpenOrderDetails(order.id)}>
+                {formatQuotationLabel(order)}
+              </button>
+              <span className="order-mobile-date">{formatDisplayDate(order.created_at)}</span>
+            </div>
+            <p className="order-mobile-customer">{order.firm_name || order.customer_name || "-"}</p>
+            <div className="order-mobile-meta">
+              <strong>{formatCurrency(order.total_amount)}</strong>
+              <span>Delivery: {formatDisplayDate(order.delivery_date)}</span>
+            </div>
+            <div className="order-mobile-meta order-mobile-meta-muted">
+              <span>#{(orderPage - 1) * PAGE_SIZE + index + 1}</span>
+              <span>By {getCreatedByLabel(order)}</span>
+            </div>
+            <div className="order-mobile-actions">
+              <button type="button" className="ghost-btn order-action-btn" onClick={() => handleOpenOrderDetails(order.id)}>View</button>
+              {canDownloadQuotationPdf ? (
+                <button type="button" className="ghost-btn order-action-btn" onClick={() => handleDownloadQuotation(order.id)} title="Download PDF">PDF</button>
+              ) : null}
+              {canEditQuotation ? (
+                <button
+                  type="button"
+                  className="ghost-btn order-action-btn"
+                  onClick={() => handleArchiveQuotation(order.id)}
+                  title="Archive quotation"
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </div>
       {renderPagination(orderPage, setOrderPage, filteredOrders.length)}
 
       {showExportModal ? (
