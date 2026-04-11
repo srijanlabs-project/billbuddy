@@ -5170,9 +5170,8 @@ function App() {
   }
 
   useEffect(() => {
-    if (!showMobileDrawer) return;
-    setShowMobileDrawer(false);
-  }, [activeModule, showMobileDrawer]);
+    setShowMobileDrawer((current) => (current ? false : current));
+  }, [activeModule]);
 
   function handleOpenEditUser(user) {
     if (!user || !canEditUser) return;
