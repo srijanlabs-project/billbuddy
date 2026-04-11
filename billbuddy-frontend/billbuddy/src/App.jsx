@@ -7758,6 +7758,10 @@ function App() {
           />
         )}
 
+        <footer className="workspace-site-footer">
+          © 2026 Quotsy by Srijan Labs
+        </footer>
+
         <QuotationWizardModal
           showMessageSimulatorModal={showMessageSimulatorModal}
           closeQuotationWizard={closeQuotationWizard}

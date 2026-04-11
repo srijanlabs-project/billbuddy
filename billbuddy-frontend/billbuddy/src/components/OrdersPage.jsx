@@ -234,10 +234,11 @@ export default function OrdersPage(props) {
       <div className="section-head">
         <h3>Quotation Tracker</h3>
         <div className="toolbar-controls">
-          <span>{filteredOrders.length} total</span>
+          <span className="order-total-count">{filteredOrders.length} total</span>
           {canCreateQuotation ? (
             <button type="button" className="action-btn compact-btn" onClick={() => openQuotationWizard()}>
-              Create Quotation
+              <span className="order-create-label-desktop">Create Quotation</span>
+              <span className="order-create-label-mobile">Create</span>
             </button>
           ) : null}
           <button type="button" className="ghost-btn order-export-trigger-btn" onClick={openExportModal}>Download Excel</button>
@@ -303,11 +304,9 @@ export default function OrdersPage(props) {
             <p className="order-mobile-customer">{order.firm_name || order.customer_name || "-"}</p>
             <div className="order-mobile-meta">
               <strong>{formatCurrency(order.total_amount)}</strong>
-              <span>Delivery: {formatDisplayDate(order.delivery_date)}</span>
             </div>
             <div className="order-mobile-meta order-mobile-meta-muted">
               <span>#{(orderPage - 1) * PAGE_SIZE + index + 1}</span>
-              <span>By {getCreatedByLabel(order)}</span>
             </div>
             <div className="order-mobile-actions">
               <button type="button" className="ghost-btn order-action-btn" onClick={() => handleOpenOrderDetails(order.id)}>View</button>

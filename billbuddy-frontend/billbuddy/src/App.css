@@ -4922,6 +4922,10 @@ button:disabled {
   display: none;
 }
 
+.order-create-label-mobile {
+  display: none;
+}
+
 .order-action-btn {
   min-width: 0;
   padding: 6px 10px;
@@ -5012,6 +5016,15 @@ button:disabled {
   justify-content: center;
 }
 
+.workspace-site-footer {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 90%, #dde5f3);
+  color: var(--muted);
+  text-align: center;
+  font-size: 11px;
+}
+
 @media (max-width: 960px) {
   .order-table-wrap {
     display: none;
@@ -5021,6 +5034,18 @@ button:disabled {
     display: grid;
     gap: 8px;
     margin-top: 6px;
+  }
+
+  .order-total-count {
+    display: none;
+  }
+
+  .order-create-label-desktop {
+    display: none;
+  }
+
+  .order-create-label-mobile {
+    display: inline;
   }
 }
 
@@ -8796,5 +8821,51 @@ h3 {
   .section-head {
     flex-direction: column;
     align-items: flex-start;
+  }
+}
+
+@media (max-width: 960px) {
+  .dashboard-shell {
+    width: calc(100% - 8px);
+    margin: 4px auto;
+    border-radius: 12px;
+  }
+
+  .workspace {
+    padding: 8px 8px 12px;
+    gap: 10px;
+  }
+
+  .module-placeholder,
+  .settings-card,
+  .table-card,
+  .glass-panel {
+    border-radius: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .section-head {
+    gap: 8px;
+  }
+
+  .section-head .toolbar-controls {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .seller-config-workspace,
+  .settings-workspace {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .seller-config-workspace .data-table,
+  .seller-config-workspace .seller-config-quotation-table,
+  .settings-workspace .data-table {
+    min-width: 760px;
   }
 }
