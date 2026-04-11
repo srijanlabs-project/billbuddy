@@ -2164,7 +2164,6 @@ function PublicPageHeader({ activePath }) {
   const links = [
     { href: "/", label: "Quotsy Home" },
     { href: "/features", label: "Features" },
-    { href: "/features#comparison", label: "Comparison" },
     { href: "/user-guide", label: "User Guide" },
     { href: "/try-demo", label: "Start Demo" },
     { href: "/login", label: "Login" }
@@ -2191,6 +2190,44 @@ function PublicPageHeader({ activePath }) {
         </nav>
       </div>
     </header>
+  );
+}
+
+function PublicGlobalFooter() {
+  return (
+    <footer className="public-global-footer">
+      <div className="public-global-footer-inner">
+        <div className="public-global-footer-top">
+          <div className="public-global-footer-brand-block">
+            <div className="public-global-footer-brand-name">Srijan Labs.</div>
+            <p className="public-global-footer-brand-desc">
+              Building practical SaaS platforms for MSME digital systems, quotation workflows, and operational control.
+            </p>
+          </div>
+          <div className="public-global-footer-col">
+            <div className="public-global-footer-col-title">Products</div>
+            <div className="public-global-footer-links">
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">Quicksy</a>
+              <a href="/quotsy">Quotsy</a>
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">Stocksy</a>
+              <a href="https://www.srijanlabs.in/" target="_blank" rel="noreferrer">QuoteIQ</a>
+            </div>
+          </div>
+          <div className="public-global-footer-col">
+            <div className="public-global-footer-col-title">Connect</div>
+            <div className="public-global-footer-links">
+              <a href="/features">Features</a>
+              <a href="/user-guide">User Guide</a>
+              <a href="/lead">Contact</a>
+              <a href="/try-demo">Get Started</a>
+            </div>
+          </div>
+        </div>
+        <div className="public-global-footer-bottom">
+          <span className="public-global-footer-copy">(c) 2026 Srijan Labs. All rights reserved.</span>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -2238,6 +2275,7 @@ function PublicQuotsyLandingPage() {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -2294,21 +2332,12 @@ function PublicVisitorFaqPage() {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
 
-function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
-  const websitePlans = (Array.isArray(publicPlans) ? publicPlans : []).filter((plan) => Boolean(plan?.website_visible));
-  const comparisonPointers = Array.from(
-    new Set(
-      websitePlans
-        .flatMap((plan) => (Array.isArray(plan.website_pointers) ? plan.website_pointers : []))
-        .map((pointer) => String(pointer || "").trim())
-        .filter(Boolean)
-    )
-  );
-
+function PublicQuotsyFeaturesPage() {
   return (
     <div className="auth-wrap lead-capture-shell public-page-shell">
       <div className="app-ambience" aria-hidden="true">
@@ -2362,49 +2391,39 @@ function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
             ))}
           </div>
 
-          {websitePlans.length > 0 ? (
-            <div id="comparison" className="public-comparison-block">
-              <div className="auth-visitor-faq-head">
-                <p className="eyebrow">Plan Comparison</p>
-                <h3>Compare published Quotsy plans</h3>
-                <p>This table shows all website pointers configured in Platform Plans for plans marked as visible on website.</p>
-              </div>
-              <div className="public-comparison-table-wrap">
-                <table className="public-comparison-table">
-                  <thead>
-                    <tr>
-                      <th>Pointer</th>
-                      {websitePlans.map((plan) => <th key={plan.id}>{plan.plan_name}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td><strong>Price</strong></td>
-                      {websitePlans.map((plan) => (
-                        <td key={`${plan.id}-price`} className="comparison-fit-strong">
-                          {Number(plan.price || 0) > 0 ? formatCurrency(plan.price) : "Custom"}
-                        </td>
-                      ))}
-                    </tr>
-                    {comparisonPointers.map((pointer) => (
-                      <tr key={pointer}>
-                        <td><strong>{pointer}</strong></td>
-                        {websitePlans.map((plan) => {
-                          const planPointers = Array.isArray(plan.website_pointers) ? plan.website_pointers.map((row) => String(row || "").trim()) : [];
-                          const hasPointer = planPointers.includes(pointer);
-                          return (
-                            <td key={`${plan.id}-${pointer}`} className={hasPointer ? "comparison-fit-strong" : "comparison-fit-medium"}>
-                              {hasPointer ? "Yes" : "-"}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          <div id="comparison" className="public-comparison-block">
+            <div className="auth-visitor-faq-head">
+              <p className="eyebrow">Feature Comparison</p>
+              <h3>How Quotsy compares for quotation workflows</h3>
+              <p>A practical comparison focused on quotation-heavy use cases for MSME teams.</p>
             </div>
-          ) : null}
+            <div className="public-comparison-table-wrap">
+              <table className="public-comparison-table">
+                <thead>
+                  <tr>
+                    <th>Capability</th>
+                    <th>Quotsy</th>
+                    <th>Zoho</th>
+                    <th>Odoo</th>
+                    <th>Vyapar</th>
+                    <th>GoGST</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PUBLIC_QUOTSY_COMPARISON_ROWS.map((row) => (
+                    <tr key={row.feature}>
+                      <td><strong>{row.feature}</strong></td>
+                      <td className="comparison-fit-strong">{row.quotsy}</td>
+                      <td className="comparison-fit-medium">{row.zoho}</td>
+                      <td className="comparison-fit-medium">{row.odoo}</td>
+                      <td className="comparison-fit-medium">{row.vyapar}</td>
+                      <td className="comparison-fit-medium">{row.gogst}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
           <div className="public-feature-footer-note">
             <strong>Where Quotsy stands out</strong>
@@ -2413,6 +2432,7 @@ function PublicQuotsyFeaturesPage({ publicPlans = [] }) {
         </section>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -2860,6 +2880,7 @@ function PublicDemoSignupPage({
         </div>
       </div>
       </div>
+      <PublicGlobalFooter />
     </div>
   );
 }
@@ -3042,6 +3063,7 @@ function PublicLoginPage({
         </div>
       </div>
       </div>
+      <PublicGlobalFooter />
       {errorMessage && <div className="error-toast">{errorMessage}</div>}
     </div>
   );
