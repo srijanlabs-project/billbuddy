@@ -1025,6 +1025,7 @@ export default function ConfigurationStudio(props) {
           {sellerConfigSaving ? "Saving..." : "Save Draft"}
         </button>
       </div>
+      <footer className="workspace-site-footer">© 2026 Quotsy by Srijan Labs</footer>
     </section>
   );
 }

@@ -117,6 +117,36 @@ export default function SubscriptionsPage(props) {
         </tbody>
       </table>
       </div>
+      <div className="subscriptions-mobile-list">
+        {filteredSubscriptions.length === 0 ? (
+          <p className="muted">No subscriptions found.</p>
+        ) : (
+          filteredSubscriptions.map((subscription) => (
+            <article
+              key={`mobile-subscription-${subscription.id}`}
+              className="subscriptions-mobile-row"
+              onClick={isPlatformAdmin ? () => openSubscriptionDetail({
+                id: subscription.seller_id,
+                name: subscription.seller_name,
+                seller_code: subscription.seller_code
+              }) : undefined}
+            >
+              <div className="subscriptions-mobile-head">
+                <strong>{isPlatformAdmin ? (subscription.seller_name || "-") : `Sub #${subscription.id}`}</strong>
+                <span className={`badge ${subscription.status === "active" ? "success" : "pending"}`}>{subscription.status || "-"}</span>
+              </div>
+              <div className="subscriptions-mobile-grid">
+                {isPlatformAdmin ? <div><span>Seller Code</span><strong>{subscription.seller_code || "-"}</strong></div> : null}
+                <div><span>Plan</span><strong>{subscription.plan_name || "-"}</strong></div>
+                <div><span>Plan Code</span><strong>{subscription.plan_code || "-"}</strong></div>
+                <div><span>Trial End</span><strong>{formatDateIST(subscription.trial_end_at)}</strong></div>
+                <div><span>Start</span><strong>{formatDateIST(subscription.start_date)}</strong></div>
+                <div><span>End</span><strong>{formatDateIST(subscription.end_date)}</strong></div>
+              </div>
+            </article>
+          ))
+        )}
+      </div>
     </section>
   );
 }

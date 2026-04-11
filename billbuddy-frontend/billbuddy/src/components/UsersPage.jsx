@@ -193,96 +193,98 @@ export default function UsersPage(props) {
       ) : null}
       <div className="user-grid">
         <div>
-          <table className="data-table">
-            <thead>
-              {isPlatformAdmin && platformUserTab === "seller_admin" ? (
-                <tr>
-                  <th>Sr.</th>
-                  <th>Name</th>
-                  <th>Seller</th>
-                  <th>Role</th>
-                  <th>Status</th>
-                  <th>Lock</th>
-                  <th>Action</th>
-                </tr>
-              ) : (
-                <tr>
-                  <th>Sr.</th>
-                  <th>Name</th>
-                  <th>Mobile</th>
-                  <th>Role</th>
-                  <th>Approval Role</th>
-                  <th>Limit</th>
-                  <th>Approver</th>
-                  <th>Status</th>
-                  <th>Lock</th>
-                  <th>Actions</th>
-                </tr>
-              )}
-            </thead>
-            <tbody>
-              {visiblePagedUsers.map((user, index) => (
-                <tr key={user.id}>
-                  <td>{(userPage - 1) * PAGE_SIZE + index + 1}</td>
-                  <td>{user.name}</td>
-                  {isPlatformAdmin && platformUserTab === "seller_admin" ? (
-                    <td>
-                      {(() => {
-                        const sellerInfo = sellerNameById.get(Number(user.seller_id || 0));
-                        if (!sellerInfo) return "-";
-                        return `${sellerInfo.name}${sellerInfo.code ? ` (${sellerInfo.code})` : ""}`;
-                      })()}
-                    </td>
-                  ) : (
-                    <td>{user.mobile}</td>
-                  )}
-                  <td>{user.role_name || "-"}</td>
-                  {isPlatformAdmin && platformUserTab === "seller_admin" ? null : (
-                    <>
+          <div className="users-table-wrap">
+            <table className="data-table">
+              <thead>
+                {isPlatformAdmin && platformUserTab === "seller_admin" ? (
+                  <tr>
+                    <th>Sr.</th>
+                    <th>Name</th>
+                    <th>Seller</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Lock</th>
+                    <th>Action</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th>Sr.</th>
+                    <th>Name</th>
+                    <th>Mobile</th>
+                    <th>Role</th>
+                    <th>Approval Role</th>
+                    <th>Limit</th>
+                    <th>Approver</th>
+                    <th>Status</th>
+                    <th>Lock</th>
+                    <th>Actions</th>
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {visiblePagedUsers.map((user, index) => (
+                  <tr key={user.id}>
+                    <td>{(userPage - 1) * PAGE_SIZE + index + 1}</td>
+                    <td>{user.name}</td>
+                    {isPlatformAdmin && platformUserTab === "seller_admin" ? (
                       <td>
-                        <span className="badge neutral">{String(user.approval_mode || "requester").replace(/^\w/, (letter) => letter.toUpperCase())}</span>
+                        {(() => {
+                          const sellerInfo = sellerNameById.get(Number(user.seller_id || 0));
+                          if (!sellerInfo) return "-";
+                          return `${sellerInfo.name}${sellerInfo.code ? ` (${sellerInfo.code})` : ""}`;
+                        })()}
                       </td>
-                      <td>{Number(user.approval_limit_amount || 0).toLocaleString("en-IN")}</td>
-                      <td>{user.assigned_approver?.name || "-"}</td>
-                    </>
-                  )}
-                  <td><span className={`badge ${user.status ? "success" : "pending"}`}>{user.status ? "Active" : "Inactive"}</span></td>
-                  <td>
-                    {auth.user?.isPlatformAdmin ? (
-                      <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleLockToggle(user)}>{user.locked ? "Unlock" : "Lock"}</button>
                     ) : (
-                      <span>{user.locked ? "Locked" : "Open"}</span>
+                      <td>{user.mobile}</td>
                     )}
-                  </td>
-                  <td>
-                    <div className="user-row-actions">
-                      {canEditUser ? (
-                        <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleOpenEditUser(user)}>Edit</button>
-                      ) : null}
-                      {canEditUser && (!isPlatformAdmin || isSellerAdminRole(user.role_name)) ? (
-                        <button
-                          className="ghost-btn compact-btn user-row-btn"
-                          type="button"
-                          title="Reset Password"
-                          onClick={() => handleResetUserPassword(user)}
-                        >
-                          Reset
-                        </button>
-                      ) : null}
-                      {!canEditUser && !isPlatformAdmin ? <span>-</span> : null}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {visiblePagedUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={isPlatformAdmin && platformUserTab === "seller_admin" ? 7 : 10}>
-                    No users found for selected tab.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+                    <td>{user.role_name || "-"}</td>
+                    {isPlatformAdmin && platformUserTab === "seller_admin" ? null : (
+                      <>
+                        <td>
+                          <span className="badge neutral">{String(user.approval_mode || "requester").replace(/^\w/, (letter) => letter.toUpperCase())}</span>
+                        </td>
+                        <td>{Number(user.approval_limit_amount || 0).toLocaleString("en-IN")}</td>
+                        <td>{user.assigned_approver?.name || "-"}</td>
+                      </>
+                    )}
+                    <td><span className={`badge ${user.status ? "success" : "pending"}`}>{user.status ? "Active" : "Inactive"}</span></td>
+                    <td>
+                      {auth.user?.isPlatformAdmin ? (
+                        <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleLockToggle(user)}>{user.locked ? "Unlock" : "Lock"}</button>
+                      ) : (
+                        <span>{user.locked ? "Locked" : "Open"}</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="user-row-actions">
+                        {canEditUser ? (
+                          <button className="ghost-btn compact-btn user-row-btn" type="button" onClick={() => handleOpenEditUser(user)}>Edit</button>
+                        ) : null}
+                        {canEditUser && (!isPlatformAdmin || isSellerAdminRole(user.role_name)) ? (
+                          <button
+                            className="ghost-btn compact-btn user-row-btn"
+                            type="button"
+                            title="Reset Password"
+                            onClick={() => handleResetUserPassword(user)}
+                          >
+                            Reset
+                          </button>
+                        ) : null}
+                        {!canEditUser && !isPlatformAdmin ? <span>-</span> : null}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {visiblePagedUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={isPlatformAdmin && platformUserTab === "seller_admin" ? 7 : 10}>
+                      No users found for selected tab.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
           {renderPagination(userPage, setUserPage, visibleUsers.length)}
         </div>
       </div>

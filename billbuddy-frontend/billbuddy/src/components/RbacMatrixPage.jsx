@@ -232,45 +232,47 @@ export default function RbacMatrixPage({ isPlatformAdmin = false }) {
             <h3>{group.title}</h3>
             <span>{group.permissions.length} permission(s)</span>
           </div>
-          <table className="data-table rbac-table">
-            <thead>
-              <tr>
-                <th>Permission Key</th>
-                <th>Description</th>
-                {roleCards.map((role) => (
-                  <th key={role.key}>{role.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {group.permissions.map((permission) => (
-                <tr key={permission.key}>
-                  <td><code>{permission.key}</code></td>
-                  <td>{permission.label}</td>
-                  {roleCards.map((role) => {
-                    const allowed = permissionGranted(currentMatrix[role.key], permission.key);
-                    const canEditCell = Boolean(isPlatformAdmin && role.isEditable);
-                    return (
-                      <td key={`${permission.key}-${role.key}`}>
-                        {canEditCell ? (
-                          <label className="rbac-toggle">
-                            <input
-                              type="checkbox"
-                              checked={allowed}
-                              onChange={(event) => updateDraftPermission(role.key, permission.key, event.target.checked)}
-                            />
-                            <span>{allowed ? "Allowed" : "Blocked"}</span>
-                          </label>
-                        ) : (
-                          <AccessCell allowed={allowed} />
-                        )}
-                      </td>
-                    );
-                  })}
+          <div className="rbac-table-wrap">
+            <table className="data-table rbac-table">
+              <thead>
+                <tr>
+                  <th>Permission Key</th>
+                  <th>Description</th>
+                  {roleCards.map((role) => (
+                    <th key={role.key}>{role.label}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {group.permissions.map((permission) => (
+                  <tr key={permission.key}>
+                    <td><code>{permission.key}</code></td>
+                    <td>{permission.label}</td>
+                    {roleCards.map((role) => {
+                      const allowed = permissionGranted(currentMatrix[role.key], permission.key);
+                      const canEditCell = Boolean(isPlatformAdmin && role.isEditable);
+                      return (
+                        <td key={`${permission.key}-${role.key}`}>
+                          {canEditCell ? (
+                            <label className="rbac-toggle">
+                              <input
+                                type="checkbox"
+                                checked={allowed}
+                                onChange={(event) => updateDraftPermission(role.key, permission.key, event.target.checked)}
+                              />
+                              <span>{allowed ? "Allowed" : "Blocked"}</span>
+                            </label>
+                          ) : (
+                            <AccessCell allowed={allowed} />
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       ))}
 

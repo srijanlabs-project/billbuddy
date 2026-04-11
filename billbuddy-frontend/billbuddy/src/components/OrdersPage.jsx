@@ -296,14 +296,18 @@ export default function OrdersPage(props) {
         {pagedOrders.map((order, index) => (
           <article key={`mobile-${order.id}`} className="order-mobile-card">
             <div className="order-mobile-head">
-              <button type="button" className="link-btn order-mobile-qtn" onClick={() => handleOpenOrderDetails(order.id)}>
-                {formatQuotationLabel(order)}
-              </button>
+              <div className="order-mobile-qtn-wrap">
+                <span className="order-mobile-sr">{(orderPage - 1) * PAGE_SIZE + index + 1}.</span>
+                <button type="button" className="link-btn order-mobile-qtn" onClick={() => handleOpenOrderDetails(order.id)}>
+                  {formatQuotationLabel(order)}
+                </button>
+              </div>
               <span className="order-mobile-date">{formatDisplayDate(order.created_at)}</span>
             </div>
             <p className="order-mobile-customer">{order.firm_name || order.customer_name || "-"}</p>
             <div className="order-mobile-meta">
               <strong>{formatCurrency(order.total_amount)}</strong>
+              <span>{formatDisplayDate(order.delivery_date)}</span>
             </div>
             <div className="order-mobile-meta order-mobile-meta-muted">
               <span>#{(orderPage - 1) * PAGE_SIZE + index + 1}</span>

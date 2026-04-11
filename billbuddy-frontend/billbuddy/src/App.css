@@ -4960,10 +4960,23 @@ button:disabled {
   gap: 8px;
 }
 
+.order-mobile-qtn-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.order-mobile-sr {
+  color: var(--muted);
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+
 .order-mobile-qtn {
   font-size: 13px;
   text-align: left;
-  max-width: 78%;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5016,6 +5029,88 @@ button:disabled {
   justify-content: center;
 }
 
+.product-table-wrap,
+.users-table-wrap,
+.rbac-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.product-catalogue-table,
+.user-grid .data-table,
+.rbac-table {
+  min-width: 760px;
+}
+
+.customers-mobile-list,
+.subscriptions-mobile-list {
+  display: none;
+}
+
+.customers-mobile-row,
+.subscriptions-mobile-row {
+  border: 1px solid color-mix(in srgb, var(--border) 88%, #dbe3f4);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247, 250, 255, 0.94));
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.customers-mobile-primary {
+  display: grid;
+  gap: 3px;
+}
+
+.customers-mobile-primary strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.customers-mobile-primary span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.customers-mobile-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.subscriptions-mobile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.subscriptions-mobile-head strong {
+  font-size: 13px;
+}
+
+.subscriptions-mobile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.subscriptions-mobile-grid div {
+  display: grid;
+  gap: 2px;
+}
+
+.subscriptions-mobile-grid span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.subscriptions-mobile-grid strong {
+  font-size: 12px;
+  color: var(--text);
+  line-height: 1.2;
+}
+
 .workspace-site-footer {
   margin-top: 10px;
   padding-top: 8px;
@@ -5046,6 +5141,19 @@ button:disabled {
 
   .order-create-label-mobile {
     display: inline;
+    color: #ffffff !important;
+  }
+
+  .customers-table-wrap,
+  .subscriptions-table-wrap {
+    display: none;
+  }
+
+  .customers-mobile-list,
+  .subscriptions-mobile-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 6px;
   }
 }
 
@@ -7271,6 +7379,22 @@ button:disabled {
   }
 
   .labs-nav {
+    display: none;
+  }
+
+  .public-page-nav {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    gap: 14px;
+  }
+
+  .public-page-nav::-webkit-scrollbar {
     display: none;
   }
 
