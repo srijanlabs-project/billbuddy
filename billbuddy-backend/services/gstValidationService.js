@@ -35,13 +35,19 @@ function collectAddressFromParts(parts = []) {
 
 function parseGstProviderPayload(payload = {}) {
   const root = payload || {};
-  const data = root.data || root.result || root.taxpayer || root.gstin || root;
+  const providerData = root.data || root.result || root.taxpayer || root.gstin || root;
+  const data = providerData && typeof providerData === "object" && providerData.data && typeof providerData.data === "object"
+    ? providerData.data
+    : providerData;
 
   const validityCandidates = [
     root.flag,
     root.valid,
     root.isValid,
+    root.status,
     root.success,
+    root.status_cd,
+    providerData?.status_cd,
     data.valid,
     data.isValid,
     data.status,
@@ -51,7 +57,7 @@ function parseGstProviderPayload(payload = {}) {
   const isValid = validityCandidates.some((entry) => {
     if (entry === true) return true;
     const normalized = String(entry || "").trim().toLowerCase();
-    return ["active", "valid", "yes", "true", "1"].includes(normalized);
+    return ["active", "valid", "yes", "true", "1", "success", "ok", "y"].includes(normalized);
   });
 
   const legalName = firstNonEmpty(
@@ -122,12 +128,31 @@ function buildGstRequestUrl(baseUrl, gstNumber, apiKey) {
       .replaceAll("{api-key}", encodeURIComponent(apiKey))
       .replaceAll("{apiKey}", encodeURIComponent(apiKey));
   }
-  const url = new URL(baseUrl);
+  return baseUrl;
+}
+
+function appendGstQueryParam(urlInput, gstNumber) {
   const queryParam = String(process.env.GST_VALIDATION_QUERY_PARAM || "gstin").trim() || "gstin";
+  const url = new URL(urlInput);
   if (!url.searchParams.has(queryParam)) {
     url.searchParams.set(queryParam, gstNumber);
   }
   return url.toString();
+}
+
+function resolveAuthHeaderValue(apiKey) {
+  const explicitAuthorization = String(
+    process.env.GST_VALIDATION_AUTHORIZATION
+    || process.env.GST_VALIDATION_AUTH_TOKEN
+    || ""
+  ).trim();
+  if (explicitAuthorization) return explicitAuthorization;
+
+  const authScheme = String(process.env.GST_VALIDATION_AUTH_SCHEME || "Bearer").trim();
+  if (!authScheme || authScheme.toLowerCase() === "none") {
+    return apiKey;
+  }
+  return `${authScheme} ${apiKey}`;
 }
 
 async function validateAndFetchGstProfile(gstNumber) {
@@ -164,24 +189,30 @@ async function validateAndFetchGstProfile(gstNumber) {
   }
 
   const method = String(process.env.GST_VALIDATION_METHOD || "GET").trim().toUpperCase();
-  const requestUrl = buildGstRequestUrl(endpoint, normalizedGst, apiKey);
+  let requestUrl = buildGstRequestUrl(endpoint, normalizedGst, apiKey);
+  if (method === "GET") {
+    requestUrl = appendGstQueryParam(requestUrl, normalizedGst);
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), Number(process.env.GST_VALIDATION_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
 
   try {
+    const apiVersion = String(process.env.GST_VALIDATION_API_VERSION || "").trim();
     const headers = {
       "Accept": "application/json",
       "x-api-key": apiKey,
-      "apikey": apiKey,
-      "Authorization": `Bearer ${apiKey}`
+      "authorization": resolveAuthHeaderValue(apiKey)
     };
+    if (apiVersion) {
+      headers["x-api-version"] = apiVersion;
+    }
     if (method !== "GET") {
       headers["Content-Type"] = "application/json";
     }
 
     const body = method === "GET"
       ? undefined
-      : JSON.stringify({ gstin: normalizedGst, gstNumber: normalizedGst, gst: normalizedGst });
+      : JSON.stringify({ gstin: normalizedGst });
 
     const response = await fetch(requestUrl, {
       method,
