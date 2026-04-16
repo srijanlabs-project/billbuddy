@@ -98,49 +98,51 @@ export default function ProductsPage(props) {
           )}
         </div>
       </div>
-      <table className="data-table product-catalogue-table">
-        <thead>
-          <tr>
-            <th>Sr</th>
-            {catalogueTableFields.map((field) => (
-              <th key={field.id}>{field.label}</th>
-            ))}
-            <th>Source</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredProducts.length === 0 ? (
+      <div className="product-table-wrap">
+        <table className="data-table product-catalogue-table">
+          <thead>
             <tr>
-              <td colSpan={catalogueTableFields.length + 3} className="muted">No products found for selected catalogue source.</td>
+              <th>Sr</th>
+              {catalogueTableFields.map((field) => (
+                <th key={field.id}>{field.label}</th>
+              ))}
+              <th>Source</th>
+              <th>Action</th>
             </tr>
-          ) : (
-            pagedProducts.map((product, index) => (
-              <tr key={product.id}>
-                <td>{(productPage - 1) * PAGE_SIZE + index + 1}</td>
-                {catalogueTableFields.map((field) => (
-                  <td key={`${product.id}-${field.id}`}>{getProductFieldDisplayValue(product, field.normalizedKey || field.key)}</td>
-                ))}
-                <td>
-                  {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? "Secondary" : "Main"}
-                </td>
-                <td>
-                  {canEditProduct ? (
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                      <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
-                      {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? (
-                        <button type="button" className="table-link-btn" onClick={() => handleMoveProductToPrimary(product)}>Move to Main</button>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <span>-</span>
-                  )}
-                </td>
+          </thead>
+          <tbody>
+            {filteredProducts.length === 0 ? (
+              <tr>
+                <td colSpan={catalogueTableFields.length + 3} className="muted">No products found for selected catalogue source.</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              pagedProducts.map((product, index) => (
+                <tr key={product.id}>
+                  <td>{(productPage - 1) * PAGE_SIZE + index + 1}</td>
+                  {catalogueTableFields.map((field) => (
+                    <td key={`${product.id}-${field.id}`}>{getProductFieldDisplayValue(product, field.normalizedKey || field.key)}</td>
+                  ))}
+                  <td>
+                    {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? "Secondary" : "Main"}
+                  </td>
+                  <td>
+                    {canEditProduct ? (
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                        <button type="button" className="ghost-btn" onClick={() => handleEditProduct(product)}>Edit</button>
+                        {String(product.catalogue_source || "primary").toLowerCase() === "secondary" ? (
+                          <button type="button" className="table-link-btn" onClick={() => handleMoveProductToPrimary(product)}>Move to Main</button>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <span>-</span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
       {renderPagination(productPage, setProductPage, filteredProducts.length)}
 
       {showProductUploadModal && (

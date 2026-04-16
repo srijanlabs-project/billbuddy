@@ -65,49 +65,80 @@ export default function CustomersPage(props) {
           )}
         </div>
       </div>
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Sr</th>
-            <th>Name</th>
-            <th>Firm</th>
-            <th>Mobile</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {customers.length === 0 ? (
+      <div className="customers-table-wrap">
+        <table className="data-table">
+          <thead>
             <tr>
-              <td colSpan={5} className="muted">No customers found yet.</td>
+              <th>Sr</th>
+              <th>Name</th>
+              <th>Firm</th>
+              <th>Mobile</th>
+              <th>Actions</th>
             </tr>
-          ) : (
-            pagedCustomers.map((customer, index) => (
-              <tr key={customer.id}>
-                <td>{(customerPage - 1) * PAGE_SIZE + index + 1}</td>
-                <td>{customer.name}</td>
-                <td>{customer.firm_name || "-"}</td>
-                <td>{customer.mobile || "-"}</td>
-                <td>
-                  <button type="button" className="ghost-btn compact-btn" onClick={() => setSelectedCustomer(customer)}>
-                    View
-                  </button>
-                  {canEditCustomer ? (
-                    <button
-                      type="button"
-                      className="ghost-btn compact-btn"
-                      style={{ marginLeft: "8px" }}
-                      title="Archive customer"
-                      onClick={() => handleArchiveCustomer(customer.id)}
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </td>
+          </thead>
+          <tbody>
+            {customers.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="muted">No customers found yet.</td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              pagedCustomers.map((customer, index) => (
+                <tr key={customer.id}>
+                  <td>{(customerPage - 1) * PAGE_SIZE + index + 1}</td>
+                  <td>{customer.name}</td>
+                  <td>{customer.firm_name || "-"}</td>
+                  <td>{customer.mobile || "-"}</td>
+                  <td>
+                    <button type="button" className="ghost-btn compact-btn" onClick={() => setSelectedCustomer(customer)}>
+                      View
+                    </button>
+                    {canEditCustomer ? (
+                      <button
+                        type="button"
+                        className="ghost-btn compact-btn"
+                        style={{ marginLeft: "8px" }}
+                        title="Archive customer"
+                        onClick={() => handleArchiveCustomer(customer.id)}
+                      >
+                        Delete
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="customers-mobile-list">
+        {pagedCustomers.length === 0 ? (
+          <p className="muted">No customers found yet.</p>
+        ) : (
+          pagedCustomers.map((customer) => (
+            <article key={`mobile-customer-${customer.id}`} className="customers-mobile-row">
+              <div className="customers-mobile-primary">
+                <strong>{customer.firm_name || customer.name || "-"}</strong>
+                <span>{customer.mobile || "-"}</span>
+              </div>
+              <div className="customers-mobile-actions">
+                <button type="button" className="ghost-btn compact-btn" onClick={() => setSelectedCustomer(customer)}>
+                  View
+                </button>
+                {canEditCustomer ? (
+                  <button
+                    type="button"
+                    className="ghost-btn compact-btn"
+                    title="Archive customer"
+                    onClick={() => handleArchiveCustomer(customer.id)}
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          ))
+        )}
+      </div>
       {renderPagination(customerPage, setCustomerPage, customers.length)}
 
       {selectedCustomer ? (

@@ -37,6 +37,19 @@ Set these environment variables in `.env`:
 - `GST_VALIDATION_METHOD` (default: `GET`)
 - `GST_VALIDATION_QUERY_PARAM` (default: `gstin`)
 - `GST_VALIDATION_TIMEOUT_MS` (default: `12000`)
+- `GST_VALIDATION_AUTHORIZATION` (optional explicit `authorization` header value, e.g. sandbox JWT)
+- `GST_VALIDATION_AUTH_SCHEME` (default: `Bearer`, set `none` to send raw API key)
+- `GST_VALIDATION_API_VERSION` (optional, sends `x-api-version` header)
+
+Sandbox.co.in example:
+
+```
+GST_VALIDATION_API_URL=https://api.sandbox.co.in/gst/compliance/public/gstin/search
+GST_VALIDATION_API_KEY=YOUR_API_KEY
+GST_VALIDATION_METHOD=POST
+GST_VALIDATION_AUTHORIZATION=eyJ0eXAiOiJKV1QiLCJhbGc...
+GST_VALIDATION_API_VERSION=1.0
+```
 
 If customer GST is provided during customer creation, backend validates GST first and uses GST legal profile data for customer name/address.
 

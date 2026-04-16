@@ -2161,6 +2161,7 @@ const PUBLIC_QUOTSY_COMPARISON_ROWS = [
 ];
 
 function PublicPageHeader({ activePath }) {
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const links = [
     { href: "/", label: "Quotsy Home" },
     { href: "/features", label: "Features" },
@@ -2177,12 +2178,22 @@ function PublicPageHeader({ activePath }) {
             <img className="quotsy-brand-logo public-page-brand-logo" src={quotsyLogo} alt="Quotsy" />
           </div>
         </a>
-        <nav className="labs-nav public-page-nav" aria-label="Public page navigation">
+        <button
+          type="button"
+          className="public-nav-toggle"
+          aria-label="Toggle navigation"
+          aria-expanded={isMobileNavOpen}
+          onClick={() => setIsMobileNavOpen((current) => !current)}
+        >
+          Menu
+        </button>
+        <nav className={`labs-nav public-page-nav${isMobileNavOpen ? " is-open" : ""}`} aria-label="Public page navigation">
           {links.map((link) => (
           <a
             key={link.href}
             className={`public-page-nav-link${activePath === link.href ? " is-active" : ""}`}
             href={link.href}
+            onClick={() => setIsMobileNavOpen(false)}
           >
             {link.label}
           </a>
@@ -3503,6 +3514,7 @@ function App() {
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [cookieConsent, setCookieConsent] = useState(getStoredCookieConsent);
 
   const [activeModule, setActiveModule] = useState("Dashboard");
@@ -5094,6 +5106,27 @@ function App() {
     handleOpenOrderDetails(quotationId);
   }
 
+  function handleOpenNotifications() {
+    if (isPlatformAdmin) {
+      setActiveModule("Notifications");
+      return;
+    }
+    setShowSellerNotificationsModal(true);
+  }
+
+  function handleModuleNavigation(module) {
+    const setupLockMessage = getModuleSetupLockMessage(module);
+    if (setupLockMessage) {
+      setError(setupLockMessage);
+      return;
+    }
+    if (module === "Configuration Studio" && !isPlatformAdmin && seller) {
+      openSellerConfigurationStudio(seller);
+      return;
+    }
+    setActiveModule(module);
+  }
+
   async function handleSeedRoles() {
     try {
       await apiFetch("/api/roles/seed", { method: "POST" });
@@ -5146,6 +5179,10 @@ function App() {
       handleApiError(err);
     }
   }
+
+  useEffect(() => {
+    setShowMobileDrawer((current) => (current ? false : current));
+  }, [activeModule]);
 
   function handleOpenEditUser(user) {
     if (!user || !canEditUser) return;
@@ -7045,6 +7082,22 @@ function App() {
         <span className="shape shape-ring" />
         <span className="shape shape-panel" />
       </div>
+      <header className="mobile-dashboard-topbar">
+        <div className="mobile-dashboard-brand">
+          <img className="quotsy-brand-logo" src={sidebarBrandLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
+        </div>
+        <div className="mobile-dashboard-actions">
+          <button className="glass-btn notifications-btn" type="button" onClick={handleOpenNotifications}>
+            <span>Notifications</span>
+            {unreadNotificationsCount > 0 && (
+              <span className="notification-count-pill">{unreadNotificationsCount}</span>
+            )}
+          </button>
+          <button className="ghost-btn mobile-menu-toggle" type="button" onClick={() => setShowMobileDrawer(true)}>
+            Menu
+          </button>
+        </div>
+      </header>
       <aside className="sidebar glass-panel">
         <div className="brand-block">
           <img className="quotsy-brand-logo" src={sidebarBrandLogo} alt={isPlatformAdmin ? "Quotsy Platform" : "Quotsy"} />
@@ -7056,18 +7109,7 @@ function App() {
               key={module}
               type="button"
               className={`${activeModule === module ? "nav-item active" : "nav-item"}${isModuleSetupLocked(module) ? " locked" : ""}`}
-              onClick={() => {
-                const setupLockMessage = getModuleSetupLockMessage(module);
-                if (setupLockMessage) {
-                  setError(setupLockMessage);
-                  return;
-                }
-                if (module === "Configuration Studio" && !isPlatformAdmin && seller) {
-                  openSellerConfigurationStudio(seller);
-                  return;
-                }
-                setActiveModule(module);
-              }}
+              onClick={() => handleModuleNavigation(module)}
             >
               <span className="nav-mark" aria-hidden="true" />
               <span className="nav-label">{module === "Orders" ? "Quotation" : module}</span>
@@ -7104,6 +7146,44 @@ function App() {
           </div>
         )}
       </aside>
+
+      {showMobileDrawer ? (
+        <div className="mobile-dashboard-drawer-backdrop" onClick={() => setShowMobileDrawer(false)}>
+          <aside className="mobile-dashboard-drawer glass-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="mobile-drawer-user">
+              <strong>{auth.user?.name || "User"}</strong>
+              <span>{isPlatformAdmin ? "Platform Admin" : auth.user?.role || "Seller User"}</span>
+            </div>
+            <nav className="mobile-drawer-nav">
+              {currentModules.map((module) => (
+                <button
+                  key={`mobile-${module}`}
+                  type="button"
+                  className={`${activeModule === module ? "nav-item active" : "nav-item"}${isModuleSetupLocked(module) ? " locked" : ""}`}
+                  onClick={() => handleModuleNavigation(module)}
+                >
+                  <span className="nav-mark" aria-hidden="true" />
+                  <span className="nav-label">{module === "Orders" ? "Quotation" : module}</span>
+                  {isModuleSetupLocked(module) && <span className="badge pending">Setup</span>}
+                  {module === "Approvals" && pendingApprovalCount > 0 && (
+                    <span className="notification-count-pill">{pendingApprovalCount}</span>
+                  )}
+                </button>
+              ))}
+            </nav>
+            <button
+              className="ghost-btn mobile-drawer-logout"
+              type="button"
+              onClick={() => {
+                setShowMobileDrawer(false);
+                handleLogout();
+              }}
+            >
+              Logout
+            </button>
+          </aside>
+        </div>
+      ) : null}
 
       <div className="workspace">
       <header className="topbar">
@@ -7149,13 +7229,7 @@ function App() {
             <button
               className="glass-btn notifications-btn"
               type="button"
-              onClick={() => {
-                if (isPlatformAdmin) {
-                  setActiveModule("Notifications");
-                  return;
-                }
-                setShowSellerNotificationsModal(true);
-              }}
+              onClick={handleOpenNotifications}
             >
               Notifications
               {unreadNotificationsCount > 0 && (
@@ -7694,6 +7768,10 @@ function App() {
             requesterPendingApprovalCount={requesterPendingApprovalCount}
           />
         )}
+
+        <footer className="workspace-site-footer">
+          © 2026 Quotsy by Srijan Labs
+        </footer>
 
         <QuotationWizardModal
           showMessageSimulatorModal={showMessageSimulatorModal}
