@@ -2724,8 +2724,6 @@ function PublicDemoSignupPage({
       onSubmit={onSubmit}
       businessCategoryOptions={businessCategoryOptions}
       getBusinessSegments={getBusinessSegments}
-      forceLeadFlow
-      announcement="Demo account creation will start from April 15, 2026. Please share your details through this lead form and we will contact you."
     />
   );
   // eslint-disable-next-line no-unreachable
