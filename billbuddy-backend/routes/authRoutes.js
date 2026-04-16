@@ -97,6 +97,33 @@ function buildSellerCode(seedValue) {
   return `${normalized}-${suffix}`.slice(0, 30);
 }
 
+function buildMobileLoginCandidates(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return [];
+
+  const digits = raw.replace(/\D/g, "");
+  const candidates = new Set([raw]);
+
+  if (digits) {
+    candidates.add(digits);
+    candidates.add(`+${digits}`);
+  }
+
+  if (digits.length === 12 && digits.startsWith("91")) {
+    const local = digits.slice(-10);
+    candidates.add(local);
+    candidates.add(`+91${local}`);
+  }
+
+  if (digits.length === 11 && digits.startsWith("0")) {
+    const local = digits.slice(-10);
+    candidates.add(local);
+    candidates.add(`+91${local}`);
+  }
+
+  return Array.from(candidates).filter(Boolean);
+}
+
 async function buildAuthUserPayload(user) {
   const nextUser = {
     id: user.id,
@@ -437,10 +464,13 @@ router.post("/demo-signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { mobile, password, rememberMe = false } = req.body;
+    const submittedMobile = String(mobile || "").trim();
 
-    if (!mobile || !password) {
+    if (!submittedMobile || !password) {
       return res.status(400).json({ message: "mobile and password are required" });
     }
+
+    const mobileCandidates = buildMobileLoginCandidates(submittedMobile);
 
     const result = await pool.query(
       `SELECT u.id, u.name, u.mobile, u.password, u.status, u.locked, u.seller_id, u.is_platform_admin,
@@ -450,8 +480,16 @@ router.post("/login", async (req, res) => {
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
        LEFT JOIN sellers s ON s.id = u.seller_id
-       WHERE u.mobile = $1`,
-      [mobile]
+       WHERE u.mobile = ANY($1::text[])
+       ORDER BY
+         CASE
+           WHEN u.mobile = $2 THEN 0
+           WHEN regexp_replace(u.mobile, '\D', '', 'g') = $3 THEN 1
+           ELSE 2
+         END,
+         u.id ASC
+       LIMIT 1`,
+      [mobileCandidates, submittedMobile, submittedMobile.replace(/\D/g, "")]
     );
 
     if (result.rowCount === 0) {

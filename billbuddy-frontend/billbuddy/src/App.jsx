@@ -2724,8 +2724,6 @@ function PublicDemoSignupPage({
       onSubmit={onSubmit}
       businessCategoryOptions={businessCategoryOptions}
       getBusinessSegments={getBusinessSegments}
-      forceLeadFlow
-      announcement="Demo account creation will start from April 15, 2026. Please share your details through this lead form and we will contact you."
     />
   );
   // eslint-disable-next-line no-unreachable
@@ -5057,9 +5055,10 @@ function App() {
     setError("");
     setAuthNotice("");
     try {
+      const submittedMobile = String(loginForm.mobile || "").trim();
       const result = await apiFetch("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ ...loginForm, rememberMe })
+        body: JSON.stringify({ ...loginForm, mobile: submittedMobile, rememberMe })
       });
       saveAuth({ token: result.token, user: result.user, sessionExpiresAt: result.expiresAt || null }, rememberMe);
       setLoginForm({ mobile: "", password: "", otp: "" });
