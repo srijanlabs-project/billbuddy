@@ -17,14 +17,38 @@ function parseAllowedOrigins() {
   ];
 }
 
+function normalizeOrigin(origin) {
+  try {
+    const parsed = new URL(origin);
+    const protocol = String(parsed.protocol || "").toLowerCase();
+    const hostname = String(parsed.hostname || "").toLowerCase().replace(/^www\./, "");
+    const port = String(parsed.port || "");
+    return `${protocol}//${hostname}${port ? `:${port}` : ""}`;
+  } catch {
+    return String(origin || "").trim().toLowerCase().replace(/^www\./, "");
+  }
+}
+
 function buildCorsOptions() {
-  const allowedOrigins = new Set(parseAllowedOrigins());
+  const configuredOrigins = parseAllowedOrigins();
+  const allowedOrigins = new Set(configuredOrigins);
+  const normalizedAllowedOrigins = new Set(configuredOrigins.map((entry) => normalizeOrigin(entry)));
+
   return {
     exposedHeaders: ["Content-Disposition"],
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin) {
         return callback(null, true);
       }
+
+      if (allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+
+      if (normalizedAllowedOrigins.has(normalizeOrigin(origin))) {
+        return callback(null, true);
+      }
+
       return callback(new Error("Origin not allowed by CORS"));
     }
   };
