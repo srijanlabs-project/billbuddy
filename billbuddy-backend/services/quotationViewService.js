@@ -184,6 +184,28 @@ function getQuotationItemTotalValue(item = {}) {
   if (total !== null && total !== undefined && total !== "") {
     return Number.isFinite(Number(total)) ? Number(total) : 0;
   }
+  const customFields = item.custom_fields || item.customFields || {};
+  const totalCandidateKeys = [
+    "amount",
+    "total",
+    "total_price",
+    "line_amount_final",
+    "line_amount",
+    "line_amount_std",
+    "line_amount_sqft",
+    "line_amount_sqin"
+  ];
+  for (const key of totalCandidateKeys) {
+    const value = customFields[key];
+    if (value === undefined || value === null || value === "") continue;
+    if (Number.isFinite(Number(value))) return Number(value);
+  }
+  const fallbackCustom = Object.entries(customFields).find(([key, value]) => {
+    if (value === undefined || value === null || value === "") return false;
+    const normalized = normalizeItemDisplayKey(key);
+    return totalCandidateKeys.includes(normalized) && Number.isFinite(Number(value));
+  });
+  if (fallbackCustom) return Number(fallbackCustom[1]);
   return Number((getQuotationItemQuantityValue(item) * getQuotationItemRateValue(item)).toFixed(2));
 }
 

@@ -1661,7 +1661,7 @@ async function createQuotationWithItems(payload) {
     await createQuotationVersionSnapshot(client, {
       sellerId,
       quotation,
-      items: displayReadyItems,
+      items: computedLineItems,
       actorUserId: createdBy
     });
 

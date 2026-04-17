@@ -183,21 +183,22 @@ function resolveCategoryTemplateGroup(category) {
 
 function createBaseCatalogueFields() {
   return [
-    { key: "material_name", label: "Product / Service Name", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 1 },
+    { key: "material_name", label: "Material Name", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 1 },
     { key: "category", label: "Category", type: "dropdown", options: ["Sheet", "Product", "Services"], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 2 },
     { key: "sku", label: "SKU ID", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 3 },
-    { key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 90 },
-    { key: "limit_rate_edit", label: "Limit Rate Edit", type: "checkbox", options: [], required: false, visibleInList: false, uploadEnabled: false, displayOrder: 91 },
-    { key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false, displayOrder: 92 }
+    { key: "size", label: "Size", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true, displayOrder: 4 },
+    { key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true, displayOrder: 5 },
+    { key: "limit_rate_edit", label: "Limit Rate Edit", type: "checkbox", options: [], required: false, visibleInList: false, uploadEnabled: false, displayOrder: 6 },
+    { key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false, displayOrder: 7 }
   ];
 }
 
 function createBaseQuotationColumns() {
   return [
-    { key: "material_name", label: "Item", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, displayOrder: 1 },
-    { key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 80 },
-    { key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 81 },
-    { key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 82 }
+    { key: "material_name", label: "Material", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, displayOrder: 1 },
+    { key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 2 },
+    { key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 3 },
+    { key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, displayOrder: 4 }
   ];
 }
 
