@@ -5065,7 +5065,11 @@ function App() {
       setBootstrapRequired(false);
       setAuthReady(true);
     } catch (err) {
-      setError(err.message);
+      if (String(err?.message || "").toLowerCase().includes("failed to fetch")) {
+        setError("Unable to reach server. Please check internet/API URL and try again.");
+      } else {
+        setError(err.message);
+      }
     }
   }
 

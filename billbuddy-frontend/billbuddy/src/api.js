@@ -1,4 +1,18 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+function resolveApiBaseUrl() {
+  const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (configured) return configured;
+
+  if (typeof window !== "undefined") {
+    const host = String(window.location.hostname || "").toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "http://localhost:5000";
+    }
+  }
+
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 function getAuthToken() {
   const rawSession = sessionStorage.getItem("billbuddyAuth");
