@@ -521,14 +521,14 @@ router.post("/login", async (req, res) => {
         ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60 * 1000)
         : null;
 
-      await pool.query(
-        `UPDATE users
-         SET failed_login_attempts = $1,
-             last_failed_login_at = CURRENT_TIMESTAMP,
-             locked_until = CASE WHEN $2::boolean THEN $3 ELSE NULL END
-         WHERE id = $4`,
-        [nextFailedAttempts, shouldLock, lockUntil, user.id]
-      );
+        await pool.query(
+          `UPDATE users
+           SET failed_login_attempts = $1,
+               last_failed_login_at = CURRENT_TIMESTAMP,
+               locked_until = CASE WHEN $2::boolean THEN $3::timestamp ELSE NULL END
+           WHERE id = $4`,
+          [nextFailedAttempts, shouldLock, lockUntil, user.id]
+        );
 
       await pool.query(
         `INSERT INTO platform_audit_logs (actor_user_id, seller_id, action_key, detail)
