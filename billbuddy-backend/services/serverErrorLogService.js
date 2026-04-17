@@ -38,6 +38,48 @@ function sanitizeValue(value, depth = 0) {
   return String(value);
 }
 
+function parseUserAgent(userAgent = "") {
+  const ua = String(userAgent || "");
+  const lower = ua.toLowerCase();
+
+  let browserName = "Unknown";
+  let browserVersion = "";
+  if (lower.includes("edg/")) {
+    browserName = "Edge";
+    browserVersion = (ua.match(/edg\/([0-9.]+)/i) || [])[1] || "";
+  } else if (lower.includes("chrome/") && !lower.includes("edg/")) {
+    browserName = "Chrome";
+    browserVersion = (ua.match(/chrome\/([0-9.]+)/i) || [])[1] || "";
+  } else if (lower.includes("safari/") && lower.includes("version/") && !lower.includes("chrome/")) {
+    browserName = "Safari";
+    browserVersion = (ua.match(/version\/([0-9.]+)/i) || [])[1] || "";
+  } else if (lower.includes("firefox/")) {
+    browserName = "Firefox";
+    browserVersion = (ua.match(/firefox\/([0-9.]+)/i) || [])[1] || "";
+  }
+
+  let osName = "Unknown";
+  if (lower.includes("android")) osName = "Android";
+  else if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ios")) osName = "iOS";
+  else if (lower.includes("mac os") || lower.includes("macintosh")) osName = "macOS";
+  else if (lower.includes("windows")) osName = "Windows";
+  else if (lower.includes("linux")) osName = "Linux";
+
+  let deviceType = "desktop";
+  if (lower.includes("ipad") || (lower.includes("android") && !lower.includes("mobile"))) {
+    deviceType = "tablet";
+  } else if (lower.includes("mobile") || lower.includes("iphone") || lower.includes("android")) {
+    deviceType = "mobile";
+  }
+
+  return {
+    browserName,
+    browserVersion,
+    osName,
+    deviceType
+  };
+}
+
 async function logServerError({
   actorUserId = null,
   sellerId = null,
@@ -48,10 +90,16 @@ async function logServerError({
   message = "Server error",
   stack = "",
   requestId = "",
+  ip = "",
+  origin = "",
+  referer = "",
+  userAgent = "",
+  loginId = "",
   query = {},
   body = {}
 } = {}) {
   try {
+    const uaMeta = parseUserAgent(userAgent);
     const detail = {
       source: String(source || "api"),
       method: String(method || "").toUpperCase(),
@@ -60,6 +108,15 @@ async function logServerError({
       message: String(message || "Server error"),
       stack: String(stack || "").slice(0, 4000),
       requestId: String(requestId || ""),
+      ip: String(ip || ""),
+      origin: String(origin || ""),
+      referer: String(referer || ""),
+      userAgent: String(userAgent || "").slice(0, 600),
+      browserName: uaMeta.browserName,
+      browserVersion: uaMeta.browserVersion,
+      osName: uaMeta.osName,
+      deviceType: uaMeta.deviceType,
+      loginId: String(loginId || "").slice(0, 140),
       query: sanitizeValue(query),
       body: sanitizeValue(body)
     };
@@ -77,4 +134,3 @@ async function logServerError({
 module.exports = {
   logServerError
 };
-

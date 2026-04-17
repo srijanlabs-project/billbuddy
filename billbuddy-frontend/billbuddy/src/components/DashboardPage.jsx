@@ -473,19 +473,24 @@ export default function DashboardPage(props) {
             </div>
             <table className="data-table">
               <thead>
-                <tr><th>Time</th><th>Path</th><th>Message</th><th>Actor</th><th>Seller</th></tr>
+                <tr><th>Time</th><th>Path</th><th>Message</th><th>Browser</th><th>Device</th><th>IP</th><th>Login ID</th><th>Actor</th><th>Seller</th></tr>
               </thead>
               <tbody>
                 {recentServerErrors.length === 0 ? (
-                  <tr><td colSpan={5}>No server errors logged recently.</td></tr>
+                  <tr><td colSpan={9}>No server errors logged recently.</td></tr>
                 ) : recentServerErrors.map((entry) => {
                   const detail = entry?.detail || {};
                   const createdAt = entry?.created_at ? new Date(entry.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "-";
+                  const browser = [detail.browserName || "-", detail.browserVersion || ""].join(" ").trim();
                   return (
                     <tr key={entry.id}>
                       <td>{createdAt}</td>
                       <td>{detail.path || "-"}</td>
                       <td>{detail.message || "-"}</td>
+                      <td>{browser || "-"}</td>
+                      <td>{detail.deviceType || "-"}</td>
+                      <td>{detail.ip || "-"}</td>
+                      <td>{detail.loginId || "-"}</td>
                       <td>{entry.actor_name || "-"}</td>
                       <td>{entry.seller_name || "-"}</td>
                     </tr>

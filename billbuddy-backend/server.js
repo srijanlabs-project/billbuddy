@@ -32,6 +32,28 @@ const app = express();
 const authRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
 const otpRequestRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 5 });
 
+function resolveLoginId(req) {
+  const body = req?.body || {};
+  const path = String(req?.originalUrl || req?.url || "").toLowerCase();
+  const isAuthPath = path.includes("/auth/login") || path.includes("/mobile-auth/login");
+  if (!isAuthPath) return "";
+  const candidate = body.mobile || body.email || body.username || body.loginId || "";
+  return String(candidate || "").trim();
+}
+
+function getRequestClientMeta(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  const realIp = String(req.headers["x-real-ip"] || "").trim();
+  return {
+    requestId: String(req.headers["x-request-id"] || req.headers["x-correlation-id"] || ""),
+    ip: forwardedFor || realIp || req.ip || "",
+    origin: String(req.headers.origin || ""),
+    referer: String(req.headers.referer || req.headers.referrer || ""),
+    userAgent: String(req.headers["user-agent"] || ""),
+    loginId: resolveLoginId(req)
+  };
+}
+
 app.use(cors(buildCorsOptions()));
 app.use(basicSecurityHeaders);
 app.use(express.json({ limit: "10mb" }));
@@ -51,6 +73,7 @@ app.use((req, res, next) => {
       path: req.originalUrl || req.url || "",
       statusCode: res.statusCode,
       message: payload?.message || payload?.error || "Server error response",
+      ...getRequestClientMeta(req),
       query: req.query || {},
       body: req.body || {}
     });
@@ -114,6 +137,7 @@ app.use((error, req, res, _next) => {
       statusCode: Number(error?.statusCode || 500),
       message: error?.message || "Something went wrong",
       stack: error?.stack || "",
+      ...getRequestClientMeta(req),
       query: req.query || {},
       body: req.body || {}
     });
