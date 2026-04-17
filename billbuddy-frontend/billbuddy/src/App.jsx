@@ -2900,6 +2900,7 @@ function PublicLoginPage({
   loginForm,
   setupForm,
   rememberMe,
+  loginSubmitting,
   infoMessage,
   errorMessage,
   onLoginFormChange,
@@ -3037,8 +3038,8 @@ function PublicLoginPage({
                   </button>
                 </div>
                 {infoMessage && <div className="notice info">{infoMessage}</div>}
-                <button type="submit" className="auth-submit-btn">
-                  {"Sign In ->"}
+                <button type="submit" className="auth-submit-btn" disabled={Boolean(loginSubmitting)}>
+                  {loginSubmitting ? "Signing In..." : "Sign In ->"}
                 </button>
                 <div className="auth-panel-meta">
                   <span>Trusted by growing sellers & teams</span>
@@ -3511,6 +3512,7 @@ function App() {
   const [successNotice, setSuccessNotice] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [cookieConsent, setCookieConsent] = useState(getStoredCookieConsent);
@@ -5054,6 +5056,7 @@ function App() {
     event.preventDefault();
     setError("");
     setAuthNotice("");
+    setLoginSubmitting(true);
     try {
       const submittedMobile = String(loginForm.mobile || "").trim();
       const result = await apiFetch("/api/auth/login", {
@@ -5070,6 +5073,8 @@ function App() {
       } else {
         setError(err.message);
       }
+    } finally {
+      setLoginSubmitting(false);
     }
   }
 
@@ -6945,16 +6950,17 @@ function App() {
   if (!auth?.token && bootstrapRequired) {
     return (
       <>
-        <PublicLoginPage
-          bootstrapRequired
-          bootstrapHint={false}
-          loginForm={loginForm}
-          setupForm={setupForm}
-          rememberMe={rememberMe}
-          infoMessage={authNotice}
-          errorMessage={error}
-          onLoginFormChange={setLoginForm}
-          onSetupFormChange={setSetupForm}
+          <PublicLoginPage
+            bootstrapRequired
+            bootstrapHint={false}
+            loginForm={loginForm}
+            setupForm={setupForm}
+            rememberMe={rememberMe}
+            loginSubmitting={loginSubmitting}
+            infoMessage={authNotice}
+            errorMessage={error}
+            onLoginFormChange={setLoginForm}
+            onSetupFormChange={setSetupForm}
           onRememberMeChange={setRememberMe}
           onLogin={handleLogin}
           onBootstrapAdmin={handleBootstrapAdmin}
@@ -7051,16 +7057,17 @@ function App() {
   if (!auth?.token) {
     return (
       <>
-        <PublicLoginPage
-          bootstrapRequired={Boolean(bootstrapRequired)}
-          bootstrapHint={false}
-          loginForm={loginForm}
-          setupForm={setupForm}
-          rememberMe={rememberMe}
-          infoMessage={authNotice}
-          errorMessage={error}
-          onLoginFormChange={setLoginForm}
-          onSetupFormChange={setSetupForm}
+          <PublicLoginPage
+            bootstrapRequired={Boolean(bootstrapRequired)}
+            bootstrapHint={false}
+            loginForm={loginForm}
+            setupForm={setupForm}
+            rememberMe={rememberMe}
+            loginSubmitting={loginSubmitting}
+            infoMessage={authNotice}
+            errorMessage={error}
+            onLoginFormChange={setLoginForm}
+            onSetupFormChange={setSetupForm}
           onRememberMeChange={setRememberMe}
           onLogin={handleLogin}
           onBootstrapAdmin={handleBootstrapAdmin}
