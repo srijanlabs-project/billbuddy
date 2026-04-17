@@ -194,9 +194,6 @@ function createDefaultResponsiveConfiguration() {
   return {
     quotationColumns: [
       { id: "col-material", key: "material_name", label: "Material", type: "text", options: [], required: true, visibleInForm: true },
-      { id: "col-thickness", key: "thickness", label: "Thickness", type: "text", options: [], required: false, visibleInForm: true },
-      { id: "col-width", key: "width", label: "Width", type: "number", options: [], required: false, visibleInForm: true },
-      { id: "col-height", key: "height", label: "Height", type: "number", options: [], required: false, visibleInForm: true },
       { id: "col-quantity", key: "quantity", label: "Quantity", type: "number", options: [], required: true, visibleInForm: true },
       { id: "col-rate", key: "rate", label: "Rate", type: "number", options: [], required: true, visibleInForm: true },
       { id: "col-amount", key: "amount", label: "Amount", type: "formula", options: [], required: false, visibleInForm: false }

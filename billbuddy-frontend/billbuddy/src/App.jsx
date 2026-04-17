@@ -575,7 +575,7 @@ const PLATFORM_MODULE_META = {
 };
 
 const SUPPORTED_CATALOGUE_FIELD_META = {
-  material_name: { formKey: "materialName", label: "Product / Service Name", inputType: "text", required: true },
+  material_name: { formKey: "materialName", label: "Material Name", inputType: "text", required: true },
   material_group: { formKey: "materialGroup", label: "Material Group", inputType: "text" },
   category: { formKey: "category", label: "Category", inputType: "text", required: true },
   color_name: { formKey: "colorName", label: "Colour Name", inputType: "text" },
@@ -1870,20 +1870,16 @@ function createDefaultSellerConfiguration(seller) {
       { id: "cat-material-name", displayOrder: 1, key: "material_name", label: "Material Name", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true },
       { id: "cat-category", displayOrder: 2, key: "category", label: "Category", type: "dropdown", options: [], required: true, visibleInList: true, uploadEnabled: true },
       { id: "cat-sku", displayOrder: 3, key: "sku", label: "SKU ID", type: "text", options: [], required: true, visibleInList: true, uploadEnabled: true },
-      { id: "cat-thickness", displayOrder: 4, key: "thickness", label: "Thickness", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true },
-      { id: "cat-colour", displayOrder: 5, key: "colour", label: "Colour", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true },
-      { id: "cat-base-price", displayOrder: 6, key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true },
-      { id: "cat-limit-rate-edit", displayOrder: 7, key: "limit_rate_edit", label: "Limit Rate Edit", type: "checkbox", options: [], required: false, visibleInList: false, uploadEnabled: false },
-      { id: "cat-max-discount", displayOrder: 8, key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false }
+      { id: "cat-size", displayOrder: 4, key: "size", label: "Size", type: "text", options: [], required: false, visibleInList: true, uploadEnabled: true },
+      { id: "cat-base-price", displayOrder: 5, key: "base_price", label: "Base Price", type: "number", options: [], required: true, visibleInList: true, uploadEnabled: true },
+      { id: "cat-limit-rate-edit", displayOrder: 6, key: "limit_rate_edit", label: "Limit Rate Edit", type: "checkbox", options: [], required: false, visibleInList: false, uploadEnabled: false },
+      { id: "cat-max-discount", displayOrder: 7, key: "max_discount_percent", label: "Max Discount Limit", type: "text", options: [], required: false, visibleInList: false, uploadEnabled: false }
     ],
     quotationColumns: [
         { id: "col-material", displayOrder: 1, key: "material_name", label: "Material", type: "text", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, categoryVisibility: [] },
-        { id: "col-thickness", displayOrder: 2, key: "thickness", label: "Thickness", type: "text", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: false, categoryVisibility: [] },
-        { id: "col-width", displayOrder: 3, key: "width", label: "Width", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
-        { id: "col-height", displayOrder: 4, key: "height", label: "Height", type: "number", options: [], definition: "", formulaExpression: "", required: false, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
-        { id: "col-quantity", displayOrder: 5, key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
-        { id: "col-rate", displayOrder: 6, key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
-        { id: "col-amount", displayOrder: 7, key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "width * height * quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] }
+        { id: "col-quantity", displayOrder: 2, key: "quantity", label: "Quantity", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-rate", displayOrder: 3, key: "rate", label: "Rate", type: "number", options: [], definition: "", formulaExpression: "", required: true, visibleInForm: true, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] },
+        { id: "col-amount", displayOrder: 4, key: "amount", label: "Amount", type: "formula", options: [], definition: "Calculated line amount", formulaExpression: "quantity * rate", required: false, visibleInForm: false, visibleInPdf: true, helpTextInPdf: false, includedInCalculation: true, categoryVisibility: [] }
       ]
     };
 }
