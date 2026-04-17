@@ -382,6 +382,7 @@ export default function DashboardPage(props) {
     formatDateIST,
     quotations,
     notifications = [],
+    serverErrors = [],
     dashboardData,
     QUICK_ACTIONS,
     openQuotationWizard,
@@ -405,6 +406,8 @@ export default function DashboardPage(props) {
   if (activeModule !== "Dashboard") return null;
 
   if (isPlatformAdmin) {
+    const recentServerErrors = Array.isArray(serverErrors) ? serverErrors.slice(0, 10) : [];
+
     return (
       <main className="dashboard-grid platform-dashboard-pro">
         <section className="main-column platform-dashboard-main">
@@ -462,6 +465,35 @@ export default function DashboardPage(props) {
               <h3>{formatCurrency(quotations.reduce((sum, row) => sum + Number(row.total_amount || 0), 0))}</h3>
             </article>
           </div>
+
+          <section className="glass-panel table-card platform-sellers-table-card">
+            <div className="section-head">
+              <h3>Recent Server Errors</h3>
+              <span>{recentServerErrors.length} logged</span>
+            </div>
+            <table className="data-table">
+              <thead>
+                <tr><th>Time</th><th>Path</th><th>Message</th><th>Actor</th><th>Seller</th></tr>
+              </thead>
+              <tbody>
+                {recentServerErrors.length === 0 ? (
+                  <tr><td colSpan={5}>No server errors logged recently.</td></tr>
+                ) : recentServerErrors.map((entry) => {
+                  const detail = entry?.detail || {};
+                  const createdAt = entry?.created_at ? new Date(entry.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "-";
+                  return (
+                    <tr key={entry.id}>
+                      <td>{createdAt}</td>
+                      <td>{detail.path || "-"}</td>
+                      <td>{detail.message || "-"}</td>
+                      <td>{entry.actor_name || "-"}</td>
+                      <td>{entry.seller_name || "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
 
           <section className="glass-panel table-card platform-sellers-table-card">
             <div className="section-head">

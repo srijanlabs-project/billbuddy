@@ -1204,6 +1204,7 @@ async function initializeDatabase() {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_quotation_approval_reasons_request ON quotation_approval_reasons(approval_request_id)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_mobile_audit_logs_user_created ON mobile_audit_logs(user_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_actor_created ON platform_audit_logs(actor_user_id, created_at DESC)`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_platform_audit_logs_action_created ON platform_audit_logs(action_key, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_customer_audit_logs_customer_created ON customer_audit_logs(customer_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_customer_audit_logs_seller_created ON customer_audit_logs(seller_id, created_at DESC)`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_rbac_roles_scope_order ON rbac_roles(scope, display_order, id)`);

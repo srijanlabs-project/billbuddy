@@ -3579,6 +3579,7 @@ function App() {
   const [goLiveGateSavingId, setGoLiveGateSavingId] = useState(null);
   const [leads, setLeads] = useState([]);
   const [usageOverview, setUsageOverview] = useState(null);
+  const [serverErrors, setServerErrors] = useState([]);
   const [decodeRules, setDecodeRules] = useState({
     customer_line: 1,
     mobile_line: 2,
@@ -4130,7 +4131,7 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse, footerBannerResponse] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse, footerBannerResponse, serverErrorResponse] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
@@ -4140,7 +4141,8 @@ function App() {
         apiFetch("/api/security-gates").catch(() => []),
         apiFetch("/api/formulas").catch(() => ({ formulas: [] })),
         apiFetch("/api/formulas/unit-conversions").catch(() => ({ unitConversions: [] })),
-        apiFetch("/api/formulas/footer-banners").catch(() => ({ footerBanners: [] }))
+        apiFetch("/api/formulas/footer-banners").catch(() => ({ footerBanners: [] })),
+        apiFetch("/api/dashboard/server-errors?limit=50").catch(() => ({ errors: [] }))
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -4152,6 +4154,7 @@ function App() {
       setPlatformFormulaRules(Array.isArray(formulaResponse?.formulas) ? formulaResponse.formulas : []);
       setPlatformUnitConversions(Array.isArray(unitConversionResponse?.unitConversions) ? unitConversionResponse.unitConversions : []);
       setPlatformFooterBanners(Array.isArray(footerBannerResponse?.footerBanners) ? footerBannerResponse.footerBanners : []);
+      setServerErrors(Array.isArray(serverErrorResponse?.errors) ? serverErrorResponse.errors : []);
     } catch (err) {
       handleApiError(err);
     }
@@ -7746,6 +7749,7 @@ function App() {
             quotations={quotations}
             customers={customers}
             notifications={notifications}
+            serverErrors={serverErrors}
             dashboardData={dashboardData}
             QUICK_ACTIONS={QUICK_ACTIONS}
             openQuotationWizard={openQuotationWizardWithSetupGuard}

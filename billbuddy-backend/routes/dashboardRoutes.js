@@ -1,6 +1,6 @@
 const express = require("express");
 const pool = require("../db/db");
-const { getTenantId } = require("../middleware/auth");
+const { getTenantId, requirePlatformAdmin } = require("../middleware/auth");
 const { PERMISSIONS, requirePermission } = require("../rbac/permissions");
 const { buildConfiguredQuotationItemTitle, normalizeItemDisplayConfig } = require("../services/quotationViewService");
 
@@ -394,6 +394,43 @@ router.get("/summary", requirePermission(PERMISSIONS.DASHBOARD_VIEW), async (req
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/server-errors", requirePlatformAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(10, Number(req.query.limit || 50)));
+    const result = await pool.query(
+      `SELECT
+         pal.id,
+         pal.created_at,
+         pal.detail,
+         pal.actor_user_id,
+         pal.seller_id,
+         actor.name AS actor_name,
+         seller.name AS seller_name
+       FROM platform_audit_logs pal
+       LEFT JOIN users actor ON actor.id = pal.actor_user_id
+       LEFT JOIN sellers seller ON seller.id = pal.seller_id
+       WHERE pal.action_key = 'server_error'
+       ORDER BY pal.created_at DESC, pal.id DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    return res.json({
+      errors: result.rows.map((row) => ({
+        id: row.id,
+        created_at: row.created_at,
+        actor_user_id: row.actor_user_id,
+        actor_name: row.actor_name || null,
+        seller_id: row.seller_id,
+        seller_name: row.seller_name || null,
+        detail: row.detail || {}
+      }))
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || "Unable to fetch server errors" });
   }
 });
 

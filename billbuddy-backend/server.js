@@ -26,6 +26,7 @@ const mobileRoutes = require("./routes/mobileRoutes");
 const { authenticate } = require("./middleware/auth");
 const { basicSecurityHeaders, buildCorsOptions, createRateLimiter } = require("./middleware/security");
 const { initializeDatabase } = require("./utils/initDb");
+const { logServerError } = require("./services/serverErrorLogService");
 
 const app = express();
 const authRateLimiter = createRateLimiter({ windowMs: 15 * 60 * 1000, max: 8 });
@@ -35,6 +36,38 @@ app.use(cors(buildCorsOptions()));
 app.use(basicSecurityHeaders);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use((req, res, next) => {
+  const originalJson = res.json.bind(res);
+  const originalSend = res.send.bind(res);
+
+  function maybeLogResponseError(payload) {
+    if (res.statusCode < 500 || req.__serverErrorLogged) return;
+    req.__serverErrorLogged = true;
+    logServerError({
+      actorUserId: req.user?.id || null,
+      sellerId: req.user?.sellerId || null,
+      source: "response",
+      method: req.method,
+      path: req.originalUrl || req.url || "",
+      statusCode: res.statusCode,
+      message: payload?.message || payload?.error || "Server error response",
+      query: req.query || {},
+      body: req.body || {}
+    });
+  }
+
+  res.json = function patchedJson(payload) {
+    maybeLogResponseError(payload);
+    return originalJson(payload);
+  };
+
+  res.send = function patchedSend(payload) {
+    maybeLogResponseError(typeof payload === "object" ? payload : { message: String(payload || "") });
+    return originalSend(payload);
+  };
+
+  next();
+});
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "BillBuddy API" });
@@ -69,7 +102,22 @@ app.use("/api/leads", leadRoutes);
 app.use("/api/mobile", mobileRoutes);
 app.use("/api/rbac", rbacRoutes);
 
-app.use((error, _req, res, _next) => {
+app.use((error, req, res, _next) => {
+  if (!req.__serverErrorLogged) {
+    req.__serverErrorLogged = true;
+    logServerError({
+      actorUserId: req.user?.id || null,
+      sellerId: req.user?.sellerId || null,
+      source: "error_middleware",
+      method: req.method,
+      path: req.originalUrl || req.url || "",
+      statusCode: Number(error?.statusCode || 500),
+      message: error?.message || "Something went wrong",
+      stack: error?.stack || "",
+      query: req.query || {},
+      body: req.body || {}
+    });
+  }
   res.status(500).json({ message: error.message || "Something went wrong" });
 });
 
