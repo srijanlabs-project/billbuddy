@@ -147,9 +147,26 @@ app.use((error, req, res, _next) => {
 
 const PORT = Number(process.env.PORT || 5000);
 
+function logDbConnectionDetails() {
+  const host = process.env.DB_HOST || "localhost";
+  const port = process.env.DB_PORT || "5432";
+  const database = process.env.DB_NAME || "billbuddy";
+  const user = process.env.DB_USER || "postgres";
+  const ssl = process.env.DB_SSL === "true" ? "enabled" : "disabled";
+
+  if (!process.env.DB_HOST) {
+    console.warn("[DB] WARNING: DB_HOST is not set. Defaulting to 'localhost'. For Railway internal networking, set DB_HOST=quotsy-db.railway.internal");
+  }
+
+  console.log(`[DB] Connecting to host=${host} port=${port} database=${database} user=${user} ssl=${ssl}`);
+}
+
 async function startServer() {
   try {
+    logDbConnectionDetails();
+    console.log("[DB] Starting database initialization...");
     await initializeDatabase();
+    console.log("[DB] Database initialization complete.");
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
