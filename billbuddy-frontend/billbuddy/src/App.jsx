@@ -2462,6 +2462,7 @@ function PublicAcquisitionSignupPage({
   announcement = ""
 }) {
   const isDemoMode = mode === "demo";
+  const createDemoAccount = isDemoMode ? form.createDemoAccount !== false : false;
   const isLeadFlow = !isDemoMode || forceLeadFlow;
   const [showPassword, setShowPassword] = useState(false);
   const categoryKey = isLeadFlow ? "businessType" : "businessCategory";
@@ -2526,6 +2527,21 @@ function PublicAcquisitionSignupPage({
           </label>
         </div>
         {!isLeadFlow ? (
+          <label className="auth-field auth-field-caps">
+            <span>Demo Account</span>
+            <div className="auth-choice-group">
+              <label className="auth-choice-pill">
+                <input type="radio" name={`createDemoAccount-${mode}`} checked={createDemoAccount} onChange={() => onChange("createDemoAccount", true)} />
+                <span>Yes</span>
+              </label>
+              <label className="auth-choice-pill">
+                <input type="radio" name={`createDemoAccount-${mode}`} checked={!createDemoAccount} onChange={() => onChange("createDemoAccount", false)} />
+                <span>No</span>
+              </label>
+            </div>
+          </label>
+        ) : null}
+        {!isLeadFlow && createDemoAccount ? (
           <label className="auth-field auth-field-caps">
             <span>Password</span>
             <div className="auth-input-shell">
@@ -2620,8 +2636,8 @@ function PublicAcquisitionSignupPage({
         ) : null}
         <button type="submit" className="auth-submit-btn" disabled={submitting}>
           {submitting
-            ? (isLeadFlow ? "Submitting lead..." : "Creating demo...")
-            : (isLeadFlow ? "Contact Me" : "Create Demo Account ->")}
+            ? (isLeadFlow ? "Submitting lead..." : (createDemoAccount ? "Creating demo..." : "Submitting details..."))
+            : (isLeadFlow ? "Contact Me" : (createDemoAccount ? "Create Demo Account" : "Submit your details"))}
         </button>
       </form>
     </div>
@@ -3528,11 +3544,14 @@ function App() {
   const [publicLeadForm, setPublicLeadForm] = useState({
     name: "",
     mobile: "",
+    password: "",
     email: "",
     businessName: "",
     city: "",
     businessType: "",
+    businessCategory: "",
     businessSegment: "",
+    createDemoAccount: true,
     wantsSampleData: true,
     requirement: "",
     interestedInDemo: false
@@ -3579,6 +3598,7 @@ function App() {
   const [goLiveGateSavingId, setGoLiveGateSavingId] = useState(null);
   const [leads, setLeads] = useState([]);
   const [usageOverview, setUsageOverview] = useState(null);
+  const [serverErrors, setServerErrors] = useState([]);
   const [decodeRules, setDecodeRules] = useState({
     customer_line: 1,
     mobile_line: 2,
@@ -4009,25 +4029,58 @@ function App() {
     }
   }
 
-  async function handleSubmitPublicLead(event) {
+  async function handleSubmitPublicLead(event, flow = "lead") {
     event.preventDefault();
     try {
       setPublicLeadSubmitting(true);
       setPublicLeadError("");
       setPublicLeadSuccess("");
-      const response = await apiFetch("/api/lead-capture", {
-        method: "POST",
-        body: JSON.stringify(publicLeadForm)
-      });
-      setPublicLeadSuccess(response.message || "Lead submitted successfully.");
+      const shouldCreateDemo = flow === "demo" && publicLeadForm.createDemoAccount !== false;
+      if (shouldCreateDemo && !String(publicLeadForm.password || "").trim()) {
+        setPublicLeadError("Password is required to create demo account.");
+        return;
+      }
+
+      const businessCategoryValue = String(publicLeadForm.businessCategory || publicLeadForm.businessType || "").trim();
+
+      if (shouldCreateDemo) {
+        const response = await apiFetch("/api/auth/demo-signup", {
+          method: "POST",
+          body: JSON.stringify({
+            name: publicLeadForm.name,
+            mobile: publicLeadForm.mobile,
+            password: publicLeadForm.password,
+            email: publicLeadForm.email,
+            businessName: publicLeadForm.businessName,
+            city: publicLeadForm.city,
+            businessCategory: businessCategoryValue,
+            businessSegment: publicLeadForm.businessSegment,
+            wantsSampleData: Boolean(publicLeadForm.wantsSampleData)
+          })
+        });
+        setPublicLeadSuccess(response.message || "Demo account created successfully.");
+      } else {
+        const response = await apiFetch("/api/lead-capture", {
+          method: "POST",
+          body: JSON.stringify({
+            ...publicLeadForm,
+            interestedInDemo: false
+          })
+        });
+        setPublicLeadSuccess(response.message || "Your details has beed Shared");
+      }
+
       setPublicLeadForm({
         name: "",
         mobile: "",
+        password: "",
         email: "",
         businessName: "",
         city: "",
         businessType: "",
+        businessCategory: "",
         businessSegment: "",
+        createDemoAccount: true,
         wantsSampleData: true,
         requirement: "",
         interestedInDemo: false
@@ -4130,7 +4183,7 @@ function App() {
     if (!auth?.user?.isPlatformAdmin) return;
 
     try {
-      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse, footerBannerResponse] = await Promise.all([
+      const [sellerRows, usage, planRows, leadRows, subscriptionRows, notificationRows, gateRows, formulaResponse, unitConversionResponse, footerBannerResponse, serverErrorResponse] = await Promise.all([
         apiFetch("/api/sellers"),
         apiFetch("/api/sellers/usage/overview"),
         apiFetch("/api/plans"),
@@ -4140,7 +4193,8 @@ function App() {
         apiFetch("/api/security-gates").catch(() => []),
         apiFetch("/api/formulas").catch(() => ({ formulas: [] })),
         apiFetch("/api/formulas/unit-conversions").catch(() => ({ unitConversions: [] })),
-        apiFetch("/api/formulas/footer-banners").catch(() => ({ footerBanners: [] }))
+        apiFetch("/api/formulas/footer-banners").catch(() => ({ footerBanners: [] })),
+        apiFetch("/api/dashboard/server-errors?limit=50").catch(() => ({ errors: [] }))
       ]);
       setSellers(sellerRows);
       setUsageOverview(usage);
@@ -4152,6 +4206,7 @@ function App() {
       setPlatformFormulaRules(Array.isArray(formulaResponse?.formulas) ? formulaResponse.formulas : []);
       setPlatformUnitConversions(Array.isArray(unitConversionResponse?.unitConversions) ? unitConversionResponse.unitConversions : []);
       setPlatformFooterBanners(Array.isArray(footerBannerResponse?.footerBanners) ? footerBannerResponse.footerBanners : []);
+      setServerErrors(Array.isArray(serverErrorResponse?.errors) ? serverErrorResponse.errors : []);
     } catch (err) {
       handleApiError(err);
     }
@@ -6979,33 +7034,33 @@ function App() {
   }
 
   if (isPublicLeadPage) {
-    return (
-      <PublicLeadCapturePage
-        form={publicLeadForm}
-        submitting={publicLeadSubmitting}
+      return (
+        <PublicLeadCapturePage
+          form={publicLeadForm}
+          submitting={publicLeadSubmitting}
         successMessage={publicLeadSuccess}
         errorMessage={publicLeadError}
         onChange={updatePublicLeadField}
-        onSubmit={handleSubmitPublicLead}
-        businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
-        getBusinessSegments={getBusinessSegments}
-      />
-    );
+          onSubmit={(event) => handleSubmitPublicLead(event, "lead")}
+          businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
+          getBusinessSegments={getBusinessSegments}
+        />
+      );
   }
 
   if (isPublicDemoPage) {
-    return (
-      <PublicDemoSignupPage
-        form={publicLeadForm}
-        submitting={publicLeadSubmitting}
+      return (
+        <PublicDemoSignupPage
+          form={publicLeadForm}
+          submitting={publicLeadSubmitting}
         successMessage={publicLeadSuccess}
         errorMessage={publicLeadError}
         onChange={updatePublicLeadField}
-        onSubmit={handleSubmitPublicLead}
-        businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
-        getBusinessSegments={getBusinessSegments}
-      />
-    );
+          onSubmit={(event) => handleSubmitPublicLead(event, "demo")}
+          businessCategoryOptions={BUSINESS_CATEGORY_OPTIONS}
+          getBusinessSegments={getBusinessSegments}
+        />
+      );
   }
 
   if (isPublicVisitorHelpPage) {
@@ -7746,6 +7801,7 @@ function App() {
             quotations={quotations}
             customers={customers}
             notifications={notifications}
+            serverErrors={serverErrors}
             dashboardData={dashboardData}
             QUICK_ACTIONS={QUICK_ACTIONS}
             openQuotationWizard={openQuotationWizardWithSetupGuard}
