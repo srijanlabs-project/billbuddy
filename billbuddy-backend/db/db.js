@@ -14,7 +14,10 @@ const pool = new Pool({
   ssl:
     process.env.DB_SSL === "true"
       ? { rejectUnauthorized: false }
-      : false
+      : false,
+  max: 20,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000
 });
 
 module.exports = pool;

@@ -1,7 +1,22 @@
 const pool = require("../db/db");
 const { seedRbacRolesAndPermissions } = require("../services/rbacService");
 
+const DB_INIT_TIMEOUT_MS = 30000;
+
 async function initializeDatabase() {
+  const timeoutPromise = new Promise((_resolve, reject) => {
+    setTimeout(() => {
+      reject(new Error(
+        `Database initialization timed out after ${DB_INIT_TIMEOUT_MS / 1000}s. ` +
+        `Check that DB_HOST (${process.env.DB_HOST || "localhost"}) is reachable and credentials are correct.`
+      ));
+    }, DB_INIT_TIMEOUT_MS);
+  });
+
+  return Promise.race([_initializeDatabaseInternal(), timeoutPromise]);
+}
+
+async function _initializeDatabaseInternal() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS roles (
       id SERIAL PRIMARY KEY,
