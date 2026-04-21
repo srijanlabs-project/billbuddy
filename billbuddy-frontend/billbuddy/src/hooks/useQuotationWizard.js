@@ -62,6 +62,7 @@ export default function useQuotationWizard({
   products,
   customers,
   runtimeCatalogueFields,
+  runtimeQuotationColumns,
   unsupportedRuntimeCatalogueFields,
   unsupportedRuntimeQuotationColumns,
   quotationTemplate,
@@ -140,6 +141,30 @@ export default function useQuotationWizard({
   const quotationWizardSelectedProduct = useMemo(() => {
     return products.find((product) => String(product.id) === String(quotationWizard.itemForm.productId)) || null;
   }, [products, quotationWizard.itemForm.productId]);
+
+  const configuredUnitOptions = useMemo(() => {
+    const allColumns = [...(runtimeQuotationColumns || []), ...(unsupportedRuntimeQuotationColumns || [])];
+    const unitColumn = allColumns.find((column) => String(column?.normalizedKey || column?.key || "").trim().toLowerCase() === "unit");
+    const rawOptions = Array.isArray(unitColumn?.options) ? unitColumn.options : [];
+    return rawOptions
+      .map((option) => String(option || "").trim())
+      .filter(Boolean);
+  }, [runtimeQuotationColumns, unsupportedRuntimeQuotationColumns]);
+
+  useEffect(() => {
+    if (!configuredUnitOptions.length) return;
+    if (String(quotationWizard.itemForm.unit || "").trim()) return;
+    setQuotationWizard((prev) => {
+      if (String(prev.itemForm.unit || "").trim()) return prev;
+      return {
+        ...prev,
+        itemForm: {
+          ...prev.itemForm,
+          unit: configuredUnitOptions[0]
+        }
+      };
+    });
+  }, [configuredUnitOptions, quotationWizard.itemForm.unit]);
 
   function getProductFieldValue(product, fieldKey) {
     if (!product) return "";
