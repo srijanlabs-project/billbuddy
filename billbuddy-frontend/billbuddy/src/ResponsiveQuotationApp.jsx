@@ -1336,15 +1336,19 @@ export default function ResponsiveQuotationApp({
                 {draft.items.map((item, index) => (
                   <article key={item.id} className="rq-item-card">
                     <div>
-                        <strong>{index + 1}. {getQuotationItemTitle(item)}</strong>
+                      <strong>{index + 1}. {getQuotationItemTitle(item)}</strong>
                       <p>{item.note || "No note added"}</p>
+                      <div className="rq-item-card-links">
+                        <button type="button" className="rq-text-link-btn" onClick={() => editItem(item)}>
+                          Edit
+                        </button>
+                        <button type="button" className="rq-text-link-btn rq-text-link-btn-danger" onClick={() => removeItem(item.id)}>
+                          Delete
+                        </button>
+                      </div>
                     </div>
                     <div className="rq-item-card-actions">
                       <span>{formatCurrency(item.total)}</span>
-                      <div className="rq-inline-actions">
-                        <button type="button" className="ghost-btn compact" onClick={() => editItem(item)}>Edit</button>
-                        <button type="button" className="ghost-btn compact danger" onClick={() => removeItem(item.id)}>Remove</button>
-                      </div>
                     </div>
                   </article>
                 ))}

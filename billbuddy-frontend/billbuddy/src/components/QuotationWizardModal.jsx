@@ -628,26 +628,24 @@ export default function QuotationWizardModal(props) {
                         <td>{getQuotationItemQuantityValue(item)}</td>
                         <td>{formatCurrency(getQuotationItemRateValue(item))}</td>
                         <td>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</td>
-                        <td>
+                        <td className="quotation-item-links-cell">
                           <button
                             type="button"
-                            className="ghost-btn quotation-item-action-btn"
+                            className="quotation-item-text-link"
                             onClick={() => startEditQuotationWizardItem(item.id)}
                             aria-label="Edit item"
                             title="Edit item"
                           >
-                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u270E"}</span>
-                            <span className="quotation-item-action-label">Edit item</span>
+                            Edit
                           </button>
                           <button
                             type="button"
-                            className="ghost-btn quotation-item-action-btn quotation-item-action-btn-danger"
+                            className="quotation-item-text-link quotation-item-text-link-danger"
                             onClick={() => handleRemoveQuotationWizardItem(item.id)}
                             aria-label="Remove item"
                             title="Remove item"
                           >
-                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u2715"}</span>
-                            <span className="quotation-item-action-label">Remove item</span>
+                            Delete
                           </button>
                         </td>
                       </tr>
