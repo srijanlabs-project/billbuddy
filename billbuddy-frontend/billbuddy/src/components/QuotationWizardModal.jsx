@@ -609,51 +609,43 @@ export default function QuotationWizardModal(props) {
               {quotationWizard.items.length === 0 ? (
                 <p className="muted">No items added yet.</p>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Category</th>
-                      <th>Qty</th>
-                      <th>Rate</th>
-                      <th>Amount</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotationWizard.items.map((item) => (
-                      <tr key={item.id}>
-                        <td>{getQuotationItemTitle(item)}</td>
-                        <td>{item.category}</td>
-                        <td>{getQuotationItemQuantityValue(item)}</td>
-                        <td>{formatCurrency(getQuotationItemRateValue(item))}</td>
-                        <td>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="ghost-btn quotation-item-action-btn"
-                            onClick={() => startEditQuotationWizardItem(item.id)}
-                            aria-label="Edit item"
-                            title="Edit item"
-                          >
-                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u270E"}</span>
-                            <span className="quotation-item-action-label">Edit item</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="ghost-btn quotation-item-action-btn quotation-item-action-btn-danger"
-                            onClick={() => handleRemoveQuotationWizardItem(item.id)}
-                            aria-label="Remove item"
-                            title="Remove item"
-                          >
-                            <span className="quotation-item-action-icon" aria-hidden="true">{"\u2715"}</span>
-                            <span className="quotation-item-action-label">Remove item</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="quotation-wizard-items-list">
+                  {quotationWizard.items.map((item) => (
+                    <article key={item.id} className="quotation-wizard-item-card">
+                      <div className="quotation-wizard-item-details">
+                        <div className="quotation-wizard-item-topline">
+                          <strong>{getQuotationItemTitle(item)}</strong>
+                          <span>{formatCurrency(getQuotationItemTotalValue({ ...item, total: calculateQuotationWizardItemTotal(item) }))}</span>
+                        </div>
+                        <div className="quotation-wizard-item-meta">
+                          <span><strong>Category:</strong> {item.category || "-"}</span>
+                          <span><strong>Qty:</strong> {getQuotationItemQuantityValue(item)}</span>
+                          <span><strong>Rate:</strong> {formatCurrency(getQuotationItemRateValue(item))}</span>
+                        </div>
+                      </div>
+                      <div className="quotation-wizard-item-links">
+                        <button
+                          type="button"
+                          className="quotation-item-text-link"
+                          onClick={() => startEditQuotationWizardItem(item.id)}
+                          aria-label="Edit item"
+                          title="Edit item"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="quotation-item-text-link quotation-item-text-link-danger"
+                          onClick={() => handleRemoveQuotationWizardItem(item.id)}
+                          aria-label="Remove item"
+                          title="Remove item"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
               )}
             </div>
           </div>
