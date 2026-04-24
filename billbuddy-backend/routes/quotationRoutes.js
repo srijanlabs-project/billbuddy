@@ -2713,21 +2713,47 @@ function buildSimpleQuotationPdf({ quotation, items, template, seller = null, pd
     const noteSectionGap = 8;
     const noteCardPadding = 8;
     const noteTitleHeight = 16;
-    const signatoryHeight = 106;
+    const signatoryHeading = `For ${sellerName}`;
+    const signatoryNote = "This is computer generated quotation.";
+    const signatoryLabel = "Authorised Signatory";
+    const signatoryTextWidth = rightColumnWidth - 16;
+    const signatoryHeadingHeight = Math.max(14, Math.ceil(doc.heightOfString(signatoryHeading, {
+      width: signatoryTextWidth,
+      align: "center",
+      lineGap: 1
+    })));
+    const signatoryNoteHeight = Math.max(12, Math.ceil(doc.heightOfString(signatoryNote, {
+      width: signatoryTextWidth,
+      align: "center",
+      lineGap: 1
+    })));
+    const signatoryLabelHeight = Math.max(12, Math.ceil(doc.heightOfString(signatoryLabel, {
+      width: signatoryTextWidth,
+      align: "center",
+      lineGap: 1
+    })));
+    const signatoryHeight = Math.max(
+      106,
+      16 + signatoryHeadingHeight + 10 + signatoryNoteHeight + 18 + signatoryLabelHeight + 14
+    );
     const signatoryPageY = y;
 
     if (signatoryPageY + signatoryHeight + 12 <= pageBottom) {
       doc.rect(rightColumnX, signatoryPageY, rightColumnWidth, signatoryHeight).fillAndStroke(surface, line);
-      doc.font("Helvetica-Bold").fontSize(9.8).fillColor(dark).text(`For ${sellerName}`, rightColumnX + 8, signatoryPageY + 16, {
-        width: rightColumnWidth - 16,
+      const signatoryHeadingY = signatoryPageY + 16;
+      const signatoryNoteY = signatoryHeadingY + signatoryHeadingHeight + 10;
+      const signatoryLabelY = signatoryPageY + signatoryHeight - signatoryLabelHeight - 14;
+
+      doc.font("Helvetica-Bold").fontSize(9.8).fillColor(dark).text(signatoryHeading, rightColumnX + 8, signatoryHeadingY, {
+        width: signatoryTextWidth,
         align: "center"
       });
-      doc.font("Helvetica").fontSize(8.5).fillColor(muted).text("This is computer generated quotation.", rightColumnX + 8, signatoryPageY + 42, {
-        width: rightColumnWidth - 16,
+      doc.font("Helvetica").fontSize(8.5).fillColor(muted).text(signatoryNote, rightColumnX + 8, signatoryNoteY, {
+        width: signatoryTextWidth,
         align: "center"
       });
-      doc.font("Helvetica-Bold").fontSize(8.8).fillColor(dark).text("Authorised Signatory", rightColumnX + 8, signatoryPageY + signatoryHeight - 18, {
-        width: rightColumnWidth - 16,
+      doc.font("Helvetica-Bold").fontSize(8.8).fillColor(dark).text(signatoryLabel, rightColumnX + 8, signatoryLabelY, {
+        width: signatoryTextWidth,
         align: "center"
       });
     }
