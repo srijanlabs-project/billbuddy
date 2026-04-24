@@ -1041,6 +1041,15 @@ function parseOptionsInput(rawValue) {
     .filter(Boolean);
 }
 
+function getCatalogueFieldByKey(fields = [], fieldKey = "") {
+  const normalizedKey = normalizeHeader(fieldKey);
+  return (fields || []).find((field) => normalizeHeader(field?.key) === normalizedKey) || null;
+}
+
+function getConfiguredCatalogueFieldOptions(fields = [], fieldKey = "") {
+  return getConfiguredOptions(getCatalogueFieldByKey(fields, fieldKey));
+}
+
 function getCustomProductValidationError(fields = [], customFields = {}) {
   for (const field of fields) {
     const value = customFields?.[field.key];
@@ -1207,7 +1216,7 @@ function mapProductRow(row) {
     materialGroup: String(normalized.material_group || normalized.material_type || "").trim() || null,
     colorName: String(normalized.color_name || normalized.colour_name || normalized.colour || normalized.color || "").trim() || null,
     psSupported: toBool(normalized.ps_supported),
-    pricingType: String(normalized.pricing_type || "SFT").trim() || "SFT"
+    pricingType: String(normalized.pricing_type || "").trim() || ""
   };
 }
 
@@ -1229,7 +1238,7 @@ function parseProductTextRows(text) {
         materialGroup: null,
         colorName: null,
         psSupported: false,
-        pricingType: "SFT"
+        pricingType: ""
       };
     })
     .filter((row) => row.materialName);
@@ -1256,7 +1265,7 @@ function validateProductRows(rows) {
       ...row,
       unitType: String(row.unitType || "COUNT").toUpperCase(),
       basePrice: Number(row.basePrice || 0),
-      pricingType: String(row.pricingType || "SFT").toUpperCase(),
+      pricingType: String(row.pricingType || "").trim().toUpperCase(),
       maxDiscountType: parsedDiscountLimit.type,
       rowNumber: index + 1,
       issues
@@ -1567,7 +1576,7 @@ function createInitialSingleProductForm() {
     materialGroup: "",
     colorName: "",
     psSupported: false,
-    pricingType: "SFT",
+    pricingType: "",
     customFields: {}
   };
 }
@@ -4882,6 +4891,19 @@ function App() {
 
     return columns;
   }, [runtimeQuotationColumns, unsupportedRuntimeQuotationColumns]);
+  useEffect(() => {
+    if (!showSingleProductModal || editingProductId) return;
+    const pricingOptions = getConfiguredCatalogueFieldOptions(runtimeCatalogueFields, "pricing_type");
+    if (!pricingOptions.length) return;
+    setSingleProductForm((prev) => {
+      if (String(prev.pricingType || "").trim()) return prev;
+      return {
+        ...prev,
+        pricingType: pricingOptions[0]
+      };
+    });
+  }, [showSingleProductModal, editingProductId, runtimeCatalogueFields]);
+
   const aiSuggestions = useMemo(() => {
     const pending = Number(dashboardData?.pendingOverall || 0);
     const walkin = Number(dashboardData?.totals?.walk_in_sales || 0);
@@ -5609,7 +5631,7 @@ function App() {
         materialGroup: singleProductForm.materialGroup || null,
         colorName: singleProductForm.colorName || null,
         psSupported: Boolean(singleProductForm.psSupported),
-        pricingType: singleProductForm.pricingType || "SFT",
+        pricingType: singleProductForm.pricingType || null,
         customFields: singleProductForm.customFields || {}
       };
 

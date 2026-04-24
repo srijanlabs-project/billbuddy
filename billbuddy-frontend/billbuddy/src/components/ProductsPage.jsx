@@ -224,11 +224,13 @@ export default function ProductsPage(props) {
                 }
 
                 if (field.meta.inputType === "pricing-select") {
+                  const pricingOptions = getConfiguredOptions(field);
                   return (
                     <select key={field.id} value={value} onChange={(e) => updateSingleProductField(field.meta.formKey, e.target.value)} required={Boolean(field.required || field.meta.required)}>
-                      <option value="SFT">{field.label}: SFT</option>
-                      <option value="UNIT">{field.label}: UNIT</option>
-                      <option value="FIXED">{field.label}: FIXED</option>
+                      <option value="">{field.label}</option>
+                      {pricingOptions.map((option) => (
+                        <option key={`${field.id}-${option}`} value={option}>{field.label}: {option}</option>
+                      ))}
                     </select>
                   );
                 }
@@ -312,7 +314,7 @@ export default function ProductsPage(props) {
 
       {showProductPreviewModal && (
         <div className="modal-overlay" onClick={(event) => event.stopPropagation()}>
-          <div className="modal-card glass-panel" onClick={(event) => event.stopPropagation()}>
+          <div className="modal-card modal-full glass-panel" onClick={(event) => event.stopPropagation()}>
             <div className="section-head">
               <h3>Validate Product Upload</h3>
               <button type="button" className="ghost-btn" onClick={() => {

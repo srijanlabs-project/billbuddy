@@ -195,7 +195,7 @@ router.post("/", requirePermission(PERMISSIONS.PRODUCT_CREATE), async (req, res)
 
     const result = await pool.query(
       `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, catalogue_source, limit_rate_edit, max_discount_percent, max_discount_type, custom_fields)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), $17, COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
        RETURNING *`,
       [
         tenantId,
@@ -214,7 +214,7 @@ router.post("/", requirePermission(PERMISSIONS.PRODUCT_CREATE), async (req, res)
         materialGroup || null,
         colorName || null,
         Boolean(psSupported),
-        String(pricingType || "SFT").toUpperCase(),
+        pricingType ? String(pricingType).trim().toUpperCase() : null,
         String(catalogueSource || "primary").toLowerCase(),
         Boolean(limitRateEdit),
         parsedDiscountLimit.value,
@@ -254,7 +254,7 @@ router.post("/bulk", requirePermission(PERMISSIONS.PRODUCT_BULK_UPLOAD), async (
 
       const result = await pool.query(
         `INSERT INTO products (seller_id, material_name, category, base_price, gst_percent, sku, thickness, design_name, inventory_qty, always_available, unit_type, default_width, default_height, material_group, color_name, ps_supported, pricing_type, catalogue_source, limit_rate_edit, max_discount_percent, max_discount_type, custom_fields)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), COALESCE($17, 'SFT'), COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, FALSE), COALESCE($11, 'COUNT'), $12, $13, $14, $15, COALESCE($16, FALSE), $17, COALESCE($18, 'primary'), COALESCE($19, FALSE), COALESCE($20, 0), COALESCE($21, 'percent'), COALESCE($22::jsonb, '{}'::jsonb))
          RETURNING *`,
         [
           tenantId,
@@ -273,7 +273,7 @@ router.post("/bulk", requirePermission(PERMISSIONS.PRODUCT_BULK_UPLOAD), async (
           product.materialGroup || null,
           product.colorName || null,
           Boolean(product.psSupported),
-          String(product.pricingType || "SFT").toUpperCase(),
+          product.pricingType ? String(product.pricingType).trim().toUpperCase() : null,
           String(product.catalogueSource || "primary").toLowerCase(),
           Boolean(product.limitRateEdit),
           parseMaxDiscountLimit(product.maxDiscountPercent, product.maxDiscountType).value,
@@ -397,7 +397,9 @@ router.patch("/:id", requirePermission(PERMISSIONS.PRODUCT_EDIT), async (req, re
         materialGroup ?? existing.material_group,
         colorName ?? existing.color_name,
         psSupported === undefined ? existing.ps_supported : Boolean(psSupported),
-        String(pricingType || existing.pricing_type || "SFT").toUpperCase(),
+        pricingType === undefined
+          ? (existing.pricing_type || null)
+          : (pricingType ? String(pricingType).trim().toUpperCase() : null),
         String(catalogueSource || existing.catalogue_source || "primary").toLowerCase(),
         limitRateEdit === undefined ? existing.limit_rate_edit : Boolean(limitRateEdit),
         parsedDiscountLimit.value,

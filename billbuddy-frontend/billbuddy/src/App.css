@@ -4573,6 +4573,14 @@ button:disabled {
     0 8px 18px rgba(29, 78, 216, 0.28);
 }
 
+.action-btn:visited,
+.action-btn:hover,
+.action-btn:focus,
+.action-btn:active,
+.action-btn:disabled {
+  color: #ffffff;
+}
+
 .kpi-grid {
   display: grid;
   gap: 16px;
@@ -5991,6 +5999,10 @@ button:disabled {
   width: min(100%, 980px);
 }
 
+.modal-full {
+  width: calc(100vw - 48px);
+  max-width: none;
+}
 
 .seller-detail-modal {
   width: min(100%, 1080px);
