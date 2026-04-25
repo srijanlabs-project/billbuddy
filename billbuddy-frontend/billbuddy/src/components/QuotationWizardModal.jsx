@@ -492,13 +492,16 @@ export default function QuotationWizardModal(props) {
                     }
 
                     if (meta.inputType === "unit-select") {
+                      const configuredOptions = Array.isArray(column.options)
+                        ? column.options.map((option) => String(option || "").trim()).filter(Boolean)
+                        : [];
                       return (
                         <div key={column.id}>
                           {renderAutosuggestInput({
                             id: `quotation-unit-${column.id}`,
                             value: quotationWizard.itemForm.unit,
                             onChange: (e) => updateQuotationWizardItemForm("unit", e.target.value),
-                            options: ["mm", "in", "ft", "sft", "nos"],
+                            options: configuredOptions,
                             placeholder: column.label
                           })}
                         </div>

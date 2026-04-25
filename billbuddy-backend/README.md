@@ -37,8 +37,13 @@ Set these environment variables in `.env`:
 - `GST_VALIDATION_METHOD` (default: `GET`)
 - `GST_VALIDATION_QUERY_PARAM` (default: `gstin`)
 - `GST_VALIDATION_TIMEOUT_MS` (default: `12000`)
+- `GST_VALIDATION_AUTH_HEADER` (default: `authorization`)
 - `GST_VALIDATION_AUTHORIZATION` (optional explicit `authorization` header value, e.g. sandbox JWT)
 - `GST_VALIDATION_AUTH_SCHEME` (default: `Bearer`, set `none` to send raw API key)
+- `GST_VALIDATION_SEND_API_KEY_HEADER` (default: `true`, set `false` for Bearer-only providers like GSTZen)
+- `GST_VALIDATION_AUTH_LOGIN_URL` (optional token login URL for providers with short-lived bearer tokens)
+- `GST_VALIDATION_AUTH_USERNAME` (optional username/email for token login)
+- `GST_VALIDATION_AUTH_PASSWORD` (optional password for token login)
 - `GST_VALIDATION_API_VERSION` (optional, sends `x-api-version` header)
 
 Sandbox.co.in example:
@@ -50,6 +55,38 @@ GST_VALIDATION_METHOD=POST
 GST_VALIDATION_AUTHORIZATION=eyJ0eXAiOiJKV1QiLCJhbGc...
 GST_VALIDATION_API_VERSION=1.0
 ```
+
+GSTZen JWT GSTIN Validator example:
+
+```
+GST_VALIDATION_API_URL=https://my.gstzen.in/api/j/gstin-validator/
+GST_VALIDATION_METHOD=POST
+GST_VALIDATION_API_KEY=
+GST_VALIDATION_AUTH_HEADER=authorization
+GST_VALIDATION_AUTHORIZATION=Bearer YOUR_GSTZEN_ACCESS_TOKEN
+GST_VALIDATION_SEND_API_KEY_HEADER=false
+GST_VALIDATION_QUERY_PARAM=gstin
+GST_VALIDATION_TIMEOUT_MS=12000
+```
+
+GSTZen automatic token refresh example:
+
+```
+GST_VALIDATION_API_URL=https://my.gstzen.in/api/j/gstin-validator/
+GST_VALIDATION_METHOD=POST
+GST_VALIDATION_API_KEY=60768c46-ee98-40bb-8b42-f8ea1052c676
+GST_VALIDATION_AUTH_HEADER=authorization
+GST_VALIDATION_AUTH_SCHEME=Bearer
+GST_VALIDATION_SEND_API_KEY_HEADER=false
+GST_VALIDATION_AUTH_LOGIN_URL=https://my.gstzen.in/accounts/api/login/token/
+GST_VALIDATION_AUTH_USERNAME=your-gstzen-login
+GST_VALIDATION_AUTH_PASSWORD=your-gstzen-password
+GST_VALIDATION_QUERY_PARAM=gstin
+GST_VALIDATION_TIMEOUT_MS=12000
+GST_VALIDATION_API_VERSION=1.0
+```
+
+When `GST_VALIDATION_AUTH_LOGIN_URL`, `GST_VALIDATION_AUTH_USERNAME`, and `GST_VALIDATION_AUTH_PASSWORD` are present, the backend automatically fetches and caches a fresh bearer token and retries once on token expiry.
 
 If customer GST is provided during customer creation, backend validates GST first and uses GST legal profile data for customer name/address.
 
