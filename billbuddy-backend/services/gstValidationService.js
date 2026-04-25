@@ -1,5 +1,10 @@
 const DEFAULT_TIMEOUT_MS = 12000;
-const DEFAULT_GST_ENDPOINT = "https://sheet.gstincheck.co.in/check/{api-key}/{gstin-number}";
+const TOKEN_REFRESH_BUFFER_MS = 2 * 60 * 1000;
+const gstAuthTokenCache = {
+  accessToken: "",
+  expiresAt: 0,
+  pendingPromise: null
+};
 
 function normalizeGstNumber(value) {
   return String(value || "").trim().toUpperCase();
@@ -35,7 +40,7 @@ function collectAddressFromParts(parts = []) {
 
 function parseGstProviderPayload(payload = {}) {
   const root = payload || {};
-  const providerData = root.data || root.result || root.taxpayer || root.gstin || root;
+  const providerData = root.data || root.result || root.taxpayer || root.company_details || root.gstin || root;
   const data = providerData && typeof providerData === "object" && providerData.data && typeof providerData.data === "object"
     ? providerData.data
     : providerData;
@@ -52,7 +57,8 @@ function parseGstProviderPayload(payload = {}) {
     data.isValid,
     data.status,
     data.gstinStatus,
-    data.sts
+    data.sts,
+    data.company_status
   ];
   const isValid = validityCandidates.some((entry) => {
     if (entry === true) return true;
@@ -68,7 +74,8 @@ function parseGstProviderPayload(payload = {}) {
     data.business_name,
     root.legal_name,
     root.legalName,
-    root.lgnm
+    root.lgnm,
+    root.company_details?.legal_name
   );
 
   const tradeName = firstNonEmpty(
@@ -77,15 +84,18 @@ function parseGstProviderPayload(payload = {}) {
     data.tradeNam,
     data.trade_name_of_business,
     root.trade_name,
-    root.tradeName
+    root.tradeName,
+    root.company_details?.trade_name
   );
 
   const principalAddressText = firstNonEmpty(
     getNestedValue(data, "pradr.adr"),
     getNestedValue(data, "principalAddress"),
-    data.pradr?.adr
+    data.pradr?.addr,
+    data.pradr?.adr,
+    root.company_details?.pradr?.addr
   );
-  const structuredAddress = data.pradr?.addr || {};
+  const structuredAddress = data.pradr || root.company_details?.pradr || {};
   const address = firstNonEmpty(
     principalAddressText,
     data.address,
@@ -99,9 +109,14 @@ function parseGstProviderPayload(payload = {}) {
       structuredAddress.bn,
       structuredAddress.st,
       structuredAddress.loc,
+      structuredAddress.city,
+      structuredAddress.district,
       structuredAddress.dst,
+      structuredAddress.state_in_address,
       structuredAddress.stcd,
-      structuredAddress.pncd
+      structuredAddress.pncd,
+      structuredAddress.pincode,
+      structuredAddress.pinc
     ])
   );
 
@@ -140,19 +155,167 @@ function appendGstQueryParam(urlInput, gstNumber) {
   return url.toString();
 }
 
-function resolveAuthHeaderValue(apiKey) {
-  const explicitAuthorization = String(
+function decodeJwtPayload(token) {
+  try {
+    const parts = String(token || "").split(".");
+    if (parts.length < 2) return {};
+    const normalized = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    return JSON.parse(Buffer.from(padded, "base64").toString("utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function readExplicitAuthorization() {
+  return String(
     process.env.GST_VALIDATION_AUTHORIZATION
     || process.env.GST_VALIDATION_AUTH_TOKEN
     || ""
   ).trim();
+}
+
+function resolveConfiguredAuthScheme() {
+  return String(process.env.GST_VALIDATION_AUTH_SCHEME || "Bearer").trim() || "Bearer";
+}
+
+function resolveAuthHeaderValue(apiKey, authorizationOverride = "") {
+  const explicitAuthorization = String(authorizationOverride || readExplicitAuthorization()).trim();
   if (explicitAuthorization) return explicitAuthorization;
 
-  const authScheme = String(process.env.GST_VALIDATION_AUTH_SCHEME || "Bearer").trim();
+  const authScheme = resolveConfiguredAuthScheme();
   if (!authScheme || authScheme.toLowerCase() === "none") {
     return apiKey;
   }
   return `${authScheme} ${apiKey}`;
+}
+
+function shouldUseAutoAuthToken() {
+  const loginUrl = String(process.env.GST_VALIDATION_AUTH_LOGIN_URL || "").trim();
+  const username = String(process.env.GST_VALIDATION_AUTH_USERNAME || "").trim();
+  const password = String(process.env.GST_VALIDATION_AUTH_PASSWORD || "").trim();
+  return Boolean(loginUrl && username && password);
+}
+
+async function fetchFreshAuthToken() {
+  const loginUrl = String(process.env.GST_VALIDATION_AUTH_LOGIN_URL || "").trim();
+  const username = String(process.env.GST_VALIDATION_AUTH_USERNAME || "").trim();
+  const password = String(process.env.GST_VALIDATION_AUTH_PASSWORD || "").trim();
+
+  if (!loginUrl || !username || !password) {
+    const error = new Error("GST authentication login is not fully configured");
+    error.statusCode = 500;
+    throw error;
+  }
+
+  const loginResponse = await fetch(loginUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Accept": "application/json"
+    },
+    body: new URLSearchParams({
+      username,
+      password
+    }).toString()
+  });
+
+  const rawText = await loginResponse.text();
+  let payload = {};
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = { message: rawText || "Invalid GST authentication response" };
+  }
+
+  if (!loginResponse.ok) {
+    const error = new Error(firstNonEmpty(payload.detail, payload.message, payload.error, "GST authentication failed"));
+    error.statusCode = loginResponse.status || 502;
+    throw error;
+  }
+
+  const accessToken = firstNonEmpty(payload.access, payload.token, payload.access_token);
+  if (!accessToken) {
+    const error = new Error("GST authentication did not return an access token");
+    error.statusCode = 502;
+    throw error;
+  }
+
+  const tokenPayload = decodeJwtPayload(accessToken);
+  const expiresAt = Number(tokenPayload?.exp || 0) * 1000;
+  gstAuthTokenCache.accessToken = accessToken;
+  gstAuthTokenCache.expiresAt = Number.isFinite(expiresAt) && expiresAt > 0
+    ? expiresAt
+    : Date.now() + (24 * 60 * 60 * 1000);
+
+  return accessToken;
+}
+
+async function getAuthorizationHeaderValue(apiKey, { forceRefresh = false } = {}) {
+  if (shouldUseAutoAuthToken()) {
+    const cachedTokenValid = !forceRefresh
+      && gstAuthTokenCache.accessToken
+      && gstAuthTokenCache.expiresAt - TOKEN_REFRESH_BUFFER_MS > Date.now();
+
+    if (cachedTokenValid) {
+      return resolveAuthHeaderValue(apiKey, `Bearer ${gstAuthTokenCache.accessToken}`);
+    }
+
+    if (!gstAuthTokenCache.pendingPromise) {
+      gstAuthTokenCache.pendingPromise = fetchFreshAuthToken()
+        .finally(() => {
+          gstAuthTokenCache.pendingPromise = null;
+        });
+    }
+
+    const accessToken = await gstAuthTokenCache.pendingPromise;
+    return resolveAuthHeaderValue(apiKey, `Bearer ${accessToken}`);
+  }
+
+  return resolveAuthHeaderValue(apiKey);
+}
+
+async function performGstValidationRequest({ requestUrl, method, apiKey, normalizedGst, signal, forceRefreshAuth = false }) {
+  const apiVersion = String(process.env.GST_VALIDATION_API_VERSION || "").trim();
+  const authHeaderName = String(process.env.GST_VALIDATION_AUTH_HEADER || "authorization").trim().toLowerCase();
+  const headers = {
+    "Accept": "application/json"
+  };
+  if (apiKey && String(process.env.GST_VALIDATION_SEND_API_KEY_HEADER || "true").trim().toLowerCase() !== "false") {
+    headers["x-api-key"] = apiKey;
+  }
+
+  const authorizationValue = await getAuthorizationHeaderValue(apiKey, { forceRefresh: forceRefreshAuth });
+  if (authorizationValue) {
+    headers[authHeaderName] = authorizationValue;
+  }
+  if (apiVersion) {
+    headers["x-api-version"] = apiVersion;
+  }
+  if (method !== "GET") {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const body = method === "GET"
+    ? undefined
+    : JSON.stringify({ gstin: normalizedGst });
+
+  const response = await fetch(requestUrl, {
+    method,
+    headers,
+    body,
+    signal
+  });
+
+  const rawText = await response.text();
+  let payload = {};
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    payload = { message: rawText || "Invalid GST validation response" };
+  }
+
+  return { response, payload };
 }
 
 async function validateAndFetchGstProfile(gstNumber) {
@@ -174,16 +337,22 @@ async function validateAndFetchGstProfile(gstNumber) {
   const endpoint = String(
     process.env.GST_VALIDATION_API_URL
     || process.env.GST_API_URL
-    || DEFAULT_GST_ENDPOINT
+    || ""
   ).trim();
+  if (!endpoint) {
+    const error = new Error("GST validation API URL is not configured");
+    error.statusCode = 500;
+    throw error;
+  }
   const apiKey = String(
     process.env.GST_VALIDATION_API_KEY
     || process.env.GST_API_KEY
     || process.env.GSTINCHECK_API_KEY
     || ""
   ).trim();
-  if (!apiKey) {
-    const error = new Error("GST validation API key is not configured");
+  const explicitAuthorization = readExplicitAuthorization();
+  if (!apiKey && !explicitAuthorization && !shouldUseAutoAuthToken()) {
+    const error = new Error("GST validation credentials are not configured");
     error.statusCode = 500;
     throw error;
   }
@@ -197,41 +366,35 @@ async function validateAndFetchGstProfile(gstNumber) {
   const timer = setTimeout(() => controller.abort(), Number(process.env.GST_VALIDATION_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
 
   try {
-    const apiVersion = String(process.env.GST_VALIDATION_API_VERSION || "").trim();
-    const headers = {
-      "Accept": "application/json",
-      "x-api-key": apiKey,
-      "authorization": resolveAuthHeaderValue(apiKey)
-    };
-    if (apiVersion) {
-      headers["x-api-version"] = apiVersion;
-    }
-    if (method !== "GET") {
-      headers["Content-Type"] = "application/json";
-    }
-
-    const body = method === "GET"
-      ? undefined
-      : JSON.stringify({ gstin: normalizedGst });
-
-    const response = await fetch(requestUrl, {
+    let { response, payload } = await performGstValidationRequest({
+      requestUrl,
       method,
-      headers,
-      body,
+      apiKey,
+      normalizedGst,
       signal: controller.signal
     });
 
-    const rawText = await response.text();
-    let payload = {};
-    try {
-      payload = rawText ? JSON.parse(rawText) : {};
-    } catch {
-      payload = { message: rawText || "Invalid GST validation response" };
+    if (!response.ok && (response.status === 401 || response.status === 403) && shouldUseAutoAuthToken()) {
+      ({ response, payload } = await performGstValidationRequest({
+        requestUrl,
+        method,
+        apiKey,
+        normalizedGst,
+        signal: controller.signal,
+        forceRefreshAuth: true
+      }));
     }
 
     if (!response.ok) {
-      const error = new Error(firstNonEmpty(payload.message, payload.error, "GST validation failed"));
-      error.statusCode = response.status || 502;
+      const upstreamMessage = firstNonEmpty(payload.message, payload.error, "GST validation failed");
+      const error = new Error(upstreamMessage);
+      const upstreamStatus = response.status || 502;
+      if (upstreamStatus === 401 || upstreamStatus === 403) {
+        error.message = "GST validation provider authentication failed. Please verify GST API credentials.";
+        error.statusCode = 502;
+      } else {
+        error.statusCode = upstreamStatus;
+      }
       error.field = "gstNumber";
       throw error;
     }
